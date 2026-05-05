@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, FolderOpen, ChevronDown } from "lucide-react";
 import { HeaderSearchBtn } from "@/app/components/shared/HeaderSearchBtn";
@@ -40,19 +40,25 @@ export function ProjectsOverview() {
     const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
     const actionsRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
-    const { user } = useAuth();
+    const { user, authLoading } = useAuth();
 
-    function reloadProjects() {
+    const reloadProjects = useCallback(() => {
+        if (authLoading) return;
+        if (!user) {
+            setProjects([]);
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         listProjects()
             .then(setProjects)
             .catch(() => setProjects([]))
             .finally(() => setLoading(false));
-    }
+    }, [authLoading, user]);
 
     useEffect(() => {
         void Promise.resolve().then(reloadProjects);
-    }, []);
+    }, [reloadProjects]);
 
     useEffect(() => {
         const handleVisible = () => {
@@ -64,7 +70,7 @@ export function ProjectsOverview() {
             document.removeEventListener("visibilitychange", handleVisible);
             window.removeEventListener("focus", reloadProjects);
         };
-    }, []);
+    }, [reloadProjects]);
 
     useEffect(() => {
         queueMicrotask(() => setSelectedIds([]));
