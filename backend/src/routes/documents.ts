@@ -23,9 +23,15 @@ import {
 } from "../lib/documentVersions";
 import { ensureDocAccess } from "../lib/access";
 import { singleFileUpload } from "../lib/upload";
+import {
+  ALLOWED_DOCUMENT_TYPES,
+  ALLOWED_DOCUMENT_TYPES_LABEL,
+  contentTypeForDocument,
+  decodeTextDocument,
+  isTextDocumentType,
+} from "../lib/documentFormats";
 
 export const documentsRouter = Router();
-const ALLOWED_TYPES = new Set(["pdf", "docx", "doc"]);
 
 // GET /single-documents
 documentsRouter.get("/", requireAuth, async (req, res) => {
@@ -119,6 +125,7 @@ documentsRouter.get("/:documentId/display", requireAuth, async (req, res) => {
 
   const fileType = (doc.file_type as string) ?? "";
   const isDocx = fileType === "docx" || fileType === "doc";
+  const isText = isTextDocumentType(fileType);
 
   // For DOCX, prefer the per-version PDF rendition if one exists.
   const servePath =
@@ -131,7 +138,14 @@ documentsRouter.get("/:documentId/display", requireAuth, async (req, res) => {
       .status(404)
       .json({ detail: "Document not found in storage" });
 
-  if (fileType === "pdf" || (isDocx && active.pdf_storage_path)) {
+  if (isText) {
+    res.setHeader("Content-Type", contentTypeForDocument(fileType));
+    res.setHeader(
+      "Content-Disposition",
+      buildContentDisposition("inline", doc.filename as string),
+    );
+    res.send(Buffer.from(raw));
+  } else if (fileType === "pdf" || (isDocx && active.pdf_storage_path)) {
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
@@ -421,10 +435,7 @@ documentsRouter.post(
       versionSlug,
       file.originalname,
     );
-    const contentType =
-      suffix === "pdf"
-        ? "application/pdf"
-        : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    const contentType = contentTypeForDocument(suffix || doc.file_type);
     try {
       await uploadFile(
         key,
@@ -844,11 +855,11 @@ async function handleDocumentUpload(
   const suffix = filename.includes(".")
     ? filename.split(".").pop()!.toLowerCase()
     : "";
-  if (!ALLOWED_TYPES.has(suffix))
+  if (!ALLOWED_DOCUMENT_TYPES.has(suffix))
     return void res
       .status(400)
       .json({
-        detail: `Unsupported file type: ${suffix}. Allowed: pdf, docx, doc`,
+        detail: `Unsupported file type: ${suffix}. Allowed: ${ALLOWED_DOCUMENT_TYPES_LABEL}`,
       });
 
   const content = file.buffer;
@@ -872,10 +883,7 @@ async function handleDocumentUpload(
   try {
     const docId = doc.id as string;
     const key = storageKey(userId, docId, filename);
-    const contentType =
-      suffix === "pdf"
-        ? "application/pdf"
-        : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    const contentType = contentTypeForDocument(suffix);
     await uploadFile(
       key,
       content.buffer.slice(
@@ -1021,6 +1029,23 @@ async function extractStructureTree(
         page_number: i + 1,
         children: [],
       }));
+    } else if (isTextDocumentType(fileType)) {
+      const text = decodeTextDocument(content);
+      const lines = text.split(/\r?\n/).filter((l) => l.trim());
+      const headingLines =
+        fileType === "md" || fileType === "markdown"
+          ? lines
+              .filter((line) => /^#{1,6}\s+\S/.test(line))
+              .map((line) => line.replace(/^#{1,6}\s+/, ""))
+          : lines;
+      const nodes = headingLines.slice(0, 30).map((line, i) => ({
+        id: `h1-${i}`,
+        title: line.slice(0, 100),
+        level: 1,
+        page_number: null,
+        children: [],
+      }));
+      return nodes.length ? nodes : null;
     } else {
       const mammoth = await import("mammoth");
       const result = await mammoth.extractRawText({

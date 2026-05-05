@@ -11,6 +11,7 @@ import { supabase } from "@/lib/supabase";
  */
 export type DocResult =
     | { type: "pdf"; buffer: ArrayBuffer }
+    | { type: "text"; text: string; markdown: boolean }
     | { type: "docx" }
     | null;
 
@@ -65,6 +66,15 @@ export function useFetchSingleDoc(
                 if (contentType.includes("application/pdf")) {
                     const buffer = await response.arrayBuffer();
                     if (!cancelled) setResult({ type: "pdf", buffer });
+                } else if (contentType.startsWith("text/")) {
+                    const text = await response.text();
+                    if (!cancelled) {
+                        setResult({
+                            type: "text",
+                            text,
+                            markdown: contentType.includes("markdown"),
+                        });
+                    }
                 } else {
                     // Drain the body so the connection is reusable, but the
                     // bytes are useless to the PDF viewer — the caller will

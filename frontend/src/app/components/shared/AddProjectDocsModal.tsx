@@ -7,6 +7,7 @@ import { getProject, uploadProjectDocument } from "@/app/lib/mikeApi";
 import type { MikeDocument } from "./types";
 import { DocFileIcon } from "./FileDirectory";
 import { VersionChip } from "./VersionChip";
+import { DOCUMENT_UPLOAD_ACCEPT } from "@/app/lib/documentTypes";
 
 interface Props {
     open: boolean;
@@ -253,7 +254,7 @@ export function AddProjectDocsModal({
                         <input
                             ref={fileInputRef}
                             type="file"
-                            accept=".pdf,.docx,.doc"
+                            accept={DOCUMENT_UPLOAD_ACCEPT}
                             multiple
                             className="hidden"
                             onChange={handleUpload}

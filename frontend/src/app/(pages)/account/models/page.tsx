@@ -39,7 +39,7 @@ export default function ModelsAndApiKeysPage() {
                         <TabularModelDropdown
                             value={
                                 profile?.tabularModel ??
-                                "gemini-3-flash-preview"
+                                "gemma4"
                             }
                             apiKeys={{
                                 claudeApiKey: profile?.claudeApiKey ?? null,
@@ -61,14 +61,13 @@ export default function ModelsAndApiKeysPage() {
                     </h2>
                 </div>
                 <p className="text-sm text-gray-500 mb-4 max-w-xl">
-                    You must provide your own API keys for the app to work or
-                    add your API keys into the .env file if you are running your
-                    own instance of Mike.
+                    Gemma 4 runs through Ollama using the backend
+                    OLLAMA_BASE_URL. Hosted Claude and Gemini models require
+                    provider API keys.
                 </p>
                 <p className="text-xs text-gray-400 mb-4 max-w-xl">
-                    Title generation automatically routes to the cheapest model
-                    of whichever provider you&rsquo;ve configured (Gemini Flash
-                    Lite if a Gemini key is set, otherwise Claude Haiku).
+                    Title generation uses Gemma 4 by default, or a configured
+                    hosted provider when you select one that requires a key.
                 </p>
                 <div className="space-y-4 max-w-xl">
                     <ApiKeyField
@@ -105,7 +104,11 @@ function TabularModelDropdown({
     const [isOpen, setIsOpen] = useState(false);
     const selected = MODELS.find((m) => m.id === value);
     const selectedAvailable = isModelAvailable(value, apiKeys);
-    const groups: ("Anthropic" | "Google")[] = ["Anthropic", "Google"];
+    const groups: ("Ollama" | "Anthropic" | "Google")[] = [
+        "Ollama",
+        "Anthropic",
+        "Google",
+    ];
 
     return (
         <DropdownMenu onOpenChange={setIsOpen}>

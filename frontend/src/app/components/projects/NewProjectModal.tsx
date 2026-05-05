@@ -11,6 +11,7 @@ import { useDirectoryData } from "../shared/useDirectoryData";
 import { FileDirectory } from "../shared/FileDirectory";
 import { EmailPillInput } from "../shared/EmailPillInput";
 import type { MikeProject } from "../shared/types";
+import { DOCUMENT_UPLOAD_ACCEPT } from "@/app/lib/documentTypes";
 
 interface Props {
     open: boolean;
@@ -168,6 +169,7 @@ export function NewProjectModal({ open, onClose, onCreated }: Props) {
                                 ref={fileInputRef}
                                 type="file"
                                 multiple
+                                accept={DOCUMENT_UPLOAD_ACCEPT}
                                 className="hidden"
                                 onChange={handleFileChange}
                             />

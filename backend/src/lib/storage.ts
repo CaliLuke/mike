@@ -16,6 +16,8 @@ import {
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl as awsGetSignedUrl } from "@aws-sdk/s3-request-presigner";
+import fs from "fs/promises";
+import path from "path";
 
 function getClient(): S3Client {
   return new S3Client({
@@ -29,6 +31,8 @@ function getClient(): S3Client {
 }
 
 const BUCKET = process.env.R2_BUCKET_NAME ?? "mike";
+const LOCAL_STORAGE_ROOT =
+  process.env.LOCAL_STORAGE_ROOT ?? path.join(process.cwd(), ".local-storage");
 
 export const storageEnabled = Boolean(
   process.env.R2_ENDPOINT_URL &&
@@ -45,6 +49,10 @@ export async function uploadFile(
   content: ArrayBuffer,
   contentType: string,
 ): Promise<void> {
+  if (!storageEnabled) {
+    await writeLocalFile(key, content);
+    return;
+  }
   const client = getClient();
   await client.send(
     new PutObjectCommand({
@@ -61,7 +69,7 @@ export async function uploadFile(
 // ---------------------------------------------------------------------------
 
 export async function downloadFile(key: string): Promise<ArrayBuffer | null> {
-  if (!storageEnabled) return null;
+  if (!storageEnabled) return readLocalFile(key);
   try {
     const client = getClient();
     const response = await client.send(
@@ -80,7 +88,10 @@ export async function downloadFile(key: string): Promise<ArrayBuffer | null> {
 // ---------------------------------------------------------------------------
 
 export async function deleteFile(key: string): Promise<void> {
-  if (!storageEnabled) return;
+  if (!storageEnabled) {
+    await fs.rm(localPathForKey(key), { force: true });
+    return;
+  }
   const client = getClient();
   await client.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
 }
@@ -182,4 +193,35 @@ function storageExtension(filename: string, fallback: string): string {
   if (lastDot < 0) return fallback;
   const ext = filename.slice(lastDot).toLowerCase();
   return /^\.[a-z0-9]{1,16}$/.test(ext) ? ext : fallback;
+}
+
+function localPathForKey(key: string): string {
+  const normalized = path.normalize(key).replace(/^(\.\.(\/|\\|$))+/, "");
+  const fullPath = path.join(LOCAL_STORAGE_ROOT, normalized);
+  const relative = path.relative(LOCAL_STORAGE_ROOT, fullPath);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error("Invalid storage key");
+  }
+  return fullPath;
+}
+
+async function writeLocalFile(
+  key: string,
+  content: ArrayBuffer,
+): Promise<void> {
+  const filePath = localPathForKey(key);
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, Buffer.from(content));
+}
+
+async function readLocalFile(key: string): Promise<ArrayBuffer | null> {
+  try {
+    const bytes = await fs.readFile(localPathForKey(key));
+    return bytes.buffer.slice(
+      bytes.byteOffset,
+      bytes.byteOffset + bytes.byteLength,
+    ) as ArrayBuffer;
+  } catch {
+    return null;
+  }
 }

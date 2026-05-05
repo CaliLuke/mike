@@ -55,6 +55,7 @@ import type {
     MikeProject,
 } from "@/app/components/shared/types";
 import { expandCitationToEntries } from "@/app/components/shared/types";
+import { DOCUMENT_UPLOAD_ACCEPT } from "@/app/lib/documentTypes";
 
 interface Props {
     params: Promise<{ id: string; chatId: string }>;
@@ -863,7 +864,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                     <input
                                         ref={fileInputRef}
                                         type="file"
-                                        accept=".pdf,.docx,.doc"
+                                        accept={DOCUMENT_UPLOAD_ACCEPT}
                                         multiple
                                         className="hidden"
                                         onChange={(e) =>

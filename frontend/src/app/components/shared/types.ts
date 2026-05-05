@@ -32,7 +32,7 @@ export interface MikeDocument {
   project_id: string | null;
   folder_id?: string | null;
   filename: string;
-  file_type: string | null; // pdf | docx | doc
+  file_type: string | null; // pdf | docx | doc | md | markdown | txt
   storage_path: string | null;
   pdf_storage_path: string | null;
   size_bytes: number | null;

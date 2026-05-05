@@ -5,6 +5,7 @@ import { ZoomIn, ZoomOut } from "lucide-react";
 import { MikeIcon } from "@/components/chat/mike-icon";
 import { useFetchSingleDoc } from "@/app/hooks/useFetchSingleDoc";
 import { DocxView } from "./DocxView";
+import { TextDocumentView } from "./TextDocumentView";
 import type { CitationQuote } from "./types";
 import {
     clearHighlights,
@@ -536,6 +537,17 @@ export function DocView({
             <DocxView
                 documentId={doc.document_id}
                 quotes={quotes}
+            />
+        );
+    }
+
+    if (result?.type === "text") {
+        return (
+            <TextDocumentView
+                text={result.text}
+                markdown={result.markdown}
+                rounded={rounded}
+                bordered={bordered}
             />
         );
     }

@@ -14,6 +14,7 @@ import {
 } from "@/app/lib/mikeApi";
 import { FileDirectory } from "../shared/FileDirectory";
 import { BUILT_IN_WORKFLOWS } from "../workflows/builtinWorkflows";
+import { DOCUMENT_UPLOAD_ACCEPT } from "@/app/lib/documentTypes";
 
 interface Props {
     open: boolean;
@@ -485,7 +486,7 @@ export function AddNewTRModal({
                             <input
                                 ref={fileInputRef}
                                 type="file"
-                                accept=".pdf,.docx,.doc"
+                                accept={DOCUMENT_UPLOAD_ACCEPT}
                                 multiple
                                 className="hidden"
                                 onChange={handleUpload}

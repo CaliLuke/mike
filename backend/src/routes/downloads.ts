@@ -4,6 +4,7 @@ import { createServerSupabase } from "../lib/supabase";
 import { buildContentDisposition, downloadFile } from "../lib/storage";
 import { verifyDownload } from "../lib/downloadTokens";
 import { ensureDocAccess } from "../lib/access";
+import { contentTypeForDocument } from "../lib/documentFormats";
 
 export const downloadsRouter = Router();
 
@@ -11,7 +12,11 @@ function contentTypeFor(filename: string): string {
     const lower = filename.toLowerCase();
     if (lower.endsWith(".docx"))
         return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    if (lower.endsWith(".doc")) return "application/msword";
     if (lower.endsWith(".pdf")) return "application/pdf";
+    if (lower.endsWith(".md") || lower.endsWith(".markdown"))
+        return contentTypeForDocument("md");
+    if (lower.endsWith(".txt")) return contentTypeForDocument("txt");
     if (lower.endsWith(".xlsx"))
         return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
     return "application/octet-stream";

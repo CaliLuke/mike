@@ -4,6 +4,7 @@ import { createServerSupabase } from "../lib/supabase";
 import { downloadFile } from "../lib/storage";
 import { loadActiveVersion } from "../lib/documentVersions";
 import { normalizeDocxZipPaths } from "../lib/convert";
+import { decodeTextDocument, isTextDocumentType } from "../lib/documentFormats";
 import {
     runLLMStream,
     TABULAR_TOOLS,
@@ -678,10 +679,10 @@ tabularRouter.post(
             const buf = await downloadFile(docActive.storage_path);
             if (buf) {
                 try {
-                    markdown =
-                        (doc.file_type as string) === "pdf"
-                            ? await extractPdfMarkdown(buf)
-                            : await extractDocxMarkdown(buf);
+                    markdown = await extractDocumentMarkdown(
+                        buf,
+                        doc.file_type as string,
+                    );
                 } catch (err) {
                     console.error(
                         `[regenerate-cell] extraction error doc=${document_id}`,
@@ -801,10 +802,10 @@ tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
                     const buf = await downloadFile(active.storage_path);
                     if (buf) {
                         try {
-                            markdown =
-                                (doc.file_type as string) === "pdf"
-                                    ? await extractPdfMarkdown(buf)
-                                    : await extractDocxMarkdown(buf);
+                            markdown = await extractDocumentMarkdown(
+                                buf,
+                                doc.file_type as string,
+                            );
                         } catch (err) {
                             console.error(
                                 `[tabular/generate] extraction error doc=${docId}`,
@@ -1622,6 +1623,15 @@ async function extractPdfMarkdown(buf: ArrayBuffer): Promise<string> {
     } catch {
         return "";
     }
+}
+
+async function extractDocumentMarkdown(
+    buf: ArrayBuffer,
+    fileType: string,
+): Promise<string> {
+    if (fileType === "pdf") return extractPdfMarkdown(buf);
+    if (isTextDocumentType(fileType)) return decodeTextDocument(buf).trim();
+    return extractDocxMarkdown(buf);
 }
 
 async function extractDocxMarkdown(buf: ArrayBuffer): Promise<string> {

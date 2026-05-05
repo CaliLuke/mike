@@ -15,6 +15,11 @@ import {
 import { buildDownloadUrl } from "./downloadTokens";
 import { attachActiveVersionPaths, loadActiveVersion } from "./documentVersions";
 import {
+    contentTypeForDocument,
+    decodeTextDocument,
+    isTextDocumentType,
+} from "./documentFormats";
+import {
     streamChatWithTools,
     resolveModel,
     DEFAULT_MAIN_MODEL,
@@ -1249,6 +1254,13 @@ async function readDocumentContent(
                     `[read_document] docx mammoth fallback length=${text.length} for filename="${docInfo.filename}"`,
                 );
             }
+        } else if (isTextDocumentType(docInfo.file_type)) {
+            text = decodeTextDocument(raw);
+            if (!text.trim()) text = "";
+            else text = `[Page 1]\n${text}`;
+            console.log(
+                `[read_document] text extracted length=${text.length} for filename="${docInfo.filename}"`,
+            );
         } else {
             console.log(
                 `[read_document] unknown file_type="${docInfo.file_type}" for filename="${docInfo.filename}", trying mammoth`,
@@ -1946,10 +1958,9 @@ export async function runToolCalls(
                                 id: string;
                                 filename: string;
                             }[];
-                            const contentType =
-                                sourceInfo.file_type === "pdf"
-                                    ? "application/pdf"
-                                    : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+                            const contentType = contentTypeForDocument(
+                                sourceInfo.file_type,
+                            );
 
                             // Parallel uploads: the doc bytes (and PDF
                             // rendition if any) for every new copy.

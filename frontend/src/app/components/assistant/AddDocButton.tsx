@@ -9,6 +9,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { uploadStandaloneDocument } from "@/app/lib/mikeApi";
+import { DOCUMENT_UPLOAD_ACCEPT } from "@/app/lib/documentTypes";
 import type { MikeDocument } from "../shared/types";
 
 interface Props {
@@ -44,7 +45,7 @@ export function AddDocButton({ onSelectDoc, onBrowseAll, selectedDocIds = [] }: 
             <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.docx,.doc"
+                accept={DOCUMENT_UPLOAD_ACCEPT}
                 multiple
                 className="hidden"
                 onChange={handleUpload}

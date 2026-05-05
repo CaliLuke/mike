@@ -1,2 +1,2 @@
 [phases.setup]
-nixPkgs = ["libreoffice"]
+nixPkgs = ["nodejs_25", "libreoffice"]
