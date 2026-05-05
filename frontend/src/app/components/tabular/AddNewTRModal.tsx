@@ -14,6 +14,7 @@ import {
     uploadStandaloneDocument,
 } from "@/app/lib/mikeApi";
 import { FileDirectory } from "../shared/FileDirectory";
+import { invalidateDirectoryCache } from "../shared/useDirectoryData";
 import { BUILT_IN_WORKFLOWS } from "../workflows/builtinWorkflows";
 import { DOCUMENT_UPLOAD_ACCEPT } from "@/app/lib/documentTypes";
 
@@ -151,6 +152,7 @@ export function AddNewTRModal({
                 underProject && !selectedProjectId
                     ? await createProject(newProjectName.trim())
                     : undefined;
+            if (createdProject) invalidateDirectoryCache();
             const projectId = createdProject?.id ?? selectedProjectId;
             await onAdd(
                 title.trim(),

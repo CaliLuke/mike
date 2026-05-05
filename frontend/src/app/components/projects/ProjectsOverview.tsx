@@ -42,15 +42,32 @@ export function ProjectsOverview() {
     const router = useRouter();
     const { user } = useAuth();
 
-    useEffect(() => {
+    function reloadProjects() {
+        setLoading(true);
         listProjects()
             .then(setProjects)
             .catch(() => setProjects([]))
             .finally(() => setLoading(false));
+    }
+
+    useEffect(() => {
+        void Promise.resolve().then(reloadProjects);
     }, []);
 
     useEffect(() => {
-        setSelectedIds([]);
+        const handleVisible = () => {
+            if (document.visibilityState === "visible") reloadProjects();
+        };
+        document.addEventListener("visibilitychange", handleVisible);
+        window.addEventListener("focus", reloadProjects);
+        return () => {
+            document.removeEventListener("visibilitychange", handleVisible);
+            window.removeEventListener("focus", reloadProjects);
+        };
+    }, []);
+
+    useEffect(() => {
+        queueMicrotask(() => setSelectedIds([]));
     }, [activeTab]);
 
     useEffect(() => {
