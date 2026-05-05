@@ -130,6 +130,7 @@ export default function TabularReviewsPage() {
         columnsConfig?:
             | import("@/app/components/shared/types").ColumnConfig[]
             | null,
+        createdProject?: MikeProject,
     ) => {
         setCreating(true);
         try {
@@ -139,6 +140,9 @@ export default function TabularReviewsPage() {
                 columns_config: columnsConfig ?? [],
                 ...(projectId && { project_id: projectId }),
             });
+            if (createdProject) {
+                setProjects((prev) => [createdProject, ...prev]);
+            }
             router.push(
                 projectId
                     ? `/projects/${projectId}/tabular-reviews/${review.id}`

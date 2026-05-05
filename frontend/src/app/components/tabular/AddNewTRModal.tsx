@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Check, ChevronDown, Loader2, Upload, X } from "lucide-react";
 import type { MikeDocument, MikeProject, MikeWorkflow } from "../shared/types";
 import {
+    createProject,
     getProject,
     listProjects,
     listStandaloneDocuments,
@@ -24,7 +25,8 @@ interface Props {
         projectId?: string,
         documentIds?: string[],
         columnsConfig?: MikeWorkflow["columns_config"],
-    ) => void;
+        createdProject?: MikeProject,
+    ) => void | Promise<void>;
     projects?: MikeProject[];
     /** When provided, skip the project/directory picker and show only these docs */
     projectDocs?: MikeDocument[];
@@ -45,6 +47,8 @@ export function AddNewTRModal({
     const [title, setTitle] = useState("");
     const [underProject, setUnderProject] = useState(false);
     const [selectedProjectId, setSelectedProjectId] = useState("");
+    const [creatingProjectInline, setCreatingProjectInline] = useState(false);
+    const [newProjectName, setNewProjectName] = useState("");
     const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
 
     // Project-scoped docs (when underProject is true and no fixedProjectDocs)
@@ -62,6 +66,7 @@ export function AddNewTRModal({
         new Set(),
     );
     const [uploading, setUploading] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Workflow templates
@@ -120,6 +125,8 @@ export function AddNewTRModal({
         setTitle("");
         setUnderProject(false);
         setSelectedProjectId("");
+        setCreatingProjectInline(false);
+        setNewProjectName("");
         setProjectDropdownOpen(false);
         setProjectDocs([]);
         setStandaloneDocs([]);
@@ -130,24 +137,38 @@ export function AddNewTRModal({
         onClose();
     }
 
-    function handleSubmit(e: React.FormEvent) {
+    async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
-        if (!title.trim()) return;
-        if (underProject && !selectedProjectId) return;
+        if (!title.trim() || submitting) return;
+        if (underProject && !selectedProjectId && !newProjectName.trim())
+            return;
         const selectedWorkflow = workflows.find(
             (w) => w.id === selectedWorkflowId,
         );
-        onAdd(
-            title.trim(),
-            underProject ? selectedProjectId : undefined,
-            selectedDocIds.size > 0 ? [...selectedDocIds] : undefined,
-            selectedWorkflow?.columns_config ?? undefined,
-        );
-        handleClose();
+        setSubmitting(true);
+        try {
+            const createdProject =
+                underProject && !selectedProjectId
+                    ? await createProject(newProjectName.trim())
+                    : undefined;
+            const projectId = createdProject?.id ?? selectedProjectId;
+            await onAdd(
+                title.trim(),
+                underProject ? projectId : undefined,
+                selectedDocIds.size > 0 ? [...selectedDocIds] : undefined,
+                selectedWorkflow?.columns_config ?? undefined,
+                createdProject,
+            );
+            handleClose();
+        } finally {
+            setSubmitting(false);
+        }
     }
 
     async function handleSelectProject(projectId: string) {
         setSelectedProjectId(projectId);
+        setCreatingProjectInline(false);
+        setNewProjectName("");
         setProjectDropdownOpen(false);
         setProjectDocs([]);
         setSelectedDocIds(new Set());
@@ -162,6 +183,15 @@ export function AddNewTRModal({
         } finally {
             setLoadingDocs(false);
         }
+    }
+
+    function handleSelectNewProject() {
+        setCreatingProjectInline(true);
+        setSelectedProjectId("");
+        setProjectDropdownOpen(false);
+        setProjectDocs([]);
+        setSelectedDocIds(new Set());
+        setLoadingDocs(false);
     }
 
     async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -194,6 +224,7 @@ export function AddNewTRModal({
 
     const selectedProject = projects.find((p) => p.id === selectedProjectId);
     const selectedWorkflow = workflows.find((w) => w.id === selectedWorkflowId);
+    const trimmedNewProjectName = newProjectName.trim();
 
     // What to show in the directory depends on mode and toggle state
     const directoryStandalone = isProjectMode
@@ -213,7 +244,11 @@ export function AddNewTRModal({
         : underProject
           ? loadingDocs
           : loadingDirectory;
-    const showDirectory = isProjectMode || !underProject || !!selectedProjectId;
+    const showDirectory =
+        isProjectMode ||
+        !underProject ||
+        !!selectedProjectId ||
+        creatingProjectInline;
 
     return createPortal(
         <div className="fixed inset-0 z-[101] flex items-center justify-center bg-black/20 backdrop-blur-xs">
@@ -356,6 +391,8 @@ export function AddNewTRModal({
                                     setUnderProject(next);
                                     if (!next) {
                                         setSelectedProjectId("");
+                                        setCreatingProjectInline(false);
+                                        setNewProjectName("");
                                         setProjectDropdownOpen(false);
                                         setProjectDocs([]);
                                         setSelectedDocIds(new Set());
@@ -386,12 +423,16 @@ export function AddNewTRModal({
                                     >
                                         <span
                                             className={
-                                                selectedProject
+                                                selectedProject ||
+                                                creatingProjectInline
                                                     ? "text-gray-800"
                                                     : "text-gray-400"
                                             }
                                         >
-                                            {selectedProject
+                                            {creatingProjectInline
+                                                ? trimmedNewProjectName ||
+                                                  "New project…"
+                                                : selectedProject
                                                 ? selectedProject.name +
                                                   (selectedProject.cm_number
                                                       ? ` (#${selectedProject.cm_number})`
@@ -402,12 +443,22 @@ export function AddNewTRModal({
                                     </button>
                                     {projectDropdownOpen && (
                                         <div className="absolute left-0 top-full z-20 mt-1 w-full rounded-xl border border-gray-100 bg-white shadow-lg overflow-y-auto max-h-48">
-                                            {projects.length === 0 ? (
-                                                <p className="px-3 py-2 text-xs text-gray-400">
-                                                    No projects found
-                                                </p>
-                                            ) : (
-                                                projects.map((p) => (
+                                            <button
+                                                type="button"
+                                                onClick={handleSelectNewProject}
+                                                className={`w-full text-left flex items-center justify-between px-3 py-2 text-sm transition-colors hover:bg-gray-50 ${creatingProjectInline ? "bg-gray-50 text-gray-900" : "text-gray-700"}`}
+                                            >
+                                                <span className="truncate">
+                                                    New project
+                                                </span>
+                                                {creatingProjectInline && (
+                                                    <Check className="h-3.5 w-3.5 text-gray-500 shrink-0" />
+                                                )}
+                                            </button>
+                                            {projects.length > 0 && (
+                                                <div className="border-t border-gray-100" />
+                                            )}
+                                            {projects.map((p) => (
                                                     <button
                                                         key={p.id}
                                                         type="button"
@@ -435,11 +486,21 @@ export function AddNewTRModal({
                                                             <Check className="h-3.5 w-3.5 text-gray-500 shrink-0" />
                                                         )}
                                                     </button>
-                                                ))
-                                            )}
+                                            ))}
                                         </div>
                                     )}
                                 </div>
+                            )}
+                            {underProject && creatingProjectInline && (
+                                <input
+                                    type="text"
+                                    value={newProjectName}
+                                    onChange={(e) =>
+                                        setNewProjectName(e.target.value)
+                                    }
+                                    placeholder="Project name"
+                                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
+                                />
                             )}
                         </div>}
 
@@ -470,7 +531,9 @@ export function AddNewTRModal({
                                         onChange={setSelectedDocIds}
                                         heading={isProjectMode ? "Project Documents" : "Documents"}
                                         emptyMessage={
-                                            isProjectMode || underProject
+                                            creatingProjectInline
+                                                ? "Upload documents after creating the project"
+                                                : isProjectMode || underProject
                                                 ? "No ready documents in this project"
                                                 : "No documents yet"
                                         }
@@ -494,7 +557,10 @@ export function AddNewTRModal({
                             <button
                                 type="button"
                                 onClick={() => fileInputRef.current?.click()}
-                                disabled={uploading}
+                                disabled={
+                                    uploading ||
+                                    (underProject && !selectedProjectId)
+                                }
                                 className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
                             >
                                 {uploading ? (
@@ -517,11 +583,14 @@ export function AddNewTRModal({
                                 type="submit"
                                 disabled={
                                     !title.trim() ||
-                                    (underProject && !selectedProjectId)
+                                    submitting ||
+                                    (underProject &&
+                                        !selectedProjectId &&
+                                        !trimmedNewProjectName)
                                 }
                                 className="rounded-lg bg-gray-900 px-5 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-40 transition-colors"
                             >
-                                Create
+                                {submitting ? "Creating…" : "Create"}
                             </button>
                         </div>
                     </div>
