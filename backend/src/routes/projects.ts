@@ -10,6 +10,7 @@ import { downloadFile, uploadFile, storageKey } from "../lib/storage";
 import { docxToPdf, convertedPdfKey } from "../lib/convert";
 import { checkProjectAccess } from "../lib/access";
 import { singleFileUpload } from "../lib/upload";
+import { sharedWithContains } from "../lib/sharedWith";
 import {
   ALLOWED_DOCUMENT_TYPES,
   ALLOWED_DOCUMENT_TYPES_LABEL,
@@ -37,12 +38,12 @@ projectsRouter.get("/", requireAuth, async (req, res) => {
     ? await db
         .from("projects")
         .select("*")
-        .contains("shared_with", [userEmail])
+        .contains("shared_with", sharedWithContains(userEmail))
         .neq("user_id", userId)
         .order("created_at", { ascending: false })
     : { data: [], error: null };
   if (sharedError)
-    return void res.status(500).json({ detail: sharedError.message });
+    console.warn("[projects] shared projects query failed:", sharedError.message);
 
   const projects = [...(ownProjects ?? []), ...(sharedProjects ?? [])].sort(
     (a, b) =>

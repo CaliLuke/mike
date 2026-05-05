@@ -12,6 +12,7 @@
  */
 
 import type { createServerSupabase } from "./supabase";
+import { sharedWithContains } from "./sharedWith";
 
 type Db = ReturnType<typeof createServerSupabase>;
 
@@ -135,7 +136,7 @@ export async function listAccessibleProjectIds(
             ? db
                   .from("projects")
                   .select("id")
-                  .contains("shared_with", [userEmail])
+                  .contains("shared_with", sharedWithContains(userEmail))
                   .neq("user_id", userId)
             : Promise.resolve({ data: [] as { id: string }[] }),
     ]);

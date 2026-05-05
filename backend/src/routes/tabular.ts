@@ -18,6 +18,7 @@ import {
     ensureReviewAccess,
     listAccessibleProjectIds,
 } from "../lib/access";
+import { sharedWithContains } from "../lib/sharedWith";
 
 function formatPromptSuffix(format?: string, tags?: string[]): string {
     switch (format) {
@@ -105,7 +106,7 @@ tabularRouter.get("/", requireAuth, async (req, res) => {
             ? db
                   .from("tabular_reviews")
                   .select("*")
-                  .contains("shared_with", JSON.stringify([userEmail]))
+                  .contains("shared_with", sharedWithContains(userEmail))
                   .neq("user_id", userId)
                   .order("created_at", { ascending: false })
             : Promise.resolve({
