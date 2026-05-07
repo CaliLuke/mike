@@ -1,0 +1,13 @@
+{
+  "name": "binary-docx-download",
+  "transport": "binary-download",
+  "request": {
+    "method": "GET",
+    "path": "/single-documents/{documentId}/docx?version_id={versionId}"
+  },
+  "response": {
+    "status": 200,
+    "contentTypeIncludes": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  },
+  "notes": "Parameterized golden shape for DOCX byte downloads. Capture with private IDs locally; do not commit document bytes or private IDs."
+}

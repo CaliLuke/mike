@@ -3,6 +3,11 @@ import type {
     StreamChatParams,
     StreamChatResult,
 } from "./types";
+import {
+    completeMockText,
+    mockProviderEnabled,
+    streamMockChat,
+} from "./mock";
 
 type OllamaToolCall = {
     type?: "function";
@@ -87,6 +92,8 @@ async function postChat(body: Record<string, unknown>): Promise<Response> {
 export async function streamOllama(
     params: StreamChatParams,
 ): Promise<StreamChatResult> {
+    if (mockProviderEnabled()) return streamMockChat(params);
+
     const { model, tools = [], callbacks = {}, runTools, enableThinking } = params;
     const maxIter = params.maxIterations ?? 10;
     const messages = toNativeMessages(params);
@@ -189,6 +196,8 @@ export async function completeOllamaText(params: {
     systemPrompt?: string;
     user: string;
 }): Promise<string> {
+    if (mockProviderEnabled()) return completeMockText(params);
+
     const response = await postChat({
         model: params.model,
         messages: [

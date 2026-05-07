@@ -52,6 +52,15 @@ There is currently no dedicated TypeScript test script or test framework configu
 
 For the Loom backend, add Go tests near the package they cover and run `go test ./...` from `backend-go`. Compatibility work should preserve the current REST/SSE contract captured in `LOCAL_JOB_WORKBENCH_MIGRATION_PLAN.md`.
 
+## Quality Gates
+
+- `./check.sh` from `backend-go` runs the full Go backend gate.
+- `./check.sh --fix` from `backend-go` applies goimports and lint autofixes before checking.
+- `make tools` from `backend-go` installs pinned Go gate tools from `tools.go`.
+- `prek run` from the repo root runs the fast staged-file hooks.
+
+Full gates: Rust bridge build when missing, Loom generated-code freshness, Go build, vet, goimports, go mod tidy drift, golangci-lint, deadcode, dupl, gocyclo, govulncheck, race tests, and coverage. Set `COVERAGE_MIN` to override the default 80% floor.
+
 ## Commit & Pull Request Guidelines
 
 Git history is minimal and uses short, imperative summaries, for example `Add local repo contents`. Keep commits focused and use concise subject lines.

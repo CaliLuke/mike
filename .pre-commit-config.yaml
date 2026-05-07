@@ -1,0 +1,30 @@
+# prek-compatible config (drop-in for pre-commit). Install: `brew install prek`.
+# Run once: `prek install` (writes .git/hooks/pre-commit).
+# Manual: `prek run` (staged) | `prek run --all-files`.
+#
+# Fast gates only — runs in seconds on staged files. Full gates live in backend-go/check.sh.
+repos:
+  - repo: local
+    hooks:
+      - id: goimports
+        name: goimports
+        entry: scripts/hooks/goimports-check.sh
+        language: script
+        types: [go]
+        files: ^backend-go/
+
+      - id: go-vet-pkg
+        name: go vet (changed packages)
+        entry: scripts/hooks/go-vet-changed.sh
+        language: script
+        types: [go]
+        files: ^backend-go/
+        pass_filenames: true
+
+      - id: golangci-lint-new
+        name: golangci-lint (new issues)
+        entry: scripts/hooks/golangci-new.sh
+        language: script
+        types: [go]
+        files: ^backend-go/
+        pass_filenames: false

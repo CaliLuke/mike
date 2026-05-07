@@ -1,0 +1,19 @@
+{
+  "name": "json-profile",
+  "transport": "rest-json",
+  "request": {
+    "method": "POST",
+    "path": "/user/profile",
+    "body": {
+      "display_name": "Fixture User",
+      "organisation": "Fixture Org"
+    }
+  },
+  "response": {
+    "status": 200,
+    "contentTypeIncludes": "application/json",
+    "requiredFields": [
+      "ok"
+    ]
+  }
+}

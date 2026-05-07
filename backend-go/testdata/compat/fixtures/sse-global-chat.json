@@ -1,0 +1,43 @@
+{
+  "name": "sse-global-chat",
+  "transport": "sse",
+  "request": {
+    "method": "POST",
+    "path": "/chat",
+    "body": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "Fixture hello"
+        }
+      ],
+      "model": "gemma4"
+    }
+  },
+  "response": {
+    "status": 200,
+    "contentTypeIncludes": "text/event-stream",
+    "allowedEventNames": [
+      "message"
+    ],
+    "requiredPayloadTypes": [
+      "chat_id",
+      "content_delta",
+      "citations",
+      "done"
+    ],
+    "payloadSchemas": {
+      "chat_id": {
+        "type": "string"
+      },
+      "content_delta": {
+        "type": "string",
+        "text": "string"
+      },
+      "citations": {
+        "type": "string",
+        "citations": "array"
+      }
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "name": "sse-tabular-chat",
+  "transport": "sse",
+  "request": {
+    "method": "POST",
+    "path": "/tabular-review/{reviewId}/chat",
+    "body": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "Fixture tabular hello"
+        }
+      ]
+    }
+  },
+  "response": {
+    "status": 200,
+    "contentTypeIncludes": "text/event-stream",
+    "allowedEventNames": [
+      "message"
+    ],
+    "requiredPayloadTypes": [
+      "chat_id",
+      "content_delta",
+      "citations",
+      "done"
+    ],
+    "payloadSchemas": {
+      "chat_id": {
+        "type": "string"
+      },
+      "content_delta": {
+        "type": "string",
+        "text": "string"
+      },
+      "citations": {
+        "type": "string",
+        "citations": "array"
+      }
+    }
+  },
+  "notes": "Parameterized by reviewId. Replayer validates event order after local capture."
+}

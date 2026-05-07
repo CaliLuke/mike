@@ -9,6 +9,11 @@ import type {
     NormalizedToolResult,
 } from "./types";
 import { toClaudeTools } from "./tools";
+import {
+    completeMockText,
+    mockProviderEnabled,
+    streamMockChat,
+} from "./mock";
 
 const RAW_STREAM_LOG_PATH = path.resolve(
     process.cwd(),
@@ -41,6 +46,8 @@ function toNativeMessages(
 export async function streamClaude(
     params: StreamChatParams,
 ): Promise<StreamChatResult> {
+    if (mockProviderEnabled()) return streamMockChat(params);
+
     const {
         model,
         systemPrompt,
@@ -154,6 +161,8 @@ export async function completeClaudeText(params: {
     maxTokens?: number;
     apiKeys?: { claude?: string | null };
 }): Promise<string> {
+    if (mockProviderEnabled()) return completeMockText(params);
+
     const anthropic = client(params.apiKeys?.claude);
     const resp = await anthropic.messages.create({
         model: params.model,

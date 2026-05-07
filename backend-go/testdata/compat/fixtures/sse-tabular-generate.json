@@ -1,0 +1,35 @@
+{
+  "name": "sse-tabular-generate",
+  "transport": "sse",
+  "request": {
+    "method": "POST",
+    "path": "/tabular-review/{reviewId}/generate",
+    "body": {
+      "document_ids": [
+        "{documentId}"
+      ],
+      "column_indices": [
+        0
+      ]
+    }
+  },
+  "response": {
+    "status": 200,
+    "contentTypeIncludes": "text/event-stream",
+    "allowedEventNames": [
+      "message"
+    ],
+    "requiredPayloadTypes": [
+      "cell_update",
+      "done"
+    ],
+    "payloadSchemas": {
+      "cell_update": {
+        "type": "string",
+        "document_id": "string",
+        "status": "string"
+      }
+    }
+  },
+  "notes": "Parameterized by review/document IDs. Replayer validates event order after local capture."
+}

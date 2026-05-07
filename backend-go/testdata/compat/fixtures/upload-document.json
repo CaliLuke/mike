@@ -1,0 +1,22 @@
+{
+  "name": "upload-document",
+  "transport": "multipart-upload",
+  "request": {
+    "method": "POST",
+    "path": "/single-documents",
+    "multipartFields": {
+      "file": "sample.txt"
+    }
+  },
+  "response": {
+    "status": 201,
+    "contentTypeIncludes": "application/json",
+    "requiredFields": [
+      "id",
+      "filename",
+      "file_type",
+      "status"
+    ]
+  },
+  "notes": "Representative upload envelope. Capture scripts should use synthetic files only."
+}

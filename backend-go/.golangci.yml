@@ -1,0 +1,59 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+  skip-dirs:
+    - ^gen$
+    - ^gen/
+    - ^vendor$
+    - ^vendor/
+    - ^internal/persistence/rustbridge/target$
+    - ^internal/persistence/rustbridge/target/
+  skip-files:
+    - _generated\.go$
+
+linters:
+  default: standard
+  enable:
+    - revive
+    - misspell
+    - unconvert
+    - unparam
+    - bodyclose
+    - nilerr
+    - errorlint
+    - rowserrcheck
+    - sqlclosecheck
+  settings:
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+    revive:
+      rules:
+        - name: exported
+          disabled: true
+    errcheck:
+      check-type-assertions: true
+  exclusions:
+    generated: lax
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+          - unparam
+          - unused
+      - path: ^design/
+        text: "ST1001:"
+        linters:
+          - staticcheck
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/CaliLuke/luke/backend-go

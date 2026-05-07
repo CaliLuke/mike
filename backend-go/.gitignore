@@ -1,4 +1,5 @@
 internal/persistence/rustbridge/target/
+coverage.out
 *.a
 *.dylib
 *.so

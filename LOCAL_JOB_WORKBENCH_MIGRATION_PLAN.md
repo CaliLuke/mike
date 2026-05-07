@@ -26,6 +26,7 @@ Checklist
 - [x] Evaluate a narrow in-repo Go driver/binding layer because native Go SDK embedded access is unavailable.
 - [x] Use the Rust SurrealDB driver from Go because the Go-native and C-binding paths did not provide embedded SurrealKV safely.
 - [x] Record the chosen dependency, build flags, local toolchain requirements, and failure modes in `backend-go/docs/persistence-spike.md`.
+- [ ] Ask an independent agent to review the milestone work against the acceptance criteria, then address or explicitly defer each finding before marking the milestone complete.
 
 ### Milestone 1: Compatibility Inventory
 
@@ -40,17 +41,18 @@ Acceptance Criteria
 
 Checklist
 
-- [ ] Generate `docs/api-compatibility-inventory.md` from `backend/src/index.ts`, `backend/src/routes/*.ts`, and `frontend/src/app/lib/mikeApi.ts`.
-- [ ] Record which frontend calls use `/user` and which use `/users`; preserve the unused prefix as a generated alias only.
-- [ ] Include nested project routes in the inventory: `/projects/:projectId/documents`, `/projects/:projectId/folders`, `/projects/:projectId/chats`, and `/projects/:projectId/people`.
-- [ ] Include tabular prompt and chat-title routes in the inventory: `POST /tabular-review/prompt` and `POST /chat/:chatId/generate-title`.
-- [ ] Mark every route as REST JSON, multipart upload, binary download, zip download, redirect/token download, or SSE.
-- [ ] Enumerate the chat tool families currently implemented in `backend/src/lib/chatTools.ts`: document listing/read/search/fetch, document generation, document replication, tracked editing, workflow read/apply, tabular context, citations, and download-card events. List the individual tools within each family so M4 can be expanded into per-tool checklist items.
-- [ ] Add a deterministic mock-provider mode for fixture capture and replay so SSE tests do not depend on live Claude, Gemini, or Ollama output.
-- [ ] Implement mock-provider mode below the LLM provider router by intercepting provider HTTP/local model calls so captured fixtures can replay against the Go backend without reimplementing high-level mocks.
-- [ ] For each SSE route, capture event ordering, event names, and payload schema while ignoring nondeterministic token text and model-specific prose.
-- [ ] Add fixture capture scripts under `backend-go/testdata/compat` that record current Express request/response examples without committing secrets or uploaded private files.
-- [ ] Add a fixture replay script under `backend-go/testdata/compat` that compares status codes, content types, response fields, SSE event names, SSE ordering, and SSE payload schemas.
+- [x] Generate `docs/api-compatibility-inventory.md` from `backend/src/index.ts`, `backend/src/routes/*.ts`, and `frontend/src/app/lib/mikeApi.ts`.
+- [x] Record which frontend calls use `/user` and which use `/users`; preserve the unused prefix as a generated alias only.
+- [x] Include nested project routes in the inventory: `/projects/:projectId/documents`, `/projects/:projectId/folders`, `/projects/:projectId/chats`, and `/projects/:projectId/people`.
+- [x] Include tabular prompt and chat-title routes in the inventory: `POST /tabular-review/prompt` and `POST /chat/:chatId/generate-title`.
+- [x] Mark every route as REST JSON, multipart upload, binary download, zip download, redirect/token download, or SSE.
+- [x] Enumerate the chat tool families currently implemented in `backend/src/lib/chatTools.ts`: document listing/read/search/fetch, document generation, document replication, tracked editing, workflow read/apply, tabular context, citations, and download-card events. List the individual tools within each family so M4 can be expanded into per-tool checklist items.
+- [x] Add a deterministic mock-provider mode for fixture capture and replay so SSE tests do not depend on live Claude, Gemini, or Ollama output.
+- [x] Implement mock-provider mode below the LLM provider router by intercepting provider HTTP/local model calls so captured fixtures can replay against the Go backend without reimplementing high-level mocks.
+- [x] For each SSE route, capture event ordering, event names, and payload schema while ignoring nondeterministic token text and model-specific prose.
+- [x] Add fixture capture scripts under `backend-go/testdata/compat` that record current Express request/response examples without committing secrets or uploaded private files.
+- [x] Add a fixture replay script under `backend-go/testdata/compat` that compares status codes, content types, response fields, SSE event names, SSE ordering, and SSE payload schemas.
+- [x] Ask an independent agent to review the milestone work against the acceptance criteria, then address or explicitly defer each finding before marking the milestone complete.
 
 ### Milestone 2: Loom Backend Contract
 
@@ -64,14 +66,15 @@ Acceptance Criteria
 
 Checklist
 
-- [ ] Create `backend-go/go.mod` with Loom, `github.com/i2y/romancy`, `github.com/alitto/pond`, and test dependencies. Persistence is built via CGO against the in-repo Rust bridge per Milestone 2.5 and is not a Go module dependency.
-- [ ] Add Loom design types matching the current TypeScript response shapes in `frontend/src/app/components/shared/types.ts`.
-- [ ] Add Loom methods for every inventory row, preserving current HTTP methods, path parameters, query parameters, request bodies, and response status codes.
-- [ ] Model `POST /chat`, `POST /projects/:projectId/chat`, `POST /tabular-review/:reviewId/generate`, and `POST /tabular-review/:reviewId/chat` as SSE operations.
-- [ ] Preserve `/user` and `/users` as equivalent route prefixes for profile and account operations.
-- [ ] Generate Loom transport, endpoint, service, client, and OpenAPI code.
-- [ ] Add a `go generate` or script check that runs Loom generation and fails when `git diff --quiet backend-go/gen` is false.
-- [ ] Add a backend README command note for running Loom generation from `backend-go`.
+- [x] Create `backend-go/go.mod` with Loom, `github.com/i2y/romancy`, `github.com/alitto/pond`, and test dependencies. Persistence is built via CGO against the in-repo Rust bridge per Milestone 2.5 and is not a Go module dependency.
+- [x] Add Loom design types matching the current TypeScript response shapes in `frontend/src/app/components/shared/types.ts`.
+- [x] Add Loom methods for every inventory row, preserving current HTTP methods, path parameters, query parameters, request bodies, and response status codes.
+- [x] Model `POST /chat`, `POST /projects/:projectId/chat`, `POST /tabular-review/:reviewId/generate`, and `POST /tabular-review/:reviewId/chat` as SSE operations.
+- [x] Preserve `/user` and `/users` as equivalent route prefixes for profile and account operations.
+- [x] Generate Loom transport, endpoint, service, client, and OpenAPI code.
+- [x] Add a `go generate` or script check that runs Loom generation and fails when `git diff --quiet backend-go/gen` is false.
+- [x] Add a backend README command note for running Loom generation from `backend-go`.
+- [x] Ask an independent agent to review the milestone work against the acceptance criteria, then address or explicitly defer each finding before marking the milestone complete.
 
 ### Milestone 2.5: Persistence Hardening
 
@@ -94,6 +97,7 @@ Checklist
 - [ ] Add a transaction smoke test: begin, write multiple records, roll back, and verify no records persisted.
 - [ ] Add a transaction smoke test: begin, write multiple records, commit, reopen, and verify records persisted.
 - [ ] Track the latest stable Rust `surrealdb` crate at the start of M3, then pin in `Cargo.lock`. Document the pinned version and upgrade procedure in `backend-go/docs/persistence-spike.md`.
+- [ ] Ask an independent agent to review the milestone work against the acceptance criteria, then address or explicitly defer each finding before marking the milestone complete.
 
 ### Milestone 3: Local Data And Storage
 
@@ -135,6 +139,7 @@ Checklist
 - [ ] Add CORS configuration for browser-local development from `http://localhost:3000` and document the later Wails origin separately.
 - [ ] Add repository tests that create records, restart the SurrealDB connection, and read the same records back from a temporary `LUKE_DATA_DIR`.
 - [ ] Run `go test ./...` from `backend-go`.
+- [ ] Ask an independent agent to review the milestone work against the acceptance criteria, then address or explicitly defer each finding before marking the milestone complete.
 
 ### Milestone 4: API-Compatible Backend Behavior
 
@@ -168,10 +173,11 @@ Checklist
 - [ ] Port chat-title generation route `POST /chat/:chatId/generate-title`.
 - [ ] Port workflow list, create, update, delete, hidden-workflow, share-list no-op, share-create no-op, and share-delete no-op behavior from `backend/src/routes/workflows.ts`.
 - [ ] Port built-in workflow definitions from `backend/src/lib/builtinWorkflows.ts`.
-- [ ] Port tabular review, prompt generation, cell generation SSE, clear-cells, chats, messages, and tabular chat SSE behavior from `backend/src/routes/tabular.ts`.
+- [ ] Port tabular review, prompt generation, cell generation SSE, single-cell regeneration, clear-cells, chats, messages, and tabular chat SSE behavior from `backend/src/routes/tabular.ts`.
 - [ ] Port download token behavior from `backend/src/routes/downloads.ts` and `backend/src/lib/downloadTokens.ts`.
 - [ ] Run the fixture replay script against the Loom backend.
 - [ ] Run `go test ./...` from `backend-go`.
+- [ ] Ask an independent agent to review the milestone work against the acceptance criteria, then address or explicitly defer each finding before marking the milestone complete.
 
 ### Milestone 5: Frontend Supabase Removal
 
@@ -204,6 +210,7 @@ Checklist
 - [ ] Run `rg -n "supabase|@supabase|SUPABASE|createServerSupabase" frontend/src frontend/package.json frontend/.env.local.example`.
 - [ ] Run `npm run build --prefix frontend`.
 - [ ] Run `npm run lint --prefix frontend`.
+- [ ] Ask an independent agent to review the milestone work against the acceptance criteria, then address or explicitly defer each finding before marking the milestone complete.
 
 ### Milestone 6: Local Browser Smoke Path
 
@@ -224,6 +231,7 @@ Checklist
 - [ ] Restart the backend and reload the frontend.
 - [ ] Confirm the project, document, chat, workflow, and tabular review are still present after restart.
 - [ ] Record the smoke-test commands and observations in the pull request description.
+- [ ] Ask an independent agent to review the milestone work against the acceptance criteria, then address or explicitly defer each finding before marking the milestone complete.
 
 ### Milestone 7: Wails Feasibility Check
 
@@ -244,3 +252,4 @@ Checklist
 - [ ] Verify macOS arm64 linker flags and prerequisite system libraries for the Rust persistence bridge in a Wails build.
 - [ ] Decide whether release builds require a Rust toolchain on the developer/build machine or consume a prebuilt `libluke_surreal_bridge.a` artifact from CI.
 - [ ] Record SurrealDB Rust crate version and license/distribution notes in the Wails feasibility document.
+- [ ] Ask an independent agent to review the milestone work against the acceptance criteria, then address or explicitly defer each finding before marking the milestone complete.

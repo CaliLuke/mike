@@ -12,13 +12,19 @@ ifeq ($(shell uname -s),Darwin)
   endif
 endif
 
-.PHONY: test clean
+.PHONY: test check tools clean
 
 $(RUST_BRIDGE_LIB): $(RUST_BRIDGE_DIR)/Cargo.toml $(RUST_BRIDGE_DIR)/src/lib.rs
 	cd $(RUST_BRIDGE_DIR) && cargo build --release
 
 test: $(RUST_BRIDGE_LIB)
 	go test ./...
+
+check:
+	./check.sh
+
+tools:
+	go list -tags=tools -f '{{range .Imports}}{{.}}{{"\n"}}{{end}}' . | xargs -n1 go install
 
 clean:
 	rm -rf $(RUST_BRIDGE_DIR)/target
