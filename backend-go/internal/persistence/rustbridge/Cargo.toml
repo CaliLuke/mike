@@ -1,0 +1,12 @@
+[package]
+name = "luke_surreal_bridge"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+surrealdb = { version = "3.0.1", features = ["kv-surrealkv"] }
+tokio = { version = "1", features = ["rt-multi-thread"] }

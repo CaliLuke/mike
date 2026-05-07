@@ -1,0 +1,4 @@
+internal/persistence/rustbridge/target/
+*.a
+*.dylib
+*.so
