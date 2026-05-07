@@ -1,25 +1,30 @@
-use std::ffi::{CStr, c_char};
+use std::ffi::{CStr, CString, c_char, c_int, c_void};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::ptr;
 use std::time::Duration;
 
-use serde::{Deserialize, Serialize};
 use surrealdb::Surreal;
-use surrealdb::engine::local::SurrealKv;
-use surrealdb::types::SurrealValue;
+use surrealdb::engine::local::{Db, SurrealKv};
+use surrealdb::method::Transaction;
+use surrealdb::types::Value;
 
-#[derive(Debug, Serialize, SurrealValue)]
-struct SpikeProject {
-    name: String,
-    status: String,
-    tags: Vec<String>,
+pub struct BridgeHandle {
+    runtime: tokio::runtime::Runtime,
+    db: Option<Surreal<Db>>,
 }
 
-#[derive(Debug, Deserialize, SurrealValue)]
-struct PersistedProject {
-    name: String,
-    status: String,
-    tags: Vec<String>,
+pub struct BridgeTx {
+    runtime: *const tokio::runtime::Runtime,
+    tx: Transaction<Db>,
+}
+
+unsafe extern "C" {
+    fn go_surreal_tx_callback(
+        tx: *mut c_void,
+        body_id: usize,
+        err_buf: *mut c_char,
+        err_len: usize,
+    ) -> c_int;
 }
 
 fn write_error(err_buf: *mut c_char, err_len: usize, message: &str) {
@@ -35,100 +40,234 @@ fn write_error(err_buf: *mut c_char, err_len: usize, message: &str) {
     }
 }
 
-fn run_spike(path: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let runtime = tokio::runtime::Runtime::new()?;
-
-    runtime.block_on(async {
-        let db = Surreal::new::<SurrealKv>(path).await?;
-        db.use_ns("luke").use_db("luke").await?;
-        db.query("DEFINE TABLE spike_project SCHEMALESS")
-            .await?
-            .check()?;
-        let _: Option<PersistedProject> = db
-            .upsert(("spike_project", "first"))
-            .content(SpikeProject {
-                name: "Initial application".to_string(),
-                status: "draft".to_string(),
-                tags: vec!["local".to_string(), "surrealkv".to_string()],
-            })
-            .await?;
-        let _: Option<PersistedProject> = db
-            .update(("spike_project", "first"))
-            .merge(SpikeProject {
-                name: "Initial application".to_string(),
-                status: "submitted".to_string(),
-                tags: vec!["local".to_string(), "surrealkv".to_string()],
-            })
-            .await?;
-        drop(db);
-
-        // Surreal's local engine closes asynchronously after the last client drops.
-        // Give that router task a bounded window to flush and release SurrealKV's lock.
-        let mut reopened = None;
-        let mut last_open_error = None;
-        for _ in 0..20 {
-            match Surreal::new::<SurrealKv>(path).await {
-                Ok(db) => {
-                    reopened = Some(db);
-                    last_open_error = None;
-                    break;
-                }
-                Err(err) => {
-                    last_open_error = Some(err);
-                    tokio::time::sleep(Duration::from_millis(100)).await;
-                }
-            }
-        }
-        let Some(reopened) = reopened else {
-            return Err(last_open_error
-                .expect("reopen error should be set after retry failure")
-                .into());
-        };
-        reopened.use_ns("luke").use_db("luke").await?;
-        let record: Option<PersistedProject> = reopened.select(("spike_project", "first")).await?;
-        let record = record.ok_or("persisted record missing after reopen")?;
-        if record.name != "Initial application" || record.status != "submitted" {
-            return Err(format!("unexpected persisted record: {:?}", record).into());
-        }
-        if record.tags.len() != 2 || record.tags[1] != "surrealkv" {
-            return Err(format!("unexpected persisted tags: {:?}", record.tags).into());
-        }
-
-        let _: Option<PersistedProject> = reopened.delete(("spike_project", "first")).await?;
-        let deleted: Option<PersistedProject> = reopened.select(("spike_project", "first")).await?;
-        if deleted.is_some() {
-            return Err("deleted record is still present".into());
-        }
-
-        Ok(())
-    })
+fn cstr_to_str<'a>(value: *const c_char, name: &str) -> Result<&'a str, String> {
+    if value.is_null() {
+        return Err(format!("{name} is null"));
+    }
+    unsafe { CStr::from_ptr(value) }
+        .to_str()
+        .map_err(|err| format!("{name} is not valid UTF-8: {err}"))
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn luke_surreal_persistence_spike(
-    path: *const c_char,
+fn query_results_to_json(results: surrealdb::IndexedResults) -> surrealdb::Result<String> {
+    let mut results = results.check()?;
+    let mut values = Vec::with_capacity(results.num_statements());
+    for index in 0..results.num_statements() {
+        let value: Value = results.take(index)?;
+        values.push(value.into_json_value());
+    }
+    serde_json::to_string(&values).map_err(|err| surrealdb::Error::internal(err.to_string()))
+}
+
+async fn open_surreal(path: &str) -> surrealdb::Result<Surreal<Db>> {
+    let mut last_error = None;
+    for _ in 0..20 {
+        match Surreal::new::<SurrealKv>(path).await {
+            Ok(db) => {
+                db.use_ns("luke").use_db("luke").await?;
+                return Ok(db);
+            }
+            Err(err) => {
+                last_error = Some(err);
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        }
+    }
+    Err(last_error.expect("open retry failed without recording an error"))
+}
+
+fn set_output_string(out_json: *mut *mut c_char, value: String) -> Result<(), String> {
+    if out_json.is_null() {
+        return Err("out_json is null".to_string());
+    }
+    let c_value = CString::new(value).map_err(|err| format!("query JSON contains NUL: {err}"))?;
+    unsafe {
+        *out_json = c_value.into_raw();
+    }
+    Ok(())
+}
+
+fn catch_ffi(
     err_buf: *mut c_char,
     err_len: usize,
-) -> i32 {
-    let result = catch_unwind(AssertUnwindSafe(|| {
-        if path.is_null() {
-            return Err("path is null".into());
-        }
-        let path = unsafe { CStr::from_ptr(path) }
-            .to_str()
-            .map_err(|err| format!("path is not valid UTF-8: {err}"))?;
-        run_spike(path)
-    }));
-
+    body: impl FnOnce() -> Result<(), String>,
+) -> c_int {
+    let result = catch_unwind(AssertUnwindSafe(body));
     match result {
         Ok(Ok(())) => 0,
         Ok(Err(err)) => {
-            write_error(err_buf, err_len, &err.to_string());
+            write_error(err_buf, err_len, &err);
             1
         }
         Err(_) => {
             write_error(err_buf, err_len, "panic across Rust FFI boundary");
             2
         }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn luke_surreal_open(
+    path: *const c_char,
+    err_buf: *mut c_char,
+    err_len: usize,
+) -> *mut BridgeHandle {
+    let result = catch_unwind(AssertUnwindSafe(|| -> Result<BridgeHandle, String> {
+        let path = cstr_to_str(path, "path")?;
+        let runtime = tokio::runtime::Runtime::new().map_err(|err| err.to_string())?;
+        let db = runtime
+            .block_on(async { open_surreal(path).await })
+            .map_err(|err| err.to_string())?;
+        Ok(BridgeHandle {
+            runtime,
+            db: Some(db),
+        })
+    }));
+
+    match result {
+        Ok(Ok(handle)) => Box::into_raw(Box::new(handle)),
+        Ok(Err(err)) => {
+            write_error(err_buf, err_len, &err);
+            ptr::null_mut()
+        }
+        Err(_) => {
+            write_error(err_buf, err_len, "panic across Rust FFI boundary");
+            ptr::null_mut()
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn luke_surreal_close(
+    handle: *mut BridgeHandle,
+    err_buf: *mut c_char,
+    err_len: usize,
+) -> c_int {
+    catch_ffi(err_buf, err_len, || {
+        if handle.is_null() {
+            return Ok(());
+        }
+        unsafe {
+            let mut handle = Box::from_raw(handle);
+            if let Some(db) = handle.db.take() {
+                drop(db);
+                handle
+                    .runtime
+                    .block_on(async { tokio::time::sleep(Duration::from_millis(500)).await });
+            }
+        }
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn luke_surreal_query(
+    handle: *mut BridgeHandle,
+    query: *const c_char,
+    out_json: *mut *mut c_char,
+    err_buf: *mut c_char,
+    err_len: usize,
+) -> c_int {
+    catch_ffi(err_buf, err_len, || {
+        if handle.is_null() {
+            return Err("handle is null".to_string());
+        }
+        let query = cstr_to_str(query, "query")?;
+        let handle = unsafe { &mut *handle };
+        let db = handle
+            .db
+            .as_ref()
+            .ok_or_else(|| "handle is closed".to_string())?;
+        let json = handle
+            .runtime
+            .block_on(async { query_results_to_json(db.query(query).await?) })
+            .map_err(|err| err.to_string())?;
+        set_output_string(out_json, json)
+    })
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn luke_surreal_transaction(
+    handle: *mut BridgeHandle,
+    body_id: usize,
+    err_buf: *mut c_char,
+    err_len: usize,
+) -> c_int {
+    catch_ffi(err_buf, err_len, || {
+        if handle.is_null() {
+            return Err("handle is null".to_string());
+        }
+        let handle = unsafe { &mut *handle };
+        let db = handle
+            .db
+            .as_ref()
+            .ok_or_else(|| "handle is closed".to_string())?
+            .clone();
+        let tx = handle
+            .runtime
+            .block_on(async { db.begin().await })
+            .map_err(|err| err.to_string())?;
+        let mut tx = Box::new(BridgeTx {
+            runtime: &handle.runtime,
+            tx,
+        });
+        let tx_ptr = tx.as_mut() as *mut BridgeTx;
+
+        let callback_rc = unsafe {
+            go_surreal_tx_callback(tx_ptr.cast::<c_void>(), body_id, err_buf, err_len)
+        };
+        let BridgeTx { tx, .. } = *tx;
+        if callback_rc == 0 {
+            handle
+                .runtime
+                .block_on(async { tx.commit().await })
+                .map_err(|err| err.to_string())?;
+            return Ok(());
+        }
+
+        let rollback_result = handle.runtime.block_on(async { tx.cancel().await });
+        if let Err(err) = rollback_result {
+            return Err(format!("rollback after transaction body error failed: {err}"));
+        }
+        let body_error = if err_buf.is_null() {
+            "transaction body returned an error".to_string()
+        } else {
+            unsafe { CStr::from_ptr(err_buf) }
+                .to_string_lossy()
+                .into_owned()
+        };
+        Err(body_error)
+    })
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn luke_surreal_tx_query(
+    tx: *mut BridgeTx,
+    query: *const c_char,
+    out_json: *mut *mut c_char,
+    err_buf: *mut c_char,
+    err_len: usize,
+) -> c_int {
+    catch_ffi(err_buf, err_len, || {
+        if tx.is_null() {
+            return Err("transaction is null".to_string());
+        }
+        let query = cstr_to_str(query, "query")?;
+        let tx = unsafe { &mut *tx };
+        let runtime = unsafe { &*tx.runtime };
+        let json = runtime
+            .block_on(async { query_results_to_json(tx.tx.query(query).await?) })
+            .map_err(|err| err.to_string())?;
+        set_output_string(out_json, json)
+    })
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn luke_surreal_free_string(value: *mut c_char) {
+    if value.is_null() {
+        return;
+    }
+    unsafe {
+        drop(CString::from_raw(value));
     }
 }

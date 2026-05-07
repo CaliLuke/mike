@@ -6,6 +6,16 @@ Word manipulation should move toward Go-native libraries where possible. Evaluat
 
 Durable execution for crash-sensitive multi-step paths (document upload, edit resolution, generated-document persistence, future deep-research and human-in-the-loop workflows) uses `github.com/i2y/romancy` with its embedded SQLite backend, sitting alongside SurrealKV in a shared data directory. Romancy activities must be idempotent (deterministic IDs, upserts) so replay after crash is safe; that is the explicit rule for any code path that becomes a workflow.
 
+## Current Status
+
+Last updated: 2026-05-07.
+
+- Milestone 0 has implementation evidence checked in, but its independent-agent review remains open.
+- Milestone 1 is complete, including the compatibility inventory, fixture capture/replay scripts, mock-provider mode, and independent review.
+- Milestone 2 is complete and pushed in commit `cec5bf8` (`Add Loom backend contract milestone`). The Loom contract covers all 67 inventory routes, preserves the `/users` alias, generates SSE-compatible OpenAPI for all four streaming routes, and `backend-go/check.sh` now passes repeatedly with a stable generated-code freshness gate.
+- Milestone 2.5 is complete. The Rust FFI persistence boundary now has an open/query/transaction/close lifecycle, one long-lived Tokio runtime per open handle, bounded `pond` worker admission, serialized handle access, closure-shaped transactions, commit/rollback smoke tests, and review findings addressed in `backend-go/docs/persistence-hardening-review.md`.
+- Next execution target: Milestone 3, Local Data And Storage.
+
 ## Milestones
 
 ### Milestone 0: Persistence Spike
@@ -90,14 +100,14 @@ Acceptance Criteria
 
 Checklist
 
-- [ ] Define the FFI handle lifecycle in `backend-go/internal/persistence`: open a database handle once per backend process, issue many query/transaction calls through that handle, and close it during backend shutdown.
-- [ ] Define Rust runtime ownership for the bridge: one long-lived Tokio runtime owned by the bridge for the lifetime of the process.
-- [ ] Define a closure-shape transaction FFI entrypoint that wraps a Go-supplied callback and commits or rolls back based on the callback's result.
-- [ ] Front all FFI calls with a `pond` worker pool sized via env (default 8). Document this as the bounded-concurrency model for SurrealKV access.
-- [ ] Add a transaction smoke test: begin, write multiple records, roll back, and verify no records persisted.
-- [ ] Add a transaction smoke test: begin, write multiple records, commit, reopen, and verify records persisted.
-- [ ] Track the latest stable Rust `surrealdb` crate at the start of M3, then pin in `Cargo.lock`. Document the pinned version and upgrade procedure in `backend-go/docs/persistence-spike.md`.
-- [ ] Ask an independent agent to review the milestone work against the acceptance criteria, then address or explicitly defer each finding before marking the milestone complete.
+- [x] Define the FFI handle lifecycle in `backend-go/internal/persistence`: open a database handle once per backend process, issue many query/transaction calls through that handle, and close it during backend shutdown.
+- [x] Define Rust runtime ownership for the bridge: one long-lived Tokio runtime owned by each open bridge handle. The backend uses one open handle per process.
+- [x] Define a closure-shape transaction FFI entrypoint that wraps a Go-supplied callback and commits or rolls back based on the callback's result.
+- [x] Front handle-level FFI calls with a `pond` worker pool sized via env (default 8). Document this as the bounded-concurrency model for SurrealKV access; transaction-scoped queries run inside the admitted transaction worker.
+- [x] Add a transaction smoke test: begin, write multiple records, roll back, and verify no records persisted.
+- [x] Add a transaction smoke test: begin, write multiple records, commit, reopen, and verify records persisted.
+- [x] Verify and pin the latest stable Rust `surrealdb` crate for Milestone 2.5 (`3.0.5`) in `Cargo.lock`. Document the pinned version and upgrade procedure in `backend-go/docs/persistence-spike.md`; re-check stable crate freshness at the start of M3.
+- [x] Ask an independent agent to review the milestone work against the acceptance criteria, then address or explicitly defer each finding before marking the milestone complete.
 
 ### Milestone 3: Local Data And Storage
 
@@ -110,7 +120,7 @@ Acceptance Criteria
 - Cascade deletes run as SurrealQL `EVENT` definitions on parent tables, not in Go repository code.
 - Repository tests prove SurrealDB record links, DB-side cascade deletes, JSON object fields, load-bearing indexes, transactions, and DB-side enum validation.
 - Routes that previously required Supabase auth resolve to one deterministic local user and populate the same service-level user context without requiring an Authorization header.
-- Backend startup enforces a single-writer constraint by relying on SurrealKV's own file lock and surfacing a helpful error message ("another Luke backend appears to be using $LUKE_DATA_DIR") when the lock is already held.
+- Backend startup enforces a single-writer constraint by relying on SurrealKV's own file lock and surfacing a helpful error message ("another Luke backend appears to be using $LUKE_DATA_DIR") when the lock is already held, including same-process double-open attempts against the active data directory.
 - Document upload, edit resolution, and generated-document persistence run as Romancy workflows. Their activities are idempotent (deterministic IDs, upserts) so replay after crash is safe.
 - The deterministic local user context is wired into Romancy activity contexts the same way it is wired into HTTP handlers; no separate user-resolution mechanism.
 

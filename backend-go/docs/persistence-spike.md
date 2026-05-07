@@ -15,7 +15,7 @@ through CGO.
 Exact dependency path:
 
 - Rust crate: `surrealdb` 3.0.5 with the `kv-surrealkv` feature.
-- Go bridge: `internal/persistence/rust_spike.go`.
+- Go bridge: `internal/persistence/surreal.go`.
 - Rust bridge: `internal/persistence/rustbridge/src/lib.rs`.
 
 The official `github.com/surrealdb/surrealdb.go` SDK was not selected for this
@@ -33,10 +33,47 @@ The app-facing boundary should stay in `internal/persistence` and hide whether
 the implementation is Rust FFI, a future patched C binding, or a future native
 Go embedded SDK.
 
-This spike is intentionally not the final production FFI shape. It proves
-reachability and persistence, but production work still needs an open-once,
-query-many, close-on-shutdown handle API, a long-lived runtime ownership model,
-and transaction-specific tests.
+Milestone 2.5 replaced the original one-shot spike entrypoint with a
+production-shaped process boundary:
+
+- `persistence.Open` opens one SurrealKV handle for the backend process.
+- `(*DB).Query` issues repeated SurrealQL calls through that handle.
+- `(*DB).Transaction` accepts a Go closure. Rust begins the transaction,
+  invokes the closure with a transaction-scoped query handle, commits when the
+  closure returns nil, and rolls back when the closure returns an error. Begin,
+  commit, and rollback are not exposed as separate Go APIs.
+- `(*DB).Close` releases the handle during backend shutdown.
+
+The Rust bridge owns one long-lived Tokio runtime per open database handle. The
+backend opens one handle per process, so this is also the process runtime owner
+in normal operation. The Go side fronts every blocking handle-level FFI call
+with a bounded `github.com/alitto/pond` worker pool and serializes access to the
+opaque Rust handle before crossing the FFI boundary. Set
+`LUKE_SURREALKV_WORKERS` to override the pool size; the default is 8. Once a
+blocking FFI task is admitted to the worker pool, Go waits for the Rust result
+so callers do not observe a transaction outcome before commit or rollback
+finishes. Transaction-scoped query calls run inside the transaction closure on
+the already-dispatched worker rather than submitting a nested worker task, so
+aggregate transaction concurrency is still bounded by the admitted transaction
+workers. The supplied `*Tx` is invalidated before commit or rollback, so escaped
+transaction handles return an error instead of reusing a freed Rust transaction
+pointer.
+
+## Upgrade Procedure
+
+The Rust bridge tracks the stable `surrealdb` crate pinned in
+`internal/persistence/rustbridge/Cargo.toml` and resolved in `Cargo.lock`.
+Current pinned version: `surrealdb` 3.0.5 with `kv-surrealkv`.
+
+To upgrade:
+
+1. Update the `surrealdb` version in `internal/persistence/rustbridge/Cargo.toml`.
+2. Run `cargo update -p surrealdb` from `internal/persistence/rustbridge`.
+3. Run `cargo build --release` from `internal/persistence/rustbridge`.
+4. Run `go test ./...` from `backend-go` with `CGO_LDFLAGS` pointing at the
+   release static library, or use `make test`.
+5. Verify transaction commit and rollback smoke tests still pass before using
+   the new crate version for repository work.
 
 ## Local Toolchain
 
@@ -105,8 +142,8 @@ verified run, `go test ./...` from `backend-go` passed.
   newer local macOS SDK target than Go's default link target. These warnings did
   not prevent the spike test from passing on this machine.
 - Immediate reopen can fail with SurrealKV's `LOCK is already locked by another
-  process` error. Keep the bounded reopen retry unless the implementation moves
-  to a lower-level API that exposes synchronous datastore shutdown.
+  process` error if the previous process or handle has not released the file
+  lock. Production code should open once per process and close during shutdown.
 - SurrealKV has a single-writer file-lock model. Only one backend process should
   open a given data path at a time, and tests should use unique temporary
   directories unless they are explicitly testing lock behavior.

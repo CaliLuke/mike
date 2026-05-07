@@ -2115,6 +2115,7 @@ name = "luke_surreal_bridge"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_json",
  "surrealdb",
  "tokio",
 ]
