@@ -1,0 +1,1135 @@
+package localapi
+
+import (
+	"archive/zip"
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"mime"
+	"net/http"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/i2y/romancy"
+
+	"github.com/CaliLuke/luke/backend-go/internal/localdata"
+	"github.com/CaliLuke/luke/backend-go/internal/persistence"
+)
+
+const defaultListenAddr = "127.0.0.1:3001"
+
+type Server struct {
+	app *localdata.App
+}
+
+func New(app *localdata.App) http.Handler {
+	server := &Server{app: app}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /health", server.health)
+	mux.HandleFunc("POST /user/profile", server.profile)
+	mux.HandleFunc("GET /user/profile", server.profile)
+	mux.HandleFunc("POST /users/profile", server.profile)
+	mux.HandleFunc("GET /users/profile", server.profile)
+	mux.HandleFunc("DELETE /user", server.deleteAccount)
+	mux.HandleFunc("DELETE /users", server.deleteAccount)
+	mux.HandleFunc("GET /projects", server.projects)
+	mux.HandleFunc("POST /projects", server.projects)
+	mux.HandleFunc("GET /projects/{projectId}", server.project)
+	mux.HandleFunc("PATCH /projects/{projectId}", server.project)
+	mux.HandleFunc("DELETE /projects/{projectId}", server.project)
+	mux.HandleFunc("GET /projects/{projectId}/documents", server.projectDocuments)
+	mux.HandleFunc("POST /projects/{projectId}/documents", server.attachProjectDocument)
+	mux.HandleFunc("POST /projects/{projectId}/upload", server.uploadProjectDocument)
+	mux.HandleFunc("GET /projects/{projectId}/people", server.projectPeople)
+	mux.HandleFunc("GET /projects/{projectId}/chats", server.projectChats)
+	mux.HandleFunc("POST /projects/{projectId}/chat", server.projectChatStream)
+	mux.HandleFunc("POST /projects/{projectId}/folders", server.createFolder)
+	mux.HandleFunc("PATCH /projects/{projectId}/folders/{folderId}", server.updateFolder)
+	mux.HandleFunc("DELETE /projects/{projectId}/folders/{folderId}", server.deleteFolder)
+	mux.HandleFunc("PATCH /projects/{projectId}/documents/{documentId}/folder", server.moveDocument)
+	mux.HandleFunc("GET /single-documents", server.documents)
+	mux.HandleFunc("POST /single-documents", server.documents)
+	mux.HandleFunc("DELETE /single-documents/{documentId}", server.document)
+	mux.HandleFunc("GET /single-documents/{documentId}/display", server.displayDocument)
+	mux.HandleFunc("GET /single-documents/{documentId}/url", server.documentURL)
+	mux.HandleFunc("GET /single-documents/{documentId}/docx", server.docxDocument)
+	mux.HandleFunc("POST /single-documents/zip", server.zipDocuments)
+	mux.HandleFunc("GET /single-documents/{documentId}/versions", server.documentVersions)
+	mux.HandleFunc("POST /single-documents/{documentId}/versions", server.uploadDocumentVersion)
+	mux.HandleFunc("PATCH /single-documents/{documentId}/versions/{versionId}", server.renameDocumentVersion)
+	mux.HandleFunc("GET /single-documents/{documentId}/tracked-change-ids", server.trackedChangeIDs)
+	mux.HandleFunc("POST /single-documents/{documentId}/edits/{editId}/accept", server.acceptEdit)
+	mux.HandleFunc("POST /single-documents/{documentId}/edits/{editId}/reject", server.rejectEdit)
+	mux.HandleFunc("GET /chats", server.chats)
+	mux.HandleFunc("POST /chats", server.chats)
+	mux.HandleFunc("GET /chats/{chatId}", server.chat)
+	mux.HandleFunc("PATCH /chats/{chatId}", server.chat)
+	mux.HandleFunc("DELETE /chats/{chatId}", server.chat)
+	mux.HandleFunc("POST /chat", server.globalChatStream)
+	mux.HandleFunc("POST /chat/{chatId}/generate-title", server.generateChatTitle)
+	mux.HandleFunc("GET /workflows", server.workflows)
+	mux.HandleFunc("POST /workflows", server.workflows)
+	mux.HandleFunc("GET /workflows/hidden", server.hiddenWorkflows)
+	mux.HandleFunc("POST /workflows/hidden", server.hideWorkflow)
+	mux.HandleFunc("DELETE /workflows/hidden/{workflowId}", server.unhideWorkflow)
+	mux.HandleFunc("GET /workflows/{workflowId}", server.workflow)
+	mux.HandleFunc("PUT /workflows/{workflowId}", server.workflow)
+	mux.HandleFunc("PATCH /workflows/{workflowId}", server.workflow)
+	mux.HandleFunc("DELETE /workflows/{workflowId}", server.workflow)
+	mux.HandleFunc("GET /workflows/{workflowId}/shares", server.workflowShares)
+	mux.HandleFunc("POST /workflows/{workflowId}/shares", server.workflowShares)
+	mux.HandleFunc("DELETE /workflows/{workflowId}/shares/{shareId}", server.deleteWorkflowShare)
+	mux.HandleFunc("GET /tabular-review", server.tabularReviews)
+	mux.HandleFunc("POST /tabular-review", server.tabularReviews)
+	mux.HandleFunc("POST /tabular-review/prompt", server.tabularPrompt)
+	mux.HandleFunc("GET /tabular-review/{reviewId}", server.tabularReview)
+	mux.HandleFunc("PATCH /tabular-review/{reviewId}", server.tabularReview)
+	mux.HandleFunc("DELETE /tabular-review/{reviewId}", server.tabularReview)
+	mux.HandleFunc("GET /tabular-review/{reviewId}/people", server.tabularPeople)
+	mux.HandleFunc("POST /tabular-review/{reviewId}/generate", server.tabularGenerate)
+	mux.HandleFunc("POST /tabular-review/{reviewId}/regenerate-cell", server.regenerateCell)
+	mux.HandleFunc("POST /tabular-review/{reviewId}/clear-cells", server.clearCells)
+	mux.HandleFunc("GET /tabular-review/{reviewId}/chats", server.tabularChats)
+	mux.HandleFunc("DELETE /tabular-review/{reviewId}/chats/{chatId}", server.deleteTabularChat)
+	mux.HandleFunc("GET /tabular-review/{reviewId}/chats/{chatId}/messages", server.tabularChatMessages)
+	mux.HandleFunc("POST /tabular-review/{reviewId}/chat", server.tabularChatStream)
+	mux.HandleFunc("GET /download/{token}", server.downloadToken)
+	return localdata.LocalCORSMiddleware(localdata.LocalUserMiddleware(mux))
+}
+
+func ListenAddr(configured string) string {
+	if configured != "" {
+		return configured
+	}
+	return defaultListenAddr
+}
+
+func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (s *Server) profile(w http.ResponseWriter, r *http.Request) {
+	body := map[string]any{}
+	if r.Method == http.MethodPost {
+		if err := decodeJSON(r, &body); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		if err := s.updateProfile(r.Context(), body); err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+	}
+	profile, err := s.loadProfile(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, profile)
+}
+
+func (s *Server) deleteAccount(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (s *Server) projects(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		rows, err := queryRows(r.Context(), s.app.DB, projectListQuery)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, rows)
+	case http.MethodPost:
+		var req struct {
+			Name       string   `json:"name"`
+			CmNumber   *string  `json:"cm_number"`
+			SharedWith []string `json:"shared_with"`
+		}
+		if err := decodeJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		if req.Name == "" {
+			req.Name = "Untitled Project"
+		}
+		row, err := s.createProject(r.Context(), req.Name, req.CmNumber, req.SharedWith)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, row)
+	default:
+		writeError(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed"))
+	}
+}
+
+func (s *Server) project(w http.ResponseWriter, r *http.Request) {
+	projectID := r.PathValue("projectId")
+	switch r.Method {
+	case http.MethodGet:
+		row, err := s.getProject(r.Context(), projectID)
+		writeOne(w, row, err)
+	case http.MethodPatch:
+		var req struct {
+			Name       *string  `json:"name"`
+			CmNumber   *string  `json:"cm_number"`
+			SharedWith []string `json:"shared_with"`
+		}
+		if err := decodeJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		row, err := s.updateProject(r.Context(), projectID, req.Name, req.CmNumber, req.SharedWith)
+		writeOne(w, row, err)
+	case http.MethodDelete:
+		if err := localdata.DeleteProject(r.Context(), s.app.DB, projectID); err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	default:
+		writeError(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed"))
+	}
+}
+
+func (s *Server) projectDocuments(w http.ResponseWriter, r *http.Request) {
+	s.writeQueryRows(w, r, documentListQuery("project_id = "+recordID("projects", r.PathValue("projectId"))))
+}
+
+func (s *Server) attachProjectDocument(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		DocumentID string `json:"documentId"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	row, err := s.assignDocument(r.Context(), req.DocumentID, r.PathValue("projectId"), nil)
+	writeOne(w, row, err)
+}
+
+func (s *Server) uploadProjectDocument(w http.ResponseWriter, r *http.Request) {
+	projectID := r.PathValue("projectId")
+	doc, err := s.uploadFromRequest(r, &projectID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, doc)
+}
+
+func (s *Server) projectPeople(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.peopleResponse())
+}
+
+func (s *Server) projectChats(w http.ResponseWriter, r *http.Request) {
+	s.writeQueryRows(w, r, chatListQuery("project_id = "+recordID("projects", r.PathValue("projectId"))))
+}
+
+func (s *Server) createFolder(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name           string  `json:"name"`
+		ParentFolderID *string `json:"parent_folder_id"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	if req.Name == "" {
+		req.Name = "Untitled Folder"
+	}
+	row, err := s.upsertFolder(r.Context(), "", r.PathValue("projectId"), req.Name, req.ParentFolderID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, row)
+}
+
+func (s *Server) updateFolder(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name           *string `json:"name"`
+		ParentFolderID *string `json:"parent_folder_id"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	row, err := s.updateFolderRecord(r.Context(), r.PathValue("folderId"), req.Name, req.ParentFolderID)
+	writeOne(w, row, err)
+}
+
+func (s *Server) deleteFolder(w http.ResponseWriter, r *http.Request) {
+	s.writeNoContentQuery(w, r, "DELETE "+recordID("project_folders", r.PathValue("folderId"))+";")
+}
+
+func (s *Server) moveDocument(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		FolderID *string `json:"folder_id"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	row, err := s.assignDocument(r.Context(), r.PathValue("documentId"), r.PathValue("projectId"), req.FolderID)
+	writeOne(w, row, err)
+}
+
+func (s *Server) documents(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		rows, err := queryRows(r.Context(), s.app.DB, documentListQuery("true"))
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, rows)
+	case http.MethodPost:
+		doc, err := s.uploadFromRequest(r, nil)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, doc)
+	default:
+		writeError(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed"))
+	}
+}
+
+func (s *Server) document(w http.ResponseWriter, r *http.Request) {
+	s.writeNoContentQuery(w, r, "DELETE "+recordID("documents", r.PathValue("documentId"))+";")
+}
+
+func (s *Server) displayDocument(w http.ResponseWriter, r *http.Request) {
+	version, err := s.resolveDocumentVersion(r.Context(), r.PathValue("documentId"), r.URL.Query().Get("version_id"))
+	if err != nil {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+	data, err := localdata.ReadLocalFile(s.app.LocalStorageRoot, version.StoragePath)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+	body, contentType := displayBytes(version.Filename, data)
+	w.Header().Set("Content-Type", contentType)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(body)
+}
+
+func (s *Server) docxDocument(w http.ResponseWriter, r *http.Request) {
+	s.serveDocumentBytes(w, r, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+}
+
+func (s *Server) documentURL(w http.ResponseWriter, r *http.Request) {
+	version, err := s.resolveDocumentVersion(r.Context(), r.PathValue("documentId"), r.URL.Query().Get("version_id"))
+	if err != nil {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+	token, err := localdata.CreateDownloadToken(r.Context(), s.app.DB, map[string]any{
+		"storage_path": version.StoragePath,
+		"filename":     version.Filename,
+	}, time.Hour)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"url":        "/download/" + token.Token,
+		"filename":   version.Filename,
+		"version_id": version.ID,
+	})
+}
+
+func (s *Server) zipDocuments(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		DocumentIDs []string `json:"document_ids"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	data, err := s.zipDocumentBytes(r.Context(), req.DocumentIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/zip")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
+}
+
+func (s *Server) documentVersions(w http.ResponseWriter, r *http.Request) {
+	versions, err := s.listDocumentVersions(r.Context(), r.PathValue("documentId"))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, versions)
+}
+
+func (s *Server) uploadDocumentVersion(w http.ResponseWriter, r *http.Request) {
+	docID := r.PathValue("documentId")
+	doc, err := s.uploadVersionFromRequest(r, docID, "user_upload")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, doc)
+}
+
+func (s *Server) renameDocumentVersion(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		DisplayName *string `json:"display_name"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	displayName := "Version"
+	if req.DisplayName != nil {
+		displayName = *req.DisplayName
+	}
+	versionID := r.PathValue("versionId")
+	if _, err := s.app.DB.Query(r.Context(), "UPDATE "+recordID("document_versions", versionID)+" SET display_name = "+surrealString(displayName)+";"); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	row, err := s.getDocumentVersion(r.Context(), versionID)
+	writeOne(w, row, err)
+}
+
+func (s *Server) trackedChangeIDs(w http.ResponseWriter, r *http.Request) {
+	rows, err := queryRows(r.Context(), s.app.DB, "SELECT change_id FROM document_edits WHERE document_id = "+recordID("documents", r.PathValue("documentId"))+" ORDER BY created_at;")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, asString(row["change_id"]))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ids": ids})
+}
+
+func (s *Server) acceptEdit(w http.ResponseWriter, r *http.Request) {
+	s.resolveEdit(w, r, "accepted")
+}
+
+func (s *Server) rejectEdit(w http.ResponseWriter, r *http.Request) {
+	s.resolveEdit(w, r, "rejected")
+}
+
+func (s *Server) chats(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		rows, err := queryRows(r.Context(), s.app.DB, chatListQuery("project_id = NONE"))
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, rows)
+	case http.MethodPost:
+		row, err := s.createChat(r.Context(), nil)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]any{"id": row["id"]})
+	default:
+		writeError(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed"))
+	}
+}
+
+func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
+	chatID := r.PathValue("chatId")
+	switch r.Method {
+	case http.MethodGet:
+		detail, err := s.chatDetail(r.Context(), chatID)
+		writeOne(w, detail, err)
+	case http.MethodPatch:
+		var req struct {
+			Title *string `json:"title"`
+		}
+		if err := decodeJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		if req.Title != nil {
+			if _, err := s.app.DB.Query(r.Context(), "UPDATE "+recordID("chats", chatID)+" SET title = "+surrealString(*req.Title)+";"); err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				return
+			}
+		}
+		rows, err := queryRows(r.Context(), s.app.DB, chatListQuery("id = "+recordID("chats", chatID)))
+		writeFirst(w, rows, err)
+	case http.MethodDelete:
+		if _, err := s.app.DB.Query(r.Context(), "DELETE "+recordID("chats", chatID)+";"); err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	default:
+		writeError(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed"))
+	}
+}
+
+func (s *Server) globalChatStream(w http.ResponseWriter, r *http.Request) {
+	s.chatStream(w, r, nil)
+}
+
+func (s *Server) projectChatStream(w http.ResponseWriter, r *http.Request) {
+	projectID := r.PathValue("projectId")
+	s.chatStream(w, r, &projectID)
+}
+
+func (s *Server) generateChatTitle(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Message string `json:"message"`
+	}
+	_ = decodeJSON(r, &req)
+	if strings.TrimSpace(req.Message) == "" {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("message is required"))
+		return
+	}
+	title, err := s.completeText(r.Context(), completionRequest{
+		Model: defaultTitleModel,
+		User:  "Generate a concise title (3-6 words) for this chat. Return only the title.\n\nMessage: " + req.Message,
+	})
+	if err != nil || strings.TrimSpace(title) == "" {
+		title = req.Message
+	}
+	title = strings.TrimSpace(title)
+	if len(title) > 60 {
+		title = title[:60]
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"title": title})
+}
+
+func (s *Server) workflows(w http.ResponseWriter, r *http.Request) {
+	s.writeListOrCreate(w, r, "SELECT id, user_id, title, type, prompt_md, columns_config, is_system, created_at, practice, true AS is_owner FROM workflows ORDER BY created_at;", func() (map[string]any, error) {
+		return decodeAndCreate(r, s.upsertWorkflow, "")
+	})
+}
+
+func (s *Server) workflow(w http.ResponseWriter, r *http.Request) {
+	workflowID := r.PathValue("workflowId")
+	switch r.Method {
+	case http.MethodGet:
+		rows, err := queryRows(r.Context(), s.app.DB, "SELECT id, user_id, title, type, prompt_md, columns_config, is_system, created_at, practice, true AS is_owner FROM "+recordID("workflows", workflowID)+";")
+		writeFirst(w, rows, err)
+	case http.MethodPut, http.MethodPatch:
+		var req workflowPayload
+		if err := decodeJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		row, err := s.upsertWorkflow(r.Context(), workflowID, req)
+		writeOne(w, row, err)
+	case http.MethodDelete:
+		if _, err := s.app.DB.Query(r.Context(), "DELETE "+recordID("workflows", workflowID)+";"); err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	default:
+		writeError(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed"))
+	}
+}
+
+func (s *Server) hiddenWorkflows(w http.ResponseWriter, r *http.Request) {
+	rows, err := queryRows(r.Context(), s.app.DB, "SELECT workflow_id FROM hidden_workflows WHERE user_id = users:local;")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, asString(row["workflow_id"]))
+	}
+	writeJSON(w, http.StatusOK, ids)
+}
+
+func (s *Server) hideWorkflow(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		WorkflowID string `json:"workflow_id"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	if _, err := s.app.DB.Query(r.Context(), "UPSERT "+recordID("hidden_workflows", req.WorkflowID)+" CONTENT { user_id: users:local, workflow_id: "+surrealString(req.WorkflowID)+", created_at: time::now() };"); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) unhideWorkflow(w http.ResponseWriter, r *http.Request) {
+	s.writeNoContentQuery(w, r, "DELETE "+recordID("hidden_workflows", r.PathValue("workflowId"))+";")
+}
+
+func (s *Server) workflowShares(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	writeJSON(w, http.StatusOK, []any{})
+}
+
+func (s *Server) deleteWorkflowShare(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) tabularReviews(w http.ResponseWriter, r *http.Request) {
+	s.writeListOrCreate(w, r, "SELECT id, project_id, user_id, title, columns_config, workflow_id, practice, shared_with, true AS is_owner, created_at, updated_at, 0 AS document_count FROM tabular_reviews ORDER BY updated_at DESC;", func() (map[string]any, error) {
+		return decodeAndCreate(r, s.upsertTabularReview, "")
+	})
+}
+
+func (s *Server) tabularReview(w http.ResponseWriter, r *http.Request) {
+	reviewID := r.PathValue("reviewId")
+	switch r.Method {
+	case http.MethodGet:
+		detail, err := s.tabularDetail(r.Context(), reviewID)
+		writeOne(w, detail, err)
+	case http.MethodPatch:
+		var req tabularPayload
+		if err := decodeJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		row, err := s.upsertTabularReview(r.Context(), reviewID, req)
+		writeOne(w, row, err)
+	case http.MethodDelete:
+		if err := localdata.DeleteTabularReview(r.Context(), s.app.DB, reviewID); err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	default:
+		writeError(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed"))
+	}
+}
+
+func (s *Server) tabularPeople(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.peopleResponse())
+}
+
+func (s *Server) tabularPrompt(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Title        string   `json:"title"`
+		Format       *string  `json:"format"`
+		DocumentName *string  `json:"documentName"`
+		Tags         []string `json:"tags"`
+	}
+	_ = decodeJSON(r, &req)
+	raw, err := s.completeText(r.Context(), completionRequest{
+		Model:        defaultTitleModel,
+		SystemPrompt: `Return only valid JSON with one field: {"prompt": string}.`,
+		User:         "Column title: " + req.Title + "\nWrite a legal tabular review extraction prompt.",
+	})
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	prompt := strings.TrimSpace(raw)
+	var parsed struct {
+		Prompt string `json:"prompt"`
+	}
+	if json.Unmarshal([]byte(prompt), &parsed) == nil && strings.TrimSpace(parsed.Prompt) != "" {
+		prompt = strings.TrimSpace(parsed.Prompt)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"prompt": prompt, "source": "llm"})
+}
+
+func (s *Server) tabularGenerate(w http.ResponseWriter, r *http.Request) {
+	reviewID := r.PathValue("reviewId")
+	var req struct {
+		DocumentIDs    []string `json:"document_ids"`
+		ColumnIndices  []int    `json:"column_indices"`
+		ColumnIndexAlt []int    `json:"columnIndices"`
+	}
+	_ = decodeJSON(r, &req)
+	if len(req.ColumnIndices) == 0 {
+		req.ColumnIndices = req.ColumnIndexAlt
+	}
+	if len(req.ColumnIndices) == 0 {
+		req.ColumnIndices = []int{0}
+	}
+	if len(req.DocumentIDs) == 0 {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("document_ids is required"))
+		return
+	}
+	streamSSE(w, func(send func(map[string]any) error) error {
+		for _, docID := range req.DocumentIDs {
+			for _, column := range req.ColumnIndices {
+				summary, err := s.completeText(r.Context(), completionRequest{
+					Model: defaultMainModel,
+					User:  fmt.Sprintf("Generate a concise tabular review answer for document %s column %d.", docID, column),
+				})
+				if err != nil {
+					return err
+				}
+				if strings.TrimSpace(summary) == "" {
+					summary = "Local mock answer"
+				}
+				cell, err := s.upsertCellWithContent(r.Context(), reviewID, docID, column, strings.TrimSpace(summary), "done")
+				if err != nil {
+					return err
+				}
+				if err := send(map[string]any{"type": "cell_update", "document_id": docID, "status": "done", "cell": cell}); err != nil {
+					return err
+				}
+			}
+		}
+		return send(map[string]any{"type": "done"})
+	})
+}
+
+func (s *Server) regenerateCell(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		DocumentID  string `json:"document_id"`
+		ColumnIndex int    `json:"column_index"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	summary, err := s.completeText(r.Context(), completionRequest{
+		Model: defaultMainModel,
+		User:  "Generate a concise tabular review answer for the selected document cell.",
+	})
+	if err != nil || strings.TrimSpace(summary) == "" {
+		summary = "Local mock answer"
+	}
+	_, err = s.upsertCellWithContent(r.Context(), r.PathValue("reviewId"), req.DocumentID, req.ColumnIndex, strings.TrimSpace(summary), "done")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"summary": strings.TrimSpace(summary)})
+}
+
+func (s *Server) clearCells(w http.ResponseWriter, r *http.Request) {
+	s.writeNoContentQuery(w, r, "DELETE tabular_cells WHERE review_id = "+recordID("tabular_reviews", r.PathValue("reviewId"))+";")
+}
+
+func (s *Server) tabularChats(w http.ResponseWriter, r *http.Request) {
+	s.writeQueryRows(w, r, "SELECT id, review_id AS project_id, user_id, title, created_at FROM tabular_review_chats WHERE review_id = "+recordID("tabular_reviews", r.PathValue("reviewId"))+" ORDER BY updated_at DESC;")
+}
+
+func (s *Server) deleteTabularChat(w http.ResponseWriter, r *http.Request) {
+	s.writeNoContentQuery(w, r, "DELETE "+recordID("tabular_review_chats", r.PathValue("chatId"))+";")
+}
+
+func (s *Server) tabularChatMessages(w http.ResponseWriter, r *http.Request) {
+	s.writeQueryRows(w, r, "SELECT id, chat_id, created_at, role, content, annotations FROM tabular_review_chat_messages WHERE chat_id = "+recordID("tabular_review_chats", r.PathValue("chatId"))+" ORDER BY created_at;")
+}
+
+func (s *Server) tabularChatStream(w http.ResponseWriter, r *http.Request) {
+	reviewID := r.PathValue("reviewId")
+	var req struct {
+		ChatID   *string `json:"chat_id"`
+		Model    *string `json:"model"`
+		Messages []struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		} `json:"messages"`
+	}
+	_ = decodeJSON(r, &req)
+	chatID := ""
+	if req.ChatID != nil {
+		chatID = *req.ChatID
+	}
+	if chatID == "" {
+		row, err := s.createTabularChat(r.Context(), reviewID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		chatID = trimRecord(asString(row["id"]))
+	}
+	streamSSE(w, func(send func(map[string]any) error) error {
+		text, err := s.persistAndStreamTabularChat(r.Context(), reviewID, chatID, req.Model, req.Messages, send)
+		if err != nil {
+			return err
+		}
+		_ = text
+		return nil
+	})
+}
+
+func (s *Server) downloadToken(w http.ResponseWriter, r *http.Request) {
+	token, err := localdata.ResolveDownloadToken(r.Context(), s.app.DB, r.PathValue("token"))
+	if err != nil {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+	storagePath := asString(token.Payload["storage_path"])
+	data, err := localdata.ReadLocalFile(s.app.LocalStorageRoot, storagePath)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+	filename := asString(token.Payload["filename"])
+	w.Header().Set("Content-Type", mime.TypeByExtension(filepath.Ext(filename)))
+	if w.Header().Get("Content-Type") == "" {
+		w.Header().Set("Content-Type", "application/octet-stream")
+	}
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
+}
+
+func (s *Server) updateProfile(ctx context.Context, body map[string]any) error {
+	sets := []string{"updated_at = time::now()"}
+	for jsonKey, field := range map[string]string{
+		"display_name":   "display_name",
+		"organisation":   "organisation",
+		"tabular_model":  "tabular_model",
+		"claude_api_key": "claude_api_key",
+		"gemini_api_key": "gemini_api_key",
+	} {
+		if value, ok := body[jsonKey].(string); ok {
+			sets = append(sets, field+" = "+optionString(value))
+		}
+	}
+	_, err := s.app.DB.Query(ctx, "UPDATE user_profiles SET "+strings.Join(sets, ", ")+" WHERE user_id = users:local;")
+	return err
+}
+
+func (s *Server) loadProfile(ctx context.Context) (map[string]any, error) {
+	rows, err := queryRows(ctx, s.app.DB, `SELECT id, display_name, organisation, tier, message_credits_used, credits_reset_date, tabular_model, claude_api_key, gemini_api_key FROM user_profiles WHERE user_id = users:local;`)
+	if err != nil {
+		return nil, err
+	}
+	profile := map[string]any{
+		"ok":       true,
+		"id":       localdata.LocalUserID,
+		"email":    localdata.LocalUserEmail,
+		"settings": map[string]any{},
+	}
+	if len(rows) == 0 {
+		return profile, nil
+	}
+	row := rows[0]
+	profile["display_name"] = row["display_name"]
+	profile["tier"] = row["tier"]
+	profile["credits"] = row["message_credits_used"]
+	profile["credits_reset_at"] = row["credits_reset_date"]
+	profile["settings"] = map[string]any{
+		"organisation":   row["organisation"],
+		"tabular_model":  row["tabular_model"],
+		"claude_api_key": row["claude_api_key"],
+		"gemini_api_key": row["gemini_api_key"],
+	}
+	return profile, nil
+}
+
+func (s *Server) uploadFromRequest(r *http.Request, projectID *string) (map[string]any, error) {
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = file.Close() }()
+	data, err := io.ReadAll(file)
+	if err != nil {
+		return nil, err
+	}
+	filename := header.Filename
+	if filename == "" {
+		filename = "upload.bin"
+	}
+	docID := newID("doc")
+	versionID := docID + "_v1"
+	storagePath := filepath.ToSlash(filepath.Join(docID, filename))
+	payload := map[string]any{
+		"document_id":    docID,
+		"version_id":     versionID,
+		"filename":       filename,
+		"file_type":      strings.TrimPrefix(filepath.Ext(filename), "."),
+		"storage_path":   storagePath,
+		"size_bytes":     len(data),
+		"version_number": 1,
+		"content_base64": encodeBase64(data),
+	}
+	if projectID != nil {
+		payload["project_id"] = *projectID
+	}
+	if _, err := s.runDocumentWorkflow(localdata.WithUserContext(r.Context(), s.app.User), s.app.Workflows.Upload, docID, payload); err != nil {
+		return nil, err
+	}
+	if projectID != nil {
+		if _, err := s.app.DB.Query(r.Context(), "UPDATE "+recordID("documents", docID)+" SET project_id = "+recordID("projects", *projectID)+", updated_at = time::now();"); err != nil {
+			return nil, err
+		}
+	}
+	return s.getDocument(r.Context(), docID)
+}
+
+func (s *Server) runDocumentWorkflow(ctx context.Context, workflow *romancy.WorkflowFunc[localdata.DocumentOperationInput, localdata.DocumentOperationResult], targetID string, payload map[string]any) (localdata.DocumentOperationResult, error) {
+	instanceID := "api_" + workflow.Name() + "_" + targetID
+	_, err := romancy.StartWorkflow(ctx, s.app.Romancy, workflow, localdata.DocumentOperationInput{TargetID: targetID, Payload: payload}, romancy.WithInstanceID(instanceID))
+	if err != nil {
+		return localdata.DocumentOperationResult{}, err
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		result, err := romancy.GetWorkflowResult[localdata.DocumentOperationResult](ctx, s.app.Romancy, instanceID)
+		if err != nil {
+			return localdata.DocumentOperationResult{}, err
+		}
+		if result.Status == "completed" {
+			return result.Output, nil
+		}
+		if result.Status == "failed" {
+			return localdata.DocumentOperationResult{}, result.Error
+		}
+		if time.Now().After(deadline) {
+			return localdata.DocumentOperationResult{}, fmt.Errorf("document workflow %s did not complete in time", workflow.Name())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func (s *Server) uploadVersionFromRequest(r *http.Request, documentID, source string) (map[string]any, error) {
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = file.Close() }()
+	data, err := io.ReadAll(file)
+	if err != nil {
+		return nil, err
+	}
+	versionNumber, err := s.nextVersionNumber(r.Context(), documentID)
+	if err != nil {
+		return nil, err
+	}
+	versionID := documentID + "_v" + strconv.Itoa(versionNumber)
+	filename := header.Filename
+	if filename == "" {
+		filename = "version.bin"
+	}
+	storagePath := filepath.ToSlash(filepath.Join(documentID, versionID, filename))
+	if writeErr := localdata.WriteLocalFileAtomic(s.app.LocalStorageRoot, storagePath, data); writeErr != nil {
+		return nil, writeErr
+	}
+	_, err = s.app.DB.Query(r.Context(), fmt.Sprintf(`
+		CREATE %s CONTENT {
+			document_id: %s,
+			storage_path: %s,
+			pdf_storage_path: NONE,
+			source: %s,
+			version_number: %d,
+			display_name: %s,
+			created_at: time::now()
+		};
+		UPDATE %s SET current_version_id = %s, updated_at = time::now();
+	`, recordID("document_versions", versionID), recordID("documents", documentID), surrealString(storagePath), surrealString(source), versionNumber, surrealString(filename), recordID("documents", documentID), recordID("document_versions", versionID)))
+	if err != nil {
+		return nil, err
+	}
+	return s.getDocumentVersion(r.Context(), versionID)
+}
+
+func (s *Server) serveDocumentBytes(w http.ResponseWriter, r *http.Request, contentType string) {
+	version, err := s.resolveDocumentVersion(r.Context(), r.PathValue("documentId"), r.URL.Query().Get("version_id"))
+	if err != nil {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+	data, err := localdata.ReadLocalFile(s.app.LocalStorageRoot, version.StoragePath)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
+}
+
+func (s *Server) zipDocumentBytes(ctx context.Context, documentIDs []string) ([]byte, error) {
+	buf := &bytes.Buffer{}
+	zipper := zip.NewWriter(buf)
+	for _, docID := range documentIDs {
+		version, err := s.resolveDocumentVersion(ctx, docID, "")
+		if err != nil {
+			return nil, err
+		}
+		data, err := localdata.ReadLocalFile(s.app.LocalStorageRoot, version.StoragePath)
+		if err != nil {
+			return nil, err
+		}
+		writer, err := zipper.Create(version.Filename)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := writer.Write(data); err != nil {
+			return nil, err
+		}
+	}
+	if err := zipper.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func (s *Server) chatStream(w http.ResponseWriter, r *http.Request, projectID *string) {
+	var req struct {
+		ChatID   *string `json:"chat_id"`
+		Model    *string `json:"model"`
+		Messages []struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		} `json:"messages"`
+	}
+	_ = decodeJSON(r, &req)
+	chatID := ""
+	if req.ChatID != nil {
+		chatID = *req.ChatID
+	}
+	if chatID == "" {
+		row, err := s.createChat(r.Context(), projectID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		chatID = trimRecord(asString(row["id"]))
+	}
+	streamSSE(w, func(send func(map[string]any) error) error {
+		_, err := s.persistAndStreamChat(r.Context(), chatID, req.Model, req.Messages, send)
+		return err
+	})
+}
+
+func streamSSE(w http.ResponseWriter, fn func(func(map[string]any) error) error) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.WriteHeader(http.StatusOK)
+	flusher, _ := w.(http.Flusher)
+	send := func(payload map[string]any) error {
+		data, err := json.Marshal(payload)
+		if err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(w, "event: message\ndata: %s\n\n", data); err != nil {
+			return err
+		}
+		if flusher != nil {
+			flusher.Flush()
+		}
+		return nil
+	}
+	if err := fn(send); err != nil {
+		_ = send(map[string]any{"type": "error", "error": err.Error()})
+	}
+}
+
+func queryRows(ctx context.Context, db *persistence.DB, query string) ([]map[string]any, error) {
+	result, err := db.Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	var statements [][]map[string]any
+	if err := json.Unmarshal(result, &statements); err != nil {
+		return nil, err
+	}
+	if len(statements) == 0 {
+		return nil, nil
+	}
+	return statements[len(statements)-1], nil
+}
+
+func writeJSON(w http.ResponseWriter, status int, payload any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func (s *Server) writeQueryRows(w http.ResponseWriter, r *http.Request, query string) {
+	rows, err := queryRows(r.Context(), s.app.DB, query)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, rows)
+}
+
+func (s *Server) writeNoContentQuery(w http.ResponseWriter, r *http.Request, query string) {
+	if _, err := s.app.DB.Query(r.Context(), query); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) writeListOrCreate(w http.ResponseWriter, r *http.Request, listQuery string, create func() (map[string]any, error)) {
+	switch r.Method {
+	case http.MethodGet:
+		s.writeQueryRows(w, r, listQuery)
+	case http.MethodPost:
+		row, err := create()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, row)
+	default:
+		writeError(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed"))
+	}
+}
+
+func decodeAndCreate[T any](r *http.Request, create func(context.Context, string, T) (map[string]any, error), id string) (map[string]any, error) {
+	var req T
+	if err := decodeJSON(r, &req); err != nil {
+		return nil, err
+	}
+	return create(r.Context(), id, req)
+}
+
+func writeError(w http.ResponseWriter, status int, err error) {
+	writeJSON(w, status, map[string]any{"ok": false, "error": err.Error()})
+}
+
+func writeOne(w http.ResponseWriter, row any, err error) {
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if row == nil {
+		writeError(w, http.StatusNotFound, fmt.Errorf("not found"))
+		return
+	}
+	writeJSON(w, http.StatusOK, row)
+}
+
+func writeFirst(w http.ResponseWriter, rows []map[string]any, err error) {
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if len(rows) == 0 {
+		writeError(w, http.StatusNotFound, fmt.Errorf("not found"))
+		return
+	}
+	writeJSON(w, http.StatusOK, rows[0])
+}
+
+func decodeJSON(r *http.Request, target any) error {
+	if r.Body == nil {
+		return nil
+	}
+	defer func() { _ = r.Body.Close() }()
+	if err := json.NewDecoder(r.Body).Decode(target); err != nil && err != io.EOF {
+		return err
+	}
+	return nil
+}

@@ -3,6 +3,7 @@ package localdata
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/CaliLuke/luke/backend-go/internal/persistence"
 )
@@ -19,6 +20,75 @@ func seedLocalUser(ctx context.Context, db *persistence.DB) error {
 		return fmt.Errorf("seed deterministic local user: %w", err)
 	}
 	return nil
+}
+
+func seedBuiltinWorkflows(ctx context.Context, db *persistence.DB) error {
+	for _, workflow := range builtinWorkflows {
+		exists, err := queryRowsDB(ctx, db, "SELECT id FROM "+recordID("workflows", workflow.id)+";")
+		if err != nil {
+			return fmt.Errorf("check built-in workflow %s: %w", workflow.id, err)
+		}
+		query := workflow.updateQuery()
+		if len(exists) == 0 {
+			query = workflow.createQuery()
+		}
+		if _, err := db.Query(ctx, query); err != nil {
+			return fmt.Errorf("seed built-in workflow %s: %w", workflow.id, err)
+		}
+	}
+	return nil
+}
+
+type builtinWorkflow struct {
+	id     string
+	title  string
+	prompt string
+}
+
+func (workflow builtinWorkflow) createQuery() string {
+	return fmt.Sprintf(`
+CREATE %s CONTENT {
+	user_id: NONE,
+	title: %s,
+	type: "chat",
+	prompt_md: %s,
+	columns_config: [],
+	practice: NONE,
+	is_system: true,
+	created_at: time::now()
+};
+`, recordID("workflows", workflow.id), strconv.Quote(workflow.title), strconv.Quote(workflow.prompt))
+}
+
+func (workflow builtinWorkflow) updateQuery() string {
+	return fmt.Sprintf(`
+UPDATE %s SET
+	user_id = NONE,
+	title = %s,
+	type = "chat",
+	prompt_md = %s,
+	columns_config = [],
+	practice = NONE,
+	is_system = true;
+`, recordID("workflows", workflow.id), strconv.Quote(workflow.title), strconv.Quote(workflow.prompt))
+}
+
+var builtinWorkflows = []builtinWorkflow{
+	{
+		id:     "builtin_cp_checklist",
+		title:  "Generate CP Checklist",
+		prompt: "Generate a comprehensive Conditions Precedent checklist from the uploaded financing document. Use a downloadable DOCX when requested by the user.",
+	},
+	{
+		id:     "builtin_credit_summary",
+		title:  "Credit Agreement Summary",
+		prompt: "Review the uploaded credit agreement and produce a comprehensive legal summary covering parties, facilities, security, covenants, defaults, transfer restrictions, and governing law.",
+	},
+	{
+		id:     "builtin_sha_summary",
+		title:  "Shareholder Agreement Summary",
+		prompt: "Review the uploaded shareholder agreement and summarize parties, share rights, governance, reserved matters, transfer restrictions, exit rights, and dispute resolution.",
+	},
 }
 
 const schemaSurrealQL = `

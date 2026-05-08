@@ -5,6 +5,7 @@
     "method": "POST",
     "path": "/tabular-review/{reviewId}/chat",
     "body": {
+      "model": "gemma4",
       "messages": [
         {
           "role": "user",
