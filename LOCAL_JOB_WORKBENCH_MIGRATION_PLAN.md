@@ -14,7 +14,8 @@ Last updated: 2026-05-07.
 - Milestone 1 is complete, including the compatibility inventory, fixture capture/replay scripts, mock-provider mode, and independent review.
 - Milestone 2 is complete and pushed in commit `cec5bf8` (`Add Loom backend contract milestone`). The Loom contract covers all 67 inventory routes, preserves the `/users` alias, generates SSE-compatible OpenAPI for all four streaming routes, and `backend-go/check.sh` now passes repeatedly with a stable generated-code freshness gate.
 - Milestone 2.5 is complete. The Rust FFI persistence boundary now has an open/query/transaction/close lifecycle, one long-lived Tokio runtime per open handle, bounded `pond` worker admission, serialized handle access, closure-shaped transactions, commit/rollback smoke tests, and review findings addressed in `backend-go/docs/persistence-hardening-review.md`.
-- Next execution target: Milestone 3, Local Data And Storage.
+- Milestone 3 local data foundation is complete. `backend-go/internal/localdata` initializes `$LUKE_DATA_DIR/surrealkv`, `$LUKE_DATA_DIR/romancy.db`, local storage defaults, schemaful Surreal tables, DB-side cascades, deterministic local user state, single-user auth/access/credit helpers, CORS, download tokens, transaction-wrapped repository primitives, and Romancy document-operation workflows with deterministic upserts.
+- Next execution target: Milestone 4 API-compatible backend behavior.
 
 ## Milestones
 
@@ -116,40 +117,40 @@ Goal: Replace Supabase database, auth, admin-user lookup, and R2 requirements wi
 Acceptance Criteria
 
 - Backend data persists across process restarts under `LUKE_DATA_DIR`, which contains `surrealkv/` (SurrealDB data) and `romancy.db` (Romancy SQLite state).
-- All SurrealDB tables are schemaful: `DEFINE TABLE` and `DEFINE FIELD` with types and asserts encode every invariant (enums, FKs as `record<...>`, JSON shapes via `object`).
+- All SurrealDB tables are schemaful: `DEFINE TABLE` and `DEFINE FIELD` with types and asserts encode invariants (enums, FKs as `record<...>`, strict JSON fields as `object FLEXIBLE`, and legacy variable-shape JSON fields as `any`).
 - Cascade deletes run as SurrealQL `EVENT` definitions on parent tables, not in Go repository code.
 - Repository tests prove SurrealDB record links, DB-side cascade deletes, JSON object fields, load-bearing indexes, transactions, and DB-side enum validation.
-- Routes that previously required Supabase auth resolve to one deterministic local user and populate the same service-level user context without requiring an Authorization header.
+- Local auth primitives resolve to one deterministic local user and expose the same service-level user context shape without requiring an Authorization header. M4 wires those primitives into the ported route handlers.
 - Backend startup enforces a single-writer constraint by relying on SurrealKV's own file lock and surfacing a helpful error message ("another Luke backend appears to be using $LUKE_DATA_DIR") when the lock is already held, including same-process double-open attempts against the active data directory.
 - Document upload, edit resolution, and generated-document persistence run as Romancy workflows. Their activities are idempotent (deterministic IDs, upserts) so replay after crash is safe.
 - The deterministic local user context is wired into Romancy activity contexts the same way it is wired into HTTP handlers; no separate user-resolution mechanism.
 
 Checklist
 
-- [ ] Implement a SurrealDB connection package using the Milestone 2.5 persistence boundary, fixed namespace/database constants, and `LUKE_DATA_DIR/surrealkv`.
-- [ ] Catch SurrealKV's open-time lock error at startup and wrap it with the helpful message above. Document the single-writer rule and the "open once per process; in-process reopen is not supported" rule in `backend-go/README.md`.
-- [ ] Ensure repository tests use unique temporary `LUKE_DATA_DIR` directories; do not run shared-path database tests with `t.Parallel()`.
-- [ ] Define schemaful tables with `DEFINE TABLE` and `DEFINE FIELD` for every domain table; encode enums as `ASSERT $value INSIDE [...]`, FKs as `record<...>`, and JSON shapes as `object`.
-- [ ] Define SurrealQL `EVENT` cascade rules on parent tables for projects, folders, documents, document versions, document edits, chats, tabular reviews, tabular cells, tabular review chats, and workflow-owned records. Go repository code issues the parent delete and trusts the DB to handle children.
-- [ ] Wrap multi-record write paths in SurrealDB transactions via the closure-shape FFI for project deletion, tabular review deletion, and chat message append. Document upload, edit resolution, and generated-document persistence are wrapped instead by Romancy workflows (see below).
-- [ ] Document that tabular cell generation writes are intentionally per-cell and non-transactional when streamed over SSE, unless the port changes that behavior explicitly.
-- [ ] Document transaction and crash-consistency guarantees in `backend-go/README.md`, including the temp-file-then-rename pattern for byte uploads (write to temp path → commit DB row pointing at temp path → rename to final path; sweep orphaned temp files at startup).
-- [ ] Drop Go-side enum checks; rely on SurrealDB `ASSERT` to enforce them and surface errors back to handlers.
-- [ ] Preserve current JSON shapes for `documents.structure_tree`, `projects.shared_with`, `workflows.columns_config`, `chat_messages.content`, `chat_messages.files`, `chat_messages.annotations`, and tabular citation data.
-- [ ] Define SurrealDB indexes for load-bearing lookups: documents by project/folder, document versions by document/version number, chats by project, chat messages by chat, tabular reviews by project, tabular cells by review/document/column, and tabular review chat messages by chat.
-- [ ] Initialize Romancy with its embedded SQLite backend at `LUKE_DATA_DIR/romancy.db`. Romancy owns its own schema and migrations; Luke does not manage them.
-- [ ] Implement Romancy workflows for document upload, edit resolution, and generated-document persistence. Activities use deterministic IDs and upserts so replay is safe.
-- [ ] Wire the deterministic local user context into Romancy activity contexts so workflow-driven writes attribute to the same user as HTTP handler writes.
-- [ ] Seed the deterministic local user profile on backend startup with non-restricting tier, credits, and reset-date values for local mode.
-- [ ] Remove or bypass credit gating in ported handlers that would otherwise block local single-user AI usage.
-- [ ] Replace `requireAuth` behavior with local user context while preserving the handler/service fields currently represented by `res.locals.userId`, `res.locals.userEmail`, and `res.locals.token`.
-- [ ] Replace owner/shared access checks in `backend/src/lib/access.ts` semantics with single-user checks that return `is_owner: true` and `shared_with: []`.
-- [ ] Preserve local document byte storage using `LOCAL_STORAGE_ROOT` (defaulting under `LUKE_DATA_DIR`) and remove R2 as a required dependency.
-- [ ] Decide local download-token semantics by keeping `/download/:token` as a compatibility route backed by local storage paths and the existing token payload shape.
-- [ ] Add CORS configuration for browser-local development from `http://localhost:3000` and document the later Wails origin separately.
-- [ ] Add repository tests that create records, restart the SurrealDB connection, and read the same records back from a temporary `LUKE_DATA_DIR`.
-- [ ] Run `go test ./...` from `backend-go`.
-- [ ] Ask an independent agent to review the milestone work against the acceptance criteria, then address or explicitly defer each finding before marking the milestone complete.
+- [x] Implement a SurrealDB connection package using the Milestone 2.5 persistence boundary, fixed namespace/database constants, and `LUKE_DATA_DIR/surrealkv`.
+- [x] Catch SurrealKV's open-time lock error at startup and wrap it with the helpful message above. Document the single-writer rule and the "open once per process; in-process reopen is not supported" rule in `backend-go/README.md`.
+- [x] Ensure repository tests use unique temporary `LUKE_DATA_DIR` directories; do not run shared-path database tests with `t.Parallel()`.
+- [x] Define schemaful tables with `DEFINE TABLE` and `DEFINE FIELD` for every domain table; encode enums as `ASSERT $value INSIDE [...]`, FKs as `record<...>`, strict JSON fields as `object FLEXIBLE`, and legacy variable-shape JSON fields as `any`.
+- [x] Define SurrealQL `EVENT` cascade rules on parent tables for projects, folders, documents, document versions, document edits, chats, tabular reviews, tabular cells, tabular review chats, and workflow-owned records. Go repository code issues the parent delete and trusts the DB to handle children.
+- [x] Wrap multi-record write paths in SurrealDB transactions via the closure-shape FFI for project deletion, tabular review deletion, and chat message append. Document upload, edit resolution, and generated-document persistence are wrapped instead by Romancy workflows (see below).
+- [x] Document that tabular cell generation writes are intentionally per-cell and non-transactional when streamed over SSE, unless the port changes that behavior explicitly.
+- [x] Document transaction and crash-consistency guarantees in `backend-go/README.md`, including the temp-file-then-rename pattern for byte uploads and startup orphaned-temp sweeps.
+- [x] Drop Go-side enum checks; rely on SurrealDB `ASSERT` to enforce them and surface errors back to handlers.
+- [x] Preserve current JSON shapes for `documents.structure_tree`, `projects.shared_with`, `workflows.columns_config`, `chat_messages.content`, `chat_messages.files`, `chat_messages.annotations`, and tabular citation data.
+- [x] Define SurrealDB indexes for load-bearing lookups: documents by project/folder, document versions by document/version number, chats by project, chat messages by chat, tabular reviews by project, tabular cells by review/document/column, and tabular review chat messages by chat.
+- [x] Initialize Romancy with its embedded SQLite backend at `LUKE_DATA_DIR/romancy.db`. Romancy owns its own schema and migrations; Luke does not manage them.
+- [x] Implement Romancy workflows for document upload, edit resolution, and generated-document persistence. Activities use deterministic IDs and upserts so replay is safe.
+- [x] Wire the deterministic local user context into Romancy activity contexts so workflow-driven writes attribute to the same user as HTTP handler writes.
+- [x] Seed the deterministic local user profile on backend startup with non-restricting tier, credits, and reset-date values for local mode.
+- [x] Add local credit-gating primitives that keep local single-user AI usage non-blocking when M4 wires handlers.
+- [x] Add local user-context middleware preserving the handler/service fields currently represented by `res.locals.userId`, `res.locals.userEmail`, and `res.locals.token`; M4 wires it into the ported routes.
+- [x] Add single-user access-check primitives matching `backend/src/lib/access.ts` return semantics with `is_owner: true` and `shared_with: []`.
+- [x] Preserve local document byte storage using `LOCAL_STORAGE_ROOT` (defaulting under `LUKE_DATA_DIR`) and remove R2 as a required dependency.
+- [x] Decide local download-token semantics by keeping `/download/:token` as a compatibility route backed by local storage paths and the existing token payload shape.
+- [x] Add CORS middleware for browser-local development from `http://localhost:3000` and document the later Wails origin separately.
+- [x] Add repository tests that create records, restart the SurrealDB connection, and read the same records back from a temporary `LUKE_DATA_DIR`.
+- [x] Run `./check.sh` from `backend-go`.
+- [x] Ask an independent agent to review the milestone work against the acceptance criteria, then address or explicitly defer each finding before marking the milestone complete. Findings are summarized in `backend-go/docs/localdata-m3-review.md`.
 
 ### Milestone 4: API-Compatible Backend Behavior
 

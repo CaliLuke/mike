@@ -33,6 +33,11 @@ The app-facing boundary should stay in `internal/persistence` and hide whether
 the implementation is Rust FFI, a future patched C binding, or a future native
 Go embedded SDK.
 
+The Rust bridge opens the fixed SurrealDB namespace/database pair `luke`/`luke`.
+`internal/localdata` exposes the same values as `Namespace` and `Database` so
+the local data contract is discoverable from Go even though namespace selection
+currently happens inside the FFI bridge.
+
 Milestone 2.5 replaced the original one-shot spike entrypoint with a
 production-shaped process boundary:
 

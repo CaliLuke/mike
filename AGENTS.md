@@ -61,6 +61,22 @@ For the Loom backend, add Go tests near the package they cover and run `go test 
 
 Full gates: Rust bridge build when missing, Loom generated-code freshness, Go build, vet, goimports, go mod tidy drift, golangci-lint, deadcode, dupl, gocyclo, govulncheck, race tests, and coverage. Set `COVERAGE_MIN` to override the default 80% floor.
 
+## Milestone Execution Discipline
+
+When executing a milestone from `LOCAL_JOB_WORKBENCH_MIGRATION_PLAN.md`, do not treat checklist text as a loose suggestion. Read the whole milestone, its acceptance criteria, and any prior review documents before editing code. Keep the plan, implementation, tests, docs, and git state in sync throughout the work.
+
+Before declaring a milestone complete:
+
+- Every checked item in the plan must correspond to implemented, tested behavior or an explicit documented deferral to a later milestone.
+- The "Current Status" section and milestone checkboxes must reflect reality, not intent.
+- Backend Go milestones must pass `./check.sh` from `backend-go`, not only `go test ./...`, unless the plan explicitly documents a narrower temporary gate and why that is acceptable.
+- Generated Loom code must be fresh. If `./check.sh` reports stale `gen/` output, regenerate and include it instead of ignoring the drift.
+- Review docs such as `backend-go/docs/*-review.md` must state which findings were fixed, which are deferred, and why deferred items are not milestone blockers.
+- Do not mark a milestone complete while required code, generated files, docs, or plan changes are unstaged or uncommitted, unless the user explicitly asked not to commit.
+- If independent agents or reviewers are used, ask them for a thorough blocker-focused review against the plan, acceptance criteria, quality gates, lifecycle edge cases, persistence semantics, and git status. Do not ask only for a superficial summary.
+
+When a reviewer calls out gaps, fix the gate failures and lifecycle or data-safety issues first, then rerun the full gate before updating the plan status. Prefer tightening the milestone wording over checking boxes for aspirational or M4-owned behavior.
+
 ## Commit & Pull Request Guidelines
 
 Git history is minimal and uses short, imperative summaries, for example `Add local repo contents`. Keep commits focused and use concise subject lines.
