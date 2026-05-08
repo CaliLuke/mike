@@ -21,6 +21,10 @@ A follow-up fix verification review was requested from Claude Code on 2026-05-08
 Its output is stored at
 `backend-go/docs/localdata-m4-fix-verification-review.md`.
 
+A final sign-off review was requested from Claude Code on 2026-05-08. Its output
+is stored at `backend-go/docs/localdata-m4-final-signoff-review.md`, and it
+explicitly declares `MILESTONE 4 COMPLETE`.
+
 ## Disposition
 
 The original review correctly found that the first M4 slice was structural only.
@@ -71,6 +75,11 @@ medium issues plus fixture coverage gaps. Disposition:
   zip with `word/document.xml`.
 - Fixed: the tabular-chat fixture request includes a `model` field so replay
   exercises model forwarding.
+
+The final sign-off review found one new low, non-blocking cleanup item:
+`upsertTabularReview` resets `created_at` on PATCH. Claude did not consider this
+an M4 blocker because tabular review lists sort by `updated_at`; carry it into
+M5 cleanup.
 
 Remaining non-blocking items:
 

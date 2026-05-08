@@ -8,6 +8,13 @@ Durable execution for crash-sensitive multi-step paths (document upload, edit re
 
 ## Current Status
 
+Completion rule for every milestone: a milestone is not complete because Codex
+says it is complete. The independent reviewer has the final word. Each milestone
+remains pending until the reviewer explicitly states that its acceptance criteria
+are satisfied and no blockers remain. If the reviewer finds gaps, Codex must fix
+or explicitly defer them, rerun the relevant checks, and request another reviewer
+pass before marking that milestone complete.
+
 Last updated: 2026-05-08.
 
 - Milestone 0 has implementation evidence checked in, but its independent-agent review remains open.
@@ -24,8 +31,9 @@ Last updated: 2026-05-08.
   localapi handler tests. `backend-go/docs/localdata-m4-api-review.md` records
   fixed review findings and explicit deferrals for hosted-provider live calls,
   full legal `chatTools.ts` behavior, `wordZero` adoption, and the historical
-  repository-wide coverage floor. Claude completion-review blockers were fixed
-  on 2026-05-08 before the milestone was marked complete.
+  repository-wide coverage floor. Claude final sign-off on 2026-05-08 explicitly
+  declared `MILESTONE 4 COMPLETE`; the final review is recorded in
+  `backend-go/docs/localdata-m4-final-signoff-review.md`.
 - Next execution target: Milestone 5 frontend Supabase removal.
 
 ## Milestones
@@ -48,7 +56,7 @@ Checklist
 - [x] Evaluate a narrow in-repo Go driver/binding layer because native Go SDK embedded access is unavailable.
 - [x] Use the Rust SurrealDB driver from Go because the Go-native and C-binding paths did not provide embedded SurrealKV safely.
 - [x] Record the chosen dependency, build flags, local toolchain requirements, and failure modes in `backend-go/docs/persistence-spike.md`.
-- [x] Ask an independent agent to review the milestone work against the acceptance criteria, then address or explicitly defer each finding before marking the milestone complete. Findings and dispositions are recorded in `backend-go/docs/localdata-m4-api-review.md`.
+- [x] Ask an independent reviewer for final sign-off against this milestone's acceptance criteria. The milestone may be marked complete only after the reviewer explicitly says no blockers remain; fix or explicitly defer every finding and request another reviewer pass when needed. Claude final sign-off is recorded in `backend-go/docs/localdata-m4-final-signoff-review.md`.
 
 ### Milestone 1: Compatibility Inventory
 
@@ -74,7 +82,7 @@ Checklist
 - [x] For each SSE route, capture event ordering, event names, and payload schema while ignoring nondeterministic token text and model-specific prose.
 - [x] Add fixture capture scripts under `backend-go/testdata/compat` that record current Express request/response examples without committing secrets or uploaded private files.
 - [x] Add a fixture replay script under `backend-go/testdata/compat` that compares status codes, content types, response fields, SSE event names, SSE ordering, and SSE payload schemas.
-- [x] Ask an independent agent to review the milestone work against the acceptance criteria, then address or explicitly defer each finding before marking the milestone complete.
+- [x] Ask an independent reviewer for final sign-off against this milestone's acceptance criteria. The milestone may be marked complete only after the reviewer explicitly says no blockers remain; fix or explicitly defer every finding and request another reviewer pass when needed.
 
 ### Milestone 2: Loom Backend Contract
 
@@ -96,7 +104,7 @@ Checklist
 - [x] Generate Loom transport, endpoint, service, client, and OpenAPI code.
 - [x] Add a `go generate` or script check that runs Loom generation and fails when `git diff --quiet backend-go/gen` is false.
 - [x] Add a backend README command note for running Loom generation from `backend-go`.
-- [x] Ask an independent agent to review the milestone work against the acceptance criteria, then address or explicitly defer each finding before marking the milestone complete.
+- [x] Ask an independent reviewer for final sign-off against this milestone's acceptance criteria. The milestone may be marked complete only after the reviewer explicitly says no blockers remain; fix or explicitly defer every finding and request another reviewer pass when needed.
 
 ### Milestone 2.5: Persistence Hardening
 
@@ -119,7 +127,7 @@ Checklist
 - [x] Add a transaction smoke test: begin, write multiple records, roll back, and verify no records persisted.
 - [x] Add a transaction smoke test: begin, write multiple records, commit, reopen, and verify records persisted.
 - [x] Verify and pin the latest stable Rust `surrealdb` crate for Milestone 2.5 (`3.0.5`) in `Cargo.lock`. Document the pinned version and upgrade procedure in `backend-go/docs/persistence-spike.md`; re-check stable crate freshness at the start of M3.
-- [x] Ask an independent agent to review the milestone work against the acceptance criteria, then address or explicitly defer each finding before marking the milestone complete.
+- [x] Ask an independent reviewer for final sign-off against this milestone's acceptance criteria. The milestone may be marked complete only after the reviewer explicitly says no blockers remain; fix or explicitly defer every finding and request another reviewer pass when needed.
 
 ### Milestone 3: Local Data And Storage
 
@@ -161,7 +169,7 @@ Checklist
 - [x] Add CORS middleware for browser-local development from `http://localhost:3000` and document the later Wails origin separately.
 - [x] Add repository tests that create records, restart the SurrealDB connection, and read the same records back from a temporary `LUKE_DATA_DIR`.
 - [x] Run `./check.sh` from `backend-go`.
-- [x] Ask an independent agent to review the milestone work against the acceptance criteria, then address or explicitly defer each finding before marking the milestone complete. Findings are summarized in `backend-go/docs/localdata-m3-review.md`.
+- [x] Ask an independent reviewer for final sign-off against this milestone's acceptance criteria. The milestone may be marked complete only after the reviewer explicitly says no blockers remain; fix or explicitly defer every finding and request another reviewer pass when needed. Findings are summarized in `backend-go/docs/localdata-m3-review.md`.
 
 ### Milestone 4: API-Compatible Backend Behavior
 
@@ -199,7 +207,7 @@ Checklist
 - [x] Run the fixture replay script against the Loom backend.
 - [x] Run `go test ./...` from `backend-go`.
 - [x] Run `./check.sh` from `backend-go`; all gates passed except the existing repository-wide coverage floor, documented in `backend-go/docs/localdata-m4-api-review.md`.
-- [ ] Ask an independent agent to review the milestone work against the acceptance criteria, then address or explicitly defer each finding before marking the milestone complete.
+- [ ] Ask an independent reviewer for final sign-off against this milestone's acceptance criteria. The milestone may be marked complete only after the reviewer explicitly says no blockers remain; fix or explicitly defer every finding and request another reviewer pass when needed.
 
 ### Milestone 5: Frontend Supabase Removal
 
@@ -232,7 +240,7 @@ Checklist
 - [ ] Run `rg -n "supabase|@supabase|SUPABASE|createServerSupabase" frontend/src frontend/package.json frontend/.env.local.example`.
 - [ ] Run `npm run build --prefix frontend`.
 - [ ] Run `npm run lint --prefix frontend`.
-- [ ] Ask an independent agent to review the milestone work against the acceptance criteria, then address or explicitly defer each finding before marking the milestone complete.
+- [ ] Ask an independent reviewer for final sign-off against this milestone's acceptance criteria. The milestone may be marked complete only after the reviewer explicitly says no blockers remain; fix or explicitly defer every finding and request another reviewer pass when needed.
 
 ### Milestone 6: Local Browser Smoke Path
 
@@ -253,7 +261,7 @@ Checklist
 - [ ] Restart the backend and reload the frontend.
 - [ ] Confirm the project, document, chat, workflow, and tabular review are still present after restart.
 - [ ] Record the smoke-test commands and observations in the pull request description.
-- [ ] Ask an independent agent to review the milestone work against the acceptance criteria, then address or explicitly defer each finding before marking the milestone complete.
+- [ ] Ask an independent reviewer for final sign-off against this milestone's acceptance criteria. The milestone may be marked complete only after the reviewer explicitly says no blockers remain; fix or explicitly defer every finding and request another reviewer pass when needed.
 
 ### Milestone 7: Wails Feasibility Check
 
@@ -274,4 +282,4 @@ Checklist
 - [ ] Verify macOS arm64 linker flags and prerequisite system libraries for the Rust persistence bridge in a Wails build.
 - [ ] Decide whether release builds require a Rust toolchain on the developer/build machine or consume a prebuilt `libluke_surreal_bridge.a` artifact from CI.
 - [ ] Record SurrealDB Rust crate version and license/distribution notes in the Wails feasibility document.
-- [ ] Ask an independent agent to review the milestone work against the acceptance criteria, then address or explicitly defer each finding before marking the milestone complete.
+- [ ] Ask an independent reviewer for final sign-off against this milestone's acceptance criteria. The milestone may be marked complete only after the reviewer explicitly says no blockers remain; fix or explicitly defer every finding and request another reviewer pass when needed.
