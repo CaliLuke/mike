@@ -61,6 +61,40 @@ For the Loom backend, add Go tests near the package they cover and run `go test 
 
 Full gates: Rust bridge build when missing, Loom generated-code freshness, Go build, vet, goimports, go mod tidy drift, golangci-lint, deadcode, dupl, gocyclo, govulncheck, race tests, and coverage. Set `COVERAGE_MIN` to override the default 80% floor.
 
+## Local Telemetry For Debugging
+
+Luke has local-only OpenTelemetry instrumentation for agent-friendly debugging. The frontend sends browser spans to the Go backend, and the backend writes frontend and backend spans into SQLite at:
+
+```bash
+$LUKE_DATA_DIR/telemetry.sqlite
+```
+
+Telemetry is intended for local debugging and should be used before guessing at browser/API/SSE failures. When investigating runtime issues, start by querying this SQLite database for recent errors, slow spans, failed fetches, and trace-correlated frontend/backend activity. Do not send telemetry data to hosted services, and do not add remote collectors unless explicitly requested.
+
+Telemetry defaults:
+
+- Backend: enabled by default; set `OTEL_ENABLED=false` to disable.
+- Frontend: enabled by default in local development; set `NEXT_PUBLIC_OTEL_ENABLED=false` to disable.
+- Ingest endpoint: `POST /v1/traces` on the Go backend.
+- Frontend trace propagation uses W3C headers such as `traceparent`, `tracestate`, and `baggage`.
+- Retention is local and bounded; see `backend-go/internal/telemetry/telemetry.go`.
+
+Useful queries:
+
+```bash
+DB="$LUKE_DATA_DIR/telemetry.sqlite"
+sqlite3 -column -header "$DB" "SELECT name, service, kind, trace_id, start_unix_nano FROM spans ORDER BY start_unix_nano DESC LIMIT 20"
+sqlite3 -column -header "$DB" "SELECT name, service, (end_unix_nano - start_unix_nano) / 1000000 AS ms FROM spans ORDER BY ms DESC LIMIT 20"
+sqlite3 -column -header "$DB" "SELECT name, service, parent_span_id, start_unix_nano FROM spans WHERE trace_id = '<TRACE_ID>' ORDER BY start_unix_nano"
+```
+
+Reference docs and code:
+
+- `docs/telemetry.md` documents the architecture, manual instrumentation, query patterns, and retention.
+- `frontend/src/app/lib/telemetry.ts` and `frontend/src/app/components/TelemetryBootstrap.tsx` contain the browser setup.
+- `backend-go/internal/telemetry/telemetry.go` contains the SQLite schema, retention, and span ingest/write path.
+- `backend-go/cmd/luke-backend/main.go` wires telemetry into the local backend.
+
 ## Milestone Execution Discipline
 
 When executing a milestone from `LOCAL_JOB_WORKBENCH_MIGRATION_PLAN.md`, do not treat checklist text as a loose suggestion. Read the whole milestone, its acceptance criteria, and any prior review documents before editing code. Keep the plan, implementation, tests, docs, and git state in sync throughout the work.

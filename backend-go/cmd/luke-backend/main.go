@@ -7,11 +7,15 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
+	loomotelhttp "github.com/CaliLuke/loom/http/middleware/otel"
+
 	"github.com/CaliLuke/luke/backend-go/internal/localapi"
 	"github.com/CaliLuke/luke/backend-go/internal/localdata"
+	"github.com/CaliLuke/luke/backend-go/internal/telemetry"
 )
 
 func main() {
@@ -30,10 +34,28 @@ func main() {
 		}
 	}()
 
+	tel, err := telemetry.Init(ctx, filepath.Join(app.DataDir, "telemetry.sqlite"))
+	if err != nil {
+		log.Printf("telemetry init: %v", err)
+	} else if tel != nil {
+		log.Printf("telemetry enabled: %s/telemetry.sqlite", app.DataDir)
+		defer func() {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := tel.Shutdown(shutdownCtx); err != nil {
+				log.Printf("telemetry shutdown: %v", err)
+			}
+		}()
+	}
+
 	addr := localapi.ListenAddr(os.Getenv("LUKE_BACKEND_ADDR"))
+	handler := localapi.New(app, tel)
+	if tel != nil {
+		handler = loomotelhttp.Handler(handler, telemetry.ServiceName)
+	}
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           localapi.New(app),
+		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

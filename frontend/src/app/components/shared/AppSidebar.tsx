@@ -19,6 +19,7 @@ import Link from "next/link";
 import { MikeIcon } from "@/components/chat/mike-icon";
 import { SidebarChatItem } from "@/app/components/shared/SidebarChatItem";
 import { listProjects } from "@/app/lib/mikeApi";
+import { getTracer } from "@/app/lib/telemetry";
 
 const NAV_ITEMS = [
     { href: "/assistant", label: "Assistant", icon: MessageSquare },
@@ -154,7 +155,17 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                 return (
                     <div key={href} className="py-1 px-2.5">
                         <button
-                            onClick={() => router.push(href)}
+                            onClick={() => {
+                                const span = getTracer().startSpan("nav.click", {
+                                    attributes: {
+                                        "nav.href": href,
+                                        "nav.label": label,
+                                        "nav.from": pathname,
+                                    },
+                                });
+                                span.end();
+                                router.push(href);
+                            }}
                             title={!isOpen ? label : ""}
                             className={`w-full h-9 flex items-center gap-3 px-2.5 py-2 rounded-md transition-colors text-left ${
                                 isActive
@@ -293,6 +304,14 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                             <div className="absolute bottom-full left-0 m-1 bg-white rounded-lg shadow-lg border border-gray-200 p-1 z-50 w-62 whitespace-nowrap">
                                 <button
                                     onClick={() => {
+                                        const span = getTracer().startSpan("nav.click", {
+                                            attributes: {
+                                                "nav.href": "/account",
+                                                "nav.label": "Account",
+                                                "nav.from": pathname,
+                                            },
+                                        });
+                                        span.end();
                                         router.push("/account");
                                         setIsDropdownOpen(false);
                                     }}

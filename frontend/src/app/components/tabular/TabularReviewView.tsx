@@ -282,7 +282,11 @@ export function TRView({ reviewId, projectId }: Props) {
         );
 
         try {
-            const response = await streamTabularGeneration(reviewId);
+            const response = await streamTabularGeneration(
+                reviewId,
+                documents.map((doc) => doc.id),
+                columns.map((col) => col.index),
+            );
             if (!response.body) throw new Error("No body");
 
             const reader = response.body.getReader();

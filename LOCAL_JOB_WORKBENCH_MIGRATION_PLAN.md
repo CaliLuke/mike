@@ -43,7 +43,18 @@ Last updated: 2026-05-08.
   gate has no hits, build passes, lint exits 0 with warnings only, and the
   independent review is recorded in
   `backend-go/docs/frontend-m5-supabase-removal-review.md`.
-- Next execution target: Milestone 6 local browser smoke path.
+- Milestone 6 local browser smoke path is complete. Root local development
+  notes now document the Loom backend, Rust bridge, Next frontend, and Ollama
+  `gemma4` setup. The smoke backend started with only local env values, the
+  frontend served successfully at `http://localhost:3000`, and
+  Playwright/Chromium completed the main project/document/chat/workflow/
+  tabular-review workflow from the browser runtime against the Loom backend
+  with live Ollama. Backend restart preserved the created project, document,
+  chat, workflow, tabular review, and generated cell. Claude final sign-off on
+  2026-05-08 explicitly declared `MILESTONE 6 COMPLETE / no blockers remain`;
+  the final review is recorded in
+  `backend-go/docs/local-browser-m6-final-review.md`.
+- Next execution target: Milestone 7 Wails feasibility check.
 
 ## Milestones
 
@@ -216,7 +227,7 @@ Checklist
 - [x] Run the fixture replay script against the Loom backend.
 - [x] Run `go test ./...` from `backend-go`.
 - [x] Run `./check.sh` from `backend-go`; all gates passed except the existing repository-wide coverage floor, documented in `backend-go/docs/localdata-m4-api-review.md`.
-- [ ] Ask an independent reviewer for final sign-off against this milestone's acceptance criteria. The milestone may be marked complete only after the reviewer explicitly says no blockers remain; fix or explicitly defer every finding and request another reviewer pass when needed.
+- [x] Ask an independent reviewer for final sign-off against this milestone's acceptance criteria. The milestone may be marked complete only after the reviewer explicitly says no blockers remain; fix or explicitly defer every finding and request another reviewer pass when needed. Claude final sign-off is recorded in `backend-go/docs/local-browser-m6-final-review.md`.
 
 ### Milestone 5: Frontend Supabase Removal
 
@@ -263,13 +274,13 @@ Acceptance Criteria
 
 Checklist
 
-- [ ] Add root-level local development notes for starting the Loom backend and Next frontend, including Ollama setup with `gemma4` pulled.
-- [ ] Start the Loom backend with `LUKE_DATA_DIR`, `LOCAL_STORAGE_ROOT`, and `OLLAMA_BASE_URL`.
-- [ ] Start the frontend with `npm run dev --prefix frontend`.
-- [ ] Manually create a project, upload a document, open the document, create a chat, create a workflow, create a tabular review, and generate tabular cells using the `gemma4` model.
-- [ ] Restart the backend and reload the frontend.
-- [ ] Confirm the project, document, chat, workflow, and tabular review are still present after restart.
-- [ ] Record the smoke-test commands and observations in the pull request description.
+- [x] Add root-level local development notes for starting the Loom backend and Next frontend, including Ollama setup with `gemma4` pulled.
+- [x] Start the Loom backend with `LUKE_DATA_DIR`, `LOCAL_STORAGE_ROOT`, and `OLLAMA_BASE_URL`.
+- [x] Start the frontend with `npm run dev --prefix frontend` at `http://localhost:3000`.
+- [x] Create a project, upload a document, open the project in the browser, create a chat, create a workflow, create a tabular review, and generate tabular cells using the `gemma4` model. The final smoke used Playwright/Chromium against `http://localhost:3000` and browser-side SSE stream consumption.
+- [x] Restart the backend and reload the frontend.
+- [x] Confirm the project, document, chat, workflow, and tabular review are still present after restart.
+- [x] Record the smoke-test commands and observations in the pull request description. Current notes are recorded in `docs/milestone-6-smoke.md` until a PR description exists.
 - [ ] Ask an independent reviewer for final sign-off against this milestone's acceptance criteria. The milestone may be marked complete only after the reviewer explicitly says no blockers remain; fix or explicitly defer every finding and request another reviewer pass when needed.
 
 ### Milestone 7: Wails Feasibility Check

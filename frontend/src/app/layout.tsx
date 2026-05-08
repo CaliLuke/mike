@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, EB_Garamond } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
+import { TelemetryBootstrap } from "@/app/components/TelemetryBootstrap";
 
 const inter = Inter({
     variable: "--font-inter",
@@ -37,6 +38,7 @@ export default function RootLayout({
             <body
                 className={`${inter.variable} ${ebGaramond.variable} font-sans antialiased`}
             >
+                <TelemetryBootstrap />
                 <Providers>{children}</Providers>
             </body>
         </html>

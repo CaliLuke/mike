@@ -11,6 +11,8 @@ build
 !.env.local.example
 
 *.log
+telemetry.sqlite
+telemetry.sqlite-*
 *.tsbuildinfo
 next-env.d.ts
 .DS_Store

@@ -6,12 +6,33 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/CaliLuke/luke/backend-go/internal/persistence"
 )
 
 const BrowserLocalOrigin = "http://localhost:3000"
+
+// isLocalOrigin returns true for any http(s) origin pointing at localhost
+// or 127.0.0.1 on any port. Safe because this server only binds to loopback.
+func isLocalOrigin(origin string) bool {
+	if origin == "" {
+		return false
+	}
+	for _, prefix := range []string{
+		"http://localhost", "http://127.0.0.1",
+		"https://localhost", "https://127.0.0.1",
+	} {
+		if strings.HasPrefix(origin, prefix) {
+			rest := origin[len(prefix):]
+			if rest == "" || rest[0] == ':' || rest[0] == '/' {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 type DownloadToken struct {
 	Token     string         `json:"token"`
@@ -21,10 +42,12 @@ type DownloadToken struct {
 
 func LocalCORSMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Origin") == BrowserLocalOrigin {
-			w.Header().Set("Access-Control-Allow-Origin", BrowserLocalOrigin)
+		origin := r.Header.Get("Origin")
+		if isLocalOrigin(origin) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, traceparent, tracestate, baggage")
 		}
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)

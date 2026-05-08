@@ -557,9 +557,16 @@ export async function deleteTabularReview(reviewId: string): Promise<void> {
 
 export async function streamTabularGeneration(
     reviewId: string,
+    documentIds: string[],
+    columnIndices: number[],
 ): Promise<Response> {
     return fetch(`${API_BASE}/tabular-review/${reviewId}/generate`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            document_ids: documentIds,
+            column_indices: columnIndices,
+        }),
     });
 }
 

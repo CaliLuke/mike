@@ -56,9 +56,78 @@ func TestLocalAPIChatAndTabularStreamsPersistMessages(t *testing.T) {
 	if !ok {
 		t.Fatalf("cell_update missing cell payload: %#v", cellEvents[0])
 	}
+	if got := asString(cellEvents[0]["content"]); got != "Mock completion" {
+		t.Fatalf("cell_update content = %q, want provider mock output", got)
+	}
+	if got := int(cellEvents[0]["column_index"].(float64)); got != 0 {
+		t.Fatalf("cell_update column_index = %d, want 0", got)
+	}
 	if got := asString(cell["content"]); got != "Mock completion" {
 		t.Fatalf("tabular generate content = %q, want provider mock output", got)
 	}
+}
+
+func TestLocalAPIFrontendCompatibilityAliases(t *testing.T) {
+	t.Setenv(mockProviderEnvVar, "1")
+	handler, closeApp := newTestHandler(t)
+	defer closeApp()
+
+	project := postJSONForTest(t, handler, "/projects", map[string]any{"name": "Smoke Project"}, http.StatusCreated)
+	projectID := trimRecord(asString(project["id"]))
+
+	uploaded := uploadTestDocumentToPath(t, handler, "/projects/"+projectID+"/documents")
+	documentID := trimRecord(asString(uploaded["id"]))
+	documents := getJSONArrayForTest(t, handler, "/projects/"+projectID+"/documents", http.StatusOK)
+	if len(documents) != 1 || trimRecord(asString(documents[0]["id"])) != documentID {
+		t.Fatalf("project document upload alias did not persist project document: %#v", documents)
+	}
+
+	standalone := uploadTestDocument(t, handler)
+	standaloneID := trimRecord(asString(standalone["id"]))
+	attached := postJSONForTest(t, handler, "/projects/"+projectID+"/documents/"+standaloneID, nil, http.StatusOK)
+	if trimRecord(asString(attached["project_id"])) != projectID {
+		t.Fatalf("project document attach alias project_id = %q, want %q", asString(attached["project_id"]), projectID)
+	}
+
+	createdChat := postJSONForTest(t, handler, "/chat/create", map[string]any{}, http.StatusCreated)
+	chatID := trimRecord(asString(createdChat["id"]))
+	chatDetail := getJSONForTest(t, handler, "/chat/"+chatID, http.StatusOK)
+	if trimRecord(asString(chatDetail["chat"].(map[string]any)["id"])) != chatID {
+		t.Fatalf("chat alias detail = %#v, want chat id %q", chatDetail, chatID)
+	}
+
+	projectChat := postJSONForTest(t, handler, "/chat/create", map[string]any{"project_id": projectID}, http.StatusCreated)
+	projectChatID := trimRecord(asString(projectChat["id"]))
+	projectChats := getJSONArrayForTest(t, handler, "/projects/"+projectID+"/chats", http.StatusOK)
+	foundProjectChat := false
+	for _, chat := range projectChats {
+		if trimRecord(asString(chat["id"])) == projectChatID {
+			foundProjectChat = true
+			break
+		}
+	}
+	if !foundProjectChat {
+		t.Fatalf("chat/create project_id alias did not create a project chat: %#v", projectChats)
+	}
+
+	postJSONForTest(t, handler, "/workflows", map[string]any{"title": "Assistant Flow", "type": "assistant"}, http.StatusCreated)
+	postJSONForTest(t, handler, "/workflows", map[string]any{"title": "Tabular Flow", "type": "tabular"}, http.StatusCreated)
+	assistantWorkflows := getJSONArrayForTest(t, handler, "/workflows?type=assistant", http.StatusOK)
+	if len(assistantWorkflows) == 0 {
+		t.Fatalf("workflow type filter returned no assistant workflows")
+	}
+	for _, workflow := range assistantWorkflows {
+		if got := asString(workflow["type"]); got != "assistant" {
+			t.Fatalf("workflow type filter returned %q workflow: %#v", got, workflow)
+		}
+	}
+
+	zipBody := postRawForTest(t, handler, "/single-documents/download-zip", map[string]any{"document_ids": []string{documentID}}, http.StatusOK)
+	if _, err := zip.NewReader(bytes.NewReader(zipBody), int64(len(zipBody))); err != nil {
+		t.Fatalf("download-zip alias returned invalid zip: %v", err)
+	}
+
+	deleteForTest(t, handler, "/user/account", http.StatusOK)
 }
 
 func TestLocalAPIDisplayAndBuiltInWorkflowSeed(t *testing.T) {
@@ -128,7 +197,7 @@ func newTestHandler(t *testing.T) (http.Handler, func()) {
 	if err != nil {
 		t.Fatalf("open localdata app: %v", err)
 	}
-	return New(app), func() {
+	return New(app, nil), func() {
 		if err := app.Close(context.Background()); err != nil {
 			t.Fatalf("close localdata app: %v", err)
 		}
@@ -136,6 +205,16 @@ func newTestHandler(t *testing.T) (http.Handler, func()) {
 }
 
 func uploadTestDocument(t *testing.T, handler http.Handler) map[string]any {
+	t.Helper()
+	return decodeObjectForTest(t, uploadTestDocumentBytesToPath(t, handler, "/single-documents"))
+}
+
+func uploadTestDocumentToPath(t *testing.T, handler http.Handler, path string) map[string]any {
+	t.Helper()
+	return decodeObjectForTest(t, uploadTestDocumentBytesToPath(t, handler, path))
+}
+
+func uploadTestDocumentBytesToPath(t *testing.T, handler http.Handler, path string) []byte {
 	t.Helper()
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
@@ -149,14 +228,14 @@ func uploadTestDocument(t *testing.T, handler http.Handler) map[string]any {
 	if err := writer.Close(); err != nil {
 		t.Fatalf("close multipart writer: %v", err)
 	}
-	request := httptest.NewRequest(http.MethodPost, "/single-documents", &body)
+	request := httptest.NewRequest(http.MethodPost, path, &body)
 	request.Header.Set("Content-Type", writer.FormDataContentType())
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	if response.Code != http.StatusCreated {
 		t.Fatalf("upload status = %d, body = %s", response.Code, response.Body.String())
 	}
-	return decodeObjectForTest(t, response.Body.Bytes())
+	return response.Body.Bytes()
 }
 
 func postJSONForTest(t *testing.T, handler http.Handler, path string, body any, wantStatus int) map[string]any {
@@ -173,6 +252,22 @@ func postJSONForTest(t *testing.T, handler http.Handler, path string, body any, 
 		t.Fatalf("POST %s status = %d, body = %s", path, response.Code, response.Body.String())
 	}
 	return decodeObjectForTest(t, response.Body.Bytes())
+}
+
+func postRawForTest(t *testing.T, handler http.Handler, path string, body any, wantStatus int) []byte {
+	t.Helper()
+	payload, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	request := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(payload))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != wantStatus {
+		t.Fatalf("POST %s status = %d, body = %s", path, response.Code, response.Body.String())
+	}
+	return response.Body.Bytes()
 }
 
 func getJSONForTest(t *testing.T, handler http.Handler, path string, wantStatus int) map[string]any {
@@ -197,6 +292,15 @@ func getJSONArrayForTest(t *testing.T, handler http.Handler, path string, wantSt
 		t.Fatalf("decode response: %v; body=%s", err, response.Body.String())
 	}
 	return rows
+}
+
+func deleteForTest(t *testing.T, handler http.Handler, path string, wantStatus int) {
+	t.Helper()
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodDelete, path, nil))
+	if response.Code != wantStatus {
+		t.Fatalf("DELETE %s status = %d, body = %s", path, response.Code, response.Body.String())
+	}
 }
 
 func postSSEForTest(t *testing.T, handler http.Handler, path string, body any) []map[string]any {

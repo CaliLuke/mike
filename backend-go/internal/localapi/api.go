@@ -18,16 +18,18 @@ import (
 
 	"github.com/CaliLuke/luke/backend-go/internal/localdata"
 	"github.com/CaliLuke/luke/backend-go/internal/persistence"
+	"github.com/CaliLuke/luke/backend-go/internal/telemetry"
 )
 
 const defaultListenAddr = "127.0.0.1:3001"
 
 type Server struct {
 	app *localdata.App
+	tel *telemetry.Telemetry
 }
 
-func New(app *localdata.App) http.Handler {
-	server := &Server{app: app}
+func New(app *localdata.App, tel *telemetry.Telemetry) http.Handler {
+	server := &Server{app: app, tel: tel}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", server.health)
 	mux.HandleFunc("POST /user/profile", server.profile)
@@ -35,14 +37,17 @@ func New(app *localdata.App) http.Handler {
 	mux.HandleFunc("POST /users/profile", server.profile)
 	mux.HandleFunc("GET /users/profile", server.profile)
 	mux.HandleFunc("DELETE /user", server.deleteAccount)
+	mux.HandleFunc("DELETE /user/account", server.deleteAccount)
 	mux.HandleFunc("DELETE /users", server.deleteAccount)
+	mux.HandleFunc("DELETE /users/account", server.deleteAccount)
 	mux.HandleFunc("GET /projects", server.projects)
 	mux.HandleFunc("POST /projects", server.projects)
 	mux.HandleFunc("GET /projects/{projectId}", server.project)
 	mux.HandleFunc("PATCH /projects/{projectId}", server.project)
 	mux.HandleFunc("DELETE /projects/{projectId}", server.project)
 	mux.HandleFunc("GET /projects/{projectId}/documents", server.projectDocuments)
-	mux.HandleFunc("POST /projects/{projectId}/documents", server.attachProjectDocument)
+	mux.HandleFunc("POST /projects/{projectId}/documents", server.uploadProjectDocument)
+	mux.HandleFunc("POST /projects/{projectId}/documents/{documentId}", server.attachProjectDocument)
 	mux.HandleFunc("POST /projects/{projectId}/upload", server.uploadProjectDocument)
 	mux.HandleFunc("GET /projects/{projectId}/people", server.projectPeople)
 	mux.HandleFunc("GET /projects/{projectId}/chats", server.projectChats)
@@ -58,6 +63,7 @@ func New(app *localdata.App) http.Handler {
 	mux.HandleFunc("GET /single-documents/{documentId}/url", server.documentURL)
 	mux.HandleFunc("GET /single-documents/{documentId}/docx", server.docxDocument)
 	mux.HandleFunc("POST /single-documents/zip", server.zipDocuments)
+	mux.HandleFunc("POST /single-documents/download-zip", server.zipDocuments)
 	mux.HandleFunc("GET /single-documents/{documentId}/versions", server.documentVersions)
 	mux.HandleFunc("POST /single-documents/{documentId}/versions", server.uploadDocumentVersion)
 	mux.HandleFunc("PATCH /single-documents/{documentId}/versions/{versionId}", server.renameDocumentVersion)
@@ -69,6 +75,11 @@ func New(app *localdata.App) http.Handler {
 	mux.HandleFunc("GET /chats/{chatId}", server.chat)
 	mux.HandleFunc("PATCH /chats/{chatId}", server.chat)
 	mux.HandleFunc("DELETE /chats/{chatId}", server.chat)
+	mux.HandleFunc("GET /chat", server.chats)
+	mux.HandleFunc("POST /chat/create", server.chats)
+	mux.HandleFunc("GET /chat/{chatId}", server.chat)
+	mux.HandleFunc("PATCH /chat/{chatId}", server.chat)
+	mux.HandleFunc("DELETE /chat/{chatId}", server.chat)
 	mux.HandleFunc("POST /chat", server.globalChatStream)
 	mux.HandleFunc("POST /chat/{chatId}/generate-title", server.generateChatTitle)
 	mux.HandleFunc("GET /workflows", server.workflows)
@@ -98,6 +109,9 @@ func New(app *localdata.App) http.Handler {
 	mux.HandleFunc("GET /tabular-review/{reviewId}/chats/{chatId}/messages", server.tabularChatMessages)
 	mux.HandleFunc("POST /tabular-review/{reviewId}/chat", server.tabularChatStream)
 	mux.HandleFunc("GET /download/{token}", server.downloadToken)
+	if server.tel != nil {
+		mux.Handle("POST /v1/traces", server.tel.SpanIngestHandler())
+	}
 	return localdata.LocalCORSMiddleware(localdata.LocalUserMiddleware(mux))
 }
 
@@ -203,14 +217,7 @@ func (s *Server) projectDocuments(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) attachProjectDocument(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		DocumentID string `json:"documentId"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err)
-		return
-	}
-	row, err := s.assignDocument(r.Context(), req.DocumentID, r.PathValue("projectId"), nil)
+	row, err := s.assignDocument(r.Context(), r.PathValue("documentId"), r.PathValue("projectId"), nil)
 	writeOne(w, row, err)
 }
 
@@ -437,7 +444,11 @@ func (s *Server) chats(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, rows)
 	case http.MethodPost:
-		row, err := s.createChat(r.Context(), nil)
+		var req struct {
+			ProjectID *string `json:"project_id"`
+		}
+		_ = decodeJSON(r, &req)
+		row, err := s.createChat(r.Context(), req.ProjectID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
@@ -514,7 +525,12 @@ func (s *Server) generateChatTitle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) workflows(w http.ResponseWriter, r *http.Request) {
-	s.writeListOrCreate(w, r, "SELECT id, user_id, title, type, prompt_md, columns_config, is_system, created_at, practice, true AS is_owner FROM workflows ORDER BY created_at;", func() (map[string]any, error) {
+	listQuery := "SELECT id, user_id, title, type, prompt_md, columns_config, is_system, created_at, practice, true AS is_owner FROM workflows"
+	if workflowType := strings.TrimSpace(r.URL.Query().Get("type")); workflowType != "" {
+		listQuery += " WHERE type = " + surrealString(workflowType)
+	}
+	listQuery += " ORDER BY created_at;"
+	s.writeListOrCreate(w, r, listQuery, func() (map[string]any, error) {
 		return decodeAndCreate(r, s.upsertWorkflow, "")
 	})
 }
@@ -685,7 +701,14 @@ func (s *Server) tabularGenerate(w http.ResponseWriter, r *http.Request) {
 				if err != nil {
 					return err
 				}
-				if err := send(map[string]any{"type": "cell_update", "document_id": docID, "status": "done", "cell": cell}); err != nil {
+				if err := send(map[string]any{
+					"type":         "cell_update",
+					"document_id":  docID,
+					"column_index": column,
+					"content":      strings.TrimSpace(summary),
+					"status":       "done",
+					"cell":         cell,
+				}); err != nil {
 					return err
 				}
 			}

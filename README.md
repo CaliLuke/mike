@@ -28,15 +28,67 @@ Luke should help one person answer four recurring job-search questions:
 
 In Luke, a project represents a position being pursued. The knowledge vault represents the user's reusable career context: roles, responsibilities, achievements, metrics, projects, technologies, domain experience, leadership examples, conflict stories, failures, writing samples, and prior application material.
 
-## Current Development Setup
+## Local Browser Development
 
-Local development currently uses the existing Next.js and Express packages.
+Local-first development uses the Loom Go backend, embedded SurrealKV/Romancy
+state, local file storage, the Next.js browser frontend, and Ollama by default.
+
+Install dependencies:
+
+```bash
+npm install --prefix frontend
+```
+
+Build the Rust SurrealDB bridge once before running the Go backend:
+
+```bash
+cd backend-go/internal/persistence/rustbridge
+cargo build --release
+cd ../../..
+```
+
+Start Ollama and make sure the default local model is available:
+
+```bash
+ollama serve
+ollama pull gemma4
+ollama list
+```
+
+Start the Loom backend from `backend-go`:
+
+```bash
+CGO_LDFLAGS="-L$(pwd)/internal/persistence/rustbridge/target/release" \
+LUKE_DATA_DIR="$PWD/../.tmp/luke-local/data" \
+LOCAL_STORAGE_ROOT="$PWD/../.tmp/luke-local/storage" \
+OLLAMA_BASE_URL="http://127.0.0.1:11434" \
+LUKE_BACKEND_ADDR="127.0.0.1:3001" \
+go run ./cmd/luke-backend
+```
+
+Start the frontend from the repo root:
+
+```bash
+NEXT_PUBLIC_API_BASE_URL="http://127.0.0.1:3001" npm run dev --prefix frontend
+```
+
+Open `http://localhost:3000`. If port 3000 is already in use, Next will choose
+the next available port and print it in the terminal.
+
+The backend data directory is durable. Stop and restart the backend with the
+same `LUKE_DATA_DIR` and `LOCAL_STORAGE_ROOT` to verify that projects,
+documents, chats, workflows, and tabular reviews persist.
+
+## Transitional Express Development
+
+The older Express backend remains only as a compatibility oracle while the Loom
+backend is stabilized. Do not add new long-lived backend features there unless
+they are needed to preserve compatibility during the migration.
 
 Install dependencies:
 
 ```bash
 npm install --prefix backend
-npm install --prefix frontend
 ```
 
 Create local env files from the examples:
@@ -48,7 +100,7 @@ cp frontend/.env.local.example frontend/.env.local
 
 Run `backend/migrations/000_one_shot_schema.sql` in the Supabase SQL editor for a fresh database.
 
-Start the backend:
+Start the Express backend:
 
 ```bash
 npm run dev --prefix backend
