@@ -1,21 +1,21 @@
 # API Compatibility Inventory
 
-Generated for Milestone 1 from `backend/src/index.ts`, `backend/src/routes/*.ts`,
-`backend/src/lib/chatTools.ts`, and `frontend/src/app/lib/mikeApi.ts`.
+Generated for Milestone 1 from `reference/express-backend/src/index.ts`, `reference/express-backend/src/routes/*.ts`,
+`reference/express-backend/src/lib/chatTools.ts`, and `frontend/src/app/lib/mikeApi.ts`.
 
 Express mounts:
 
 | Mount | Router file |
 |---|---|
-| `/chat` | `backend/src/routes/chat.ts` |
-| `/projects` | `backend/src/routes/projects.ts` |
-| `/projects/:projectId/chat` | `backend/src/routes/projectChat.ts` |
-| `/single-documents` | `backend/src/routes/documents.ts` |
-| `/tabular-review` | `backend/src/routes/tabular.ts` |
-| `/workflows` | `backend/src/routes/workflows.ts` |
-| `/user` | `backend/src/routes/user.ts` |
-| `/users` | `backend/src/routes/user.ts` |
-| `/download` | `backend/src/routes/downloads.ts` |
+| `/chat` | `reference/express-backend/src/routes/chat.ts` |
+| `/projects` | `reference/express-backend/src/routes/projects.ts` |
+| `/projects/:projectId/chat` | `reference/express-backend/src/routes/projectChat.ts` |
+| `/single-documents` | `reference/express-backend/src/routes/documents.ts` |
+| `/tabular-review` | `reference/express-backend/src/routes/tabular.ts` |
+| `/workflows` | `reference/express-backend/src/routes/workflows.ts` |
+| `/user` | `reference/express-backend/src/routes/user.ts` |
+| `/users` | `reference/express-backend/src/routes/user.ts` |
+| `/download` | `reference/express-backend/src/routes/downloads.ts` |
 
 `/user` is the active frontend prefix. `frontend/src/contexts/AuthContext.tsx`
 posts to `/user/profile`, and `frontend/src/app/lib/mikeApi.ts` deletes
@@ -26,7 +26,7 @@ as a generated alias only.
 
 | Method | Path | Router file | Frontend caller | Transport |
 |---|---|---|---|---|
-| GET | `/health` | `backend/src/index.ts` | none | REST JSON |
+| GET | `/health` | `reference/express-backend/src/index.ts` | none | REST JSON |
 | GET | `/chat` | `chat.ts` | `listChats` | REST JSON |
 | POST | `/chat/create` | `chat.ts` | `createChat` | REST JSON |
 | GET | `/chat/:chatId` | `chat.ts` | `getChat` | REST JSON |
@@ -108,7 +108,7 @@ event names, ordered payload types, status, content type, and payload shape.
 
 ## Chat Tool Inventory
 
-Source: `backend/src/lib/chatTools.ts`.
+Source: `reference/express-backend/src/lib/chatTools.ts`.
 
 | Family | Tools / events |
 |---|---|
@@ -140,12 +140,12 @@ Representative checked-in envelopes:
 
 Parameterized fixtures intentionally keep private IDs and uploaded private bytes
 out of the repository. Local capture fills those values against a working
-`backend/.env`.
+`reference/express-backend/.env`.
 
 ## Mock Provider Mode
 
 Set `LUKE_MOCK_LLM=1` on the Express backend to route provider adapter calls
-through `backend/src/lib/llm/mock.ts`. The switch lives in the Claude, Gemini,
-and Ollama adapter modules after `backend/src/lib/llm/index.ts` has resolved the
+through `reference/express-backend/src/lib/llm/mock.ts`. The switch lives in the Claude, Gemini,
+and Ollama adapter modules after `reference/express-backend/src/lib/llm/index.ts` has resolved the
 provider, so route handlers still exercise their normal chat, tabular, title,
 and prompt paths without live Claude, Gemini, or Ollama output.

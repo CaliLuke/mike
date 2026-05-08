@@ -1,0 +1,4 @@
+interface:
+  display_name: "Claude Review Delegation"
+  short_description: "Farm out scoped repository review tasks to Claude Code."
+  default_prompt: "Use this skill to delegate an independent code or milestone review to Claude Code, then triage and integrate the findings."

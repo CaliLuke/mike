@@ -57,7 +57,7 @@ The reviewer confirmed all Milestone 6 acceptance criteria pass:
 - `npm run build --prefix frontend`
 - `npm run lint --prefix frontend` exits 0 with existing warnings.
 - `CGO_LDFLAGS="-L/Users/luca/code/luke/backend-go/internal/persistence/rustbridge/target/release" go test ./internal/localapi ./internal/localdata`
-- Playwright/Chromium smoke via `.tmp/m6-browser-smoke.js`
+- Playwright/Chromium smoke via `scripts/m6-browser-smoke.js`
 - `backend-go/check.sh` was run; all gates before coverage passed, and the
   historical repository-wide coverage floor still fails at 51.1% versus the
   default 80% threshold. This remains the same documented non-M6 blocker from

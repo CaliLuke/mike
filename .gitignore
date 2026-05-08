@@ -11,6 +11,7 @@ build
 !.env.local.example
 
 *.log
+.tmp/
 telemetry.sqlite
 telemetry.sqlite-*
 *.tsbuildinfo

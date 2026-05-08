@@ -57,7 +57,7 @@ NEXT_PUBLIC_API_BASE_URL="http://127.0.0.1:3011" npm run dev --prefix frontend
 ```bash
 LUKE_SMOKE_API="http://127.0.0.1:3011" \
 npm exec --yes --package playwright -- bash -lc \
-'NODE_PATH="$(dirname "$(dirname "$(which playwright)")")" node .tmp/m6-browser-smoke.js'
+'NODE_PATH="$(dirname "$(dirname "$(which playwright)")")" node scripts/m6-browser-smoke.js'
 ```
 
 ```bash

@@ -79,56 +79,21 @@ The backend data directory is durable. Stop and restart the backend with the
 same `LUKE_DATA_DIR` and `LOCAL_STORAGE_ROOT` to verify that projects,
 documents, chats, workflows, and tabular reviews persist.
 
-## Transitional Express Development
+## Express Reference Backend
 
-The older Express backend remains only as a compatibility oracle while the Loom
-backend is stabilized. Do not add new long-lived backend features there unless
-they are needed to preserve compatibility during the migration.
+The old TypeScript/Express backend has been moved to
+`reference/express-backend/`. It is retained only as a compatibility reference
+for answering "how did the original implementation behave?" questions during
+the Go port. There is intentionally no `backend/` package at the repo root, so
+`npm run dev --prefix backend` cannot accidentally start the retired backend.
 
-Install dependencies:
-
-```bash
-npm install --prefix backend
-```
-
-Create local env files from the examples:
-
-```bash
-cp backend/.env.example backend/.env
-cp frontend/.env.local.example frontend/.env.local
-```
-
-Run `backend/migrations/000_one_shot_schema.sql` in the Supabase SQL editor for a fresh database.
-
-Start the Express backend:
-
-```bash
-npm run dev --prefix backend
-```
-
-Start the frontend:
-
-```bash
-npm run dev --prefix frontend
-```
-
-Open `http://localhost:3000`.
-
-## Current Required Services
-
-The current setup expects:
-
-- Supabase Auth and Postgres.
-- S3-compatible object storage, such as Cloudflare R2, or the backend local-storage fallback where supported.
-- At least one supported model provider key, depending on which models are enabled.
-- LibreOffice for DOC/DOCX to PDF conversion.
-
-Luke's local-first architecture removes Supabase and required cloud object storage from the default path.
+Do not add new product behavior to the reference backend. If you intentionally
+need to compare against it, use a disposable Supabase/R2 setup and run commands
+from `reference/express-backend/` explicitly.
 
 ## Checks
 
 ```bash
-npm run build --prefix backend
 npm run build --prefix frontend
 npm run lint --prefix frontend
 ```

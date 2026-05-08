@@ -51,7 +51,7 @@ Now I have a complete picture. Here is the full review.
 **[H1] `displayDocument` serves DOCX/DOC as `text/plain` — browser renders garbage**
 
 - **File/lines**: `localapi/api.go:230-232` — `displayDocument` → `serveDocumentBytes(w, r, "text/plain; charset=utf-8")`
-- **Why it matters**: Uploading a DOCX and clicking "Display" sends raw OOXML bytes with `Content-Type: text/plain`. The browser renders `PK\x03\x04…` garbage. M4 checklist item "Port LibreOffice conversion behavior from `backend/src/lib/convert.ts`" is unchecked. This is a hard regression from the Express backend which converts DOC/DOCX to text/HTML via LibreOffice.
+- **Why it matters**: Uploading a DOCX and clicking "Display" sends raw OOXML bytes with `Content-Type: text/plain`. The browser renders `PK\x03\x04…` garbage. M4 checklist item "Port LibreOffice conversion behavior from `reference/express-backend/src/lib/convert.ts`" is unchecked. This is a hard regression from the Express backend which converts DOC/DOCX to text/HTML via LibreOffice.
 - **Fix direction**: Implement or stub a conversion step: invoke `libreoffice --headless --convert-to txt` for DOCX/DOC, fall back to raw-bytes with a TODO comment if LibreOffice is unavailable, and set the content-type to the conversion output type.
 
 ---
@@ -74,7 +74,7 @@ Now I have a complete picture. Here is the full review.
 
 **[H4] Built-in workflows never seeded — `GET /workflows` returns empty array**
 
-- **File/lines**: No equivalent of `backend/src/lib/builtinWorkflows.ts` anywhere in `backend-go/`. M4 checklist item "Port built-in workflow definitions" is unchecked.
+- **File/lines**: No equivalent of `reference/express-backend/src/lib/builtinWorkflows.ts` anywhere in `backend-go/`. M4 checklist item "Port built-in workflow definitions" is unchecked.
 - **Why it matters**: The frontend displays built-in system workflows (e.g., "Standard Review") from the `/workflows` endpoint. On a fresh install, the response is `[]`. All workflow-picker UIs appear empty.
 - **Fix direction**: Add a `seedBuiltinWorkflows` step in `app.initialize()` (after `seedLocalUser`) that UPSERTs system workflows with `is_system: true` and a fixed record ID derived from the workflow name so re-seeding on restart is idempotent.
 

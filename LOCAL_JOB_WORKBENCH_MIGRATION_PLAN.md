@@ -54,6 +54,10 @@ Last updated: 2026-05-08.
   2026-05-08 explicitly declared `MILESTONE 6 COMPLETE / no blockers remain`;
   the final review is recorded in
   `backend-go/docs/local-browser-m6-final-review.md`.
+- The retired TypeScript/Express backend has moved from `backend/` to
+  `reference/express-backend/` so it cannot be started accidentally as the
+  active backend. Keep it as a read-only behavior reference for compatibility
+  questions during the remaining Go/Wails work.
 - Next execution target: Milestone 7 Wails feasibility check.
 
 ## Milestones
@@ -84,19 +88,19 @@ Goal: Capture the current Express/frontend API contract before any backend repla
 
 Acceptance Criteria
 
-- A checked-in route inventory lists every handler from `backend/src/routes/*.ts`, including `/user` and `/users`, with method, path, router file, frontend caller, and transport.
+- A checked-in route inventory lists every handler from `reference/express-backend/src/routes/*.ts`, including `/user` and `/users`, with method, path, router file, frontend caller, and transport.
 - The inventory marks these four routes as SSE: `POST /chat`, `POST /projects/:projectId/chat`, `POST /tabular-review/:reviewId/generate`, and `POST /tabular-review/:reviewId/chat`.
 - Golden HTTP fixtures exist for representative JSON, upload/download, and SSE envelopes and can be replayed by a script against a running backend.
-- Fixture capture runs against the current Express backend before Supabase auth is removed and uses a working `backend/.env`.
+- Fixture capture runs against the current Express backend before Supabase auth is removed and uses a working `reference/express-backend/.env`.
 
 Checklist
 
-- [x] Generate `docs/api-compatibility-inventory.md` from `backend/src/index.ts`, `backend/src/routes/*.ts`, and `frontend/src/app/lib/mikeApi.ts`.
+- [x] Generate `docs/api-compatibility-inventory.md` from `reference/express-backend/src/index.ts`, `reference/express-backend/src/routes/*.ts`, and `frontend/src/app/lib/mikeApi.ts`.
 - [x] Record which frontend calls use `/user` and which use `/users`; preserve the unused prefix as a generated alias only.
 - [x] Include nested project routes in the inventory: `/projects/:projectId/documents`, `/projects/:projectId/folders`, `/projects/:projectId/chats`, and `/projects/:projectId/people`.
 - [x] Include tabular prompt and chat-title routes in the inventory: `POST /tabular-review/prompt` and `POST /chat/:chatId/generate-title`.
 - [x] Mark every route as REST JSON, multipart upload, binary download, zip download, redirect/token download, or SSE.
-- [x] Enumerate the chat tool families currently implemented in `backend/src/lib/chatTools.ts`: document listing/read/search/fetch, document generation, document replication, tracked editing, workflow read/apply, tabular context, citations, and download-card events. List the individual tools within each family so M4 can be expanded into per-tool checklist items.
+- [x] Enumerate the chat tool families currently implemented in `reference/express-backend/src/lib/chatTools.ts`: document listing/read/search/fetch, document generation, document replication, tracked editing, workflow read/apply, tabular context, citations, and download-card events. List the individual tools within each family so M4 can be expanded into per-tool checklist items.
 - [x] Add a deterministic mock-provider mode for fixture capture and replay so SSE tests do not depend on live Claude, Gemini, or Ollama output.
 - [x] Implement mock-provider mode below the LLM provider router by intercepting provider HTTP/local model calls so captured fixtures can replay against the Go backend without reimplementing high-level mocks.
 - [x] For each SSE route, capture event ordering, event names, and payload schema while ignoring nondeterministic token text and model-specific prose.
@@ -183,7 +187,7 @@ Checklist
 - [x] Seed the deterministic local user profile on backend startup with non-restricting tier, credits, and reset-date values for local mode.
 - [x] Add local credit-gating primitives that keep local single-user AI usage non-blocking when M4 wires handlers.
 - [x] Add local user-context middleware preserving the handler/service fields currently represented by `res.locals.userId`, `res.locals.userEmail`, and `res.locals.token`; M4 wires it into the ported routes.
-- [x] Add single-user access-check primitives matching `backend/src/lib/access.ts` return semantics with `is_owner: true` and `shared_with: []`.
+- [x] Add single-user access-check primitives matching `reference/express-backend/src/lib/access.ts` return semantics with `is_owner: true` and `shared_with: []`.
 - [x] Preserve local document byte storage using `LOCAL_STORAGE_ROOT` (defaulting under `LUKE_DATA_DIR`) and remove R2 as a required dependency.
 - [x] Decide local download-token semantics by keeping `/download/:token` as a compatibility route backed by local storage paths and the existing token payload shape.
 - [x] Add CORS middleware for browser-local development from `http://localhost:3000` and document the later Wails origin separately.
@@ -204,26 +208,26 @@ Acceptance Criteria
 
 Checklist
 
-- [x] Port user profile and model settings behavior from `backend/src/routes/user.ts` and `backend/src/lib/userSettings.ts`.
-- [x] Port project, folder, document attach, document move, people, sharing no-op, and document count behavior from `backend/src/routes/projects.ts`.
-- [x] Port document upload, display, docx bytes, version, edit-resolution, and zip-download behavior from `backend/src/routes/documents.ts`.
-- [x] Port document-version helpers from `backend/src/lib/documentVersions.ts`.
-- [x] Port upload and document-format helpers from `backend/src/lib/upload.ts` and `backend/src/lib/documentFormats.ts`.
+- [x] Port user profile and model settings behavior from `reference/express-backend/src/routes/user.ts` and `reference/express-backend/src/lib/userSettings.ts`.
+- [x] Port project, folder, document attach, document move, people, sharing no-op, and document count behavior from `reference/express-backend/src/routes/projects.ts`.
+- [x] Port document upload, display, docx bytes, version, edit-resolution, and zip-download behavior from `reference/express-backend/src/routes/documents.ts`.
+- [x] Port document-version helpers from `reference/express-backend/src/lib/documentVersions.ts`.
+- [x] Port upload and document-format helpers from `reference/express-backend/src/lib/upload.ts` and `reference/express-backend/src/lib/documentFormats.ts`.
 - [x] Replace LibreOffice display conversion with local text-like file handling and `.docx` text extraction for M4 local browser mode.
-- [x] Port tracked-change editing behavior from `backend/src/lib/docxTrackedChanges.ts` and preserve `document_edits.change_id`, `del_w_id`, `ins_w_id`, accepted status, and rejected status semantics.
+- [x] Port tracked-change editing behavior from `reference/express-backend/src/lib/docxTrackedChanges.ts` and preserve `document_edits.change_id`, `del_w_id`, `ins_w_id`, accepted status, and rejected status semantics.
 - [x] Evaluate `github.com/zerx-lab/wordZero` against current generated-document, template, markdown-to-DOCX, table, and structured-read needs; M4 has no eligible new DOCX generation route, so use is deferred.
 - [x] Document that no M4 route uses `wordZero`; future DOCX generation paths should adopt it only when it preserves download/version response shapes.
 - [x] Use raw zip/XML OOXML manipulation as the fallback implementation path for tracked-change editing when `wordZero` cannot satisfy a required operation.
-- [x] Port global chat and project chat routes from `backend/src/routes/chat.ts` and `backend/src/routes/projectChat.ts`.
+- [x] Port global chat and project chat routes from `reference/express-backend/src/routes/chat.ts` and `reference/express-backend/src/routes/projectChat.ts`.
 - [x] Record that full legal `chatTools.ts` behavior is deferred beyond M4; M4 ports the chat/SSE contract, provider path, and local message persistence.
-- [x] Port LLM provider routing from `backend/src/lib/llm/models.ts` and `backend/src/lib/llm/index.ts` for mock/Ollama local mode.
-- [x] Port Ollama streaming and completion behavior from `backend/src/lib/llm/ollama.ts`.
+- [x] Port LLM provider routing from `reference/express-backend/src/lib/llm/models.ts` and `reference/express-backend/src/lib/llm/index.ts` for mock/Ollama local mode.
+- [x] Port Ollama streaming and completion behavior from `reference/express-backend/src/lib/llm/ollama.ts`.
 - [x] Record Claude and Gemini as hosted-provider routing choices with live API calls deferred out of M4; mock-provider fixtures cover the shared route.
 - [x] Port chat-title generation route `POST /chat/:chatId/generate-title`.
-- [x] Port workflow list, create, update, delete, hidden-workflow, share-list no-op, share-create no-op, and share-delete no-op behavior from `backend/src/routes/workflows.ts`.
-- [x] Port built-in workflow definitions from `backend/src/lib/builtinWorkflows.ts`.
-- [x] Port tabular review, prompt generation, cell generation SSE, single-cell regeneration, clear-cells, chats, messages, and tabular chat SSE behavior from `backend/src/routes/tabular.ts`.
-- [x] Port download token behavior from `backend/src/routes/downloads.ts` and `backend/src/lib/downloadTokens.ts`.
+- [x] Port workflow list, create, update, delete, hidden-workflow, share-list no-op, share-create no-op, and share-delete no-op behavior from `reference/express-backend/src/routes/workflows.ts`.
+- [x] Port built-in workflow definitions from `reference/express-backend/src/lib/builtinWorkflows.ts`.
+- [x] Port tabular review, prompt generation, cell generation SSE, single-cell regeneration, clear-cells, chats, messages, and tabular chat SSE behavior from `reference/express-backend/src/routes/tabular.ts`.
+- [x] Port download token behavior from `reference/express-backend/src/routes/downloads.ts` and `reference/express-backend/src/lib/downloadTokens.ts`.
 - [x] Run the fixture replay script against the Loom backend.
 - [x] Run `go test ./...` from `backend-go`.
 - [x] Run `./check.sh` from `backend-go`; all gates passed except the existing repository-wide coverage floor, documented in `backend-go/docs/localdata-m4-api-review.md`.

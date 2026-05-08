@@ -7,44 +7,46 @@ This repository is the Luke codebase: a local-first, single-user AI workbench fo
 Current package layout:
 
 - `frontend/`: Next.js 16 application. App routes live in `frontend/src/app`, shared UI in `frontend/src/components/ui`, feature components in `frontend/src/app/components`, contexts in `frontend/src/contexts` and `frontend/src/app/contexts`, and static assets in `frontend/public`.
-- `backend/`: Transitional Express API used as the compatibility oracle while the Loom Go backend is built. The entrypoint is `backend/src/index.ts`, route handlers are in `backend/src/routes`, shared services are in `backend/src/lib`, auth middleware is in `backend/src/middleware`, and the current database schema is in `backend/migrations/000_one_shot_schema.sql`.
-- `backend-go/`: Target Loom Go backend location. Treat Loom design files as the source of truth once this package exists; generated `gen/` files must be regenerated, not hand-edited.
+- `backend-go/`: Active Loom Go backend. Treat Loom design files as the source of truth; generated `gen/` files must be regenerated, not hand-edited.
+- `reference/express-backend/`: Retired TypeScript/Express backend kept only as a compatibility reference for the Go port. Do not run or modify it for normal development, and do not add new product behavior there.
 
-Keep frontend-only utilities under `frontend/src/lib`. Keep transitional TypeScript backend utilities under `backend/src/lib`, and new Go backend business logic outside generated Loom code. Avoid cross-package imports; use API boundaries instead.
+Keep frontend-only utilities under `frontend/src/lib`. Keep Go backend business logic outside generated Loom code. Avoid cross-package imports; use API boundaries instead. If you need to understand legacy behavior, read `reference/express-backend/src`, then implement the behavior in `backend-go`.
 
 ## Build, Test, and Development Commands
 
 Install dependencies:
 
 ```bash
-npm install --prefix backend
 npm install --prefix frontend
 ```
 
 Run locally:
 
 ```bash
-npm run dev --prefix backend
+cd backend-go
+CGO_LDFLAGS="-L$(pwd)/internal/persistence/rustbridge/target/release" go run ./cmd/luke-backend
+```
+
+In a second terminal from the repo root:
+
+```bash
 npm run dev --prefix frontend
 ```
 
-The backend runs with `tsx watch`; the frontend runs with `next dev` and is available at `http://localhost:3000`.
-
-When `backend-go/` exists, prefer the commands documented there for backend development. Do not add new long-lived backend features to the Express package unless they are needed to preserve compatibility during the Loom migration.
+The active backend is `backend-go`; the frontend runs with `next dev` and is available at `http://localhost:3000`.
 
 Required checks before submitting changes:
 
 ```bash
-npm run build --prefix backend
 npm run build --prefix frontend
 npm run lint --prefix frontend
 ```
 
 ## Coding Style & Naming Conventions
 
-Use TypeScript for the existing frontend and transitional Express backend. Use Go for the Loom backend. Match the existing TypeScript style: two-space indentation in frontend files, semicolons, double quotes, and named exports where local patterns already use them. React components use `PascalCase` filenames and exports, hooks use `useCamelCase`, and route files follow Next.js conventions such as `page.tsx` and `layout.tsx`.
+Use TypeScript for the frontend and Go for the Loom backend. Match the existing TypeScript style: two-space indentation in frontend files, semicolons, double quotes, and named exports where local patterns already use them. React components use `PascalCase` filenames and exports, hooks use `useCamelCase`, and route files follow Next.js conventions such as `page.tsx` and `layout.tsx`.
 
-Frontend linting uses ESLint 9 with `eslint-config-next/core-web-vitals` and TypeScript rules. Transitional Express formatting is supported by Prettier, but no format script is currently defined. For the Loom backend, use `gofmt` and regenerate generated code after design changes.
+Frontend linting uses ESLint 9 with `eslint-config-next/core-web-vitals` and TypeScript rules. For the Loom backend, use `gofmt` and regenerate generated code after design changes.
 
 ## Testing Guidelines
 
@@ -122,8 +124,7 @@ Pull requests should include a short description, the affected package (`fronten
 Copy environment templates before local development:
 
 ```bash
-cp backend/.env.example backend/.env
 cp frontend/.env.local.example frontend/.env.local
 ```
 
-Do not commit secrets. During the transition, local development may still require Supabase, S3-compatible storage or the local-storage fallback, at least one model provider key, and LibreOffice for DOC/DOCX conversion. The target Luke architecture removes Supabase and required cloud object storage from the default development path.
+Do not commit secrets. The default Luke development path uses the local Go backend, local storage, embedded data, and Ollama. The retired Express backend under `reference/express-backend/` may still require Supabase, S3-compatible storage, hosted model keys, and LibreOffice if intentionally run for legacy comparison.
