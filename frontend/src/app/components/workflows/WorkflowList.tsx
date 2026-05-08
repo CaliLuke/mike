@@ -77,8 +77,10 @@ export function WorkflowList() {
     }, []);
 
     useEffect(() => {
-        setSelectedIds([]);
-        setActionsOpen(false);
+        queueMicrotask(() => {
+            setSelectedIds([]);
+            setActionsOpen(false);
+        });
     }, [activeTab, practiceFilter, typeFilter]);
 
     useEffect(() => {
@@ -462,7 +464,7 @@ export function WorkflowList() {
                                         Hidden Workflows
                                     </p>
                                     <p className="mt-1 text-xs text-gray-400 text-left">
-                                        Built-in workflows you've hidden will
+                                        Built-in workflows you&apos;ve hidden will
                                         appear here. You can unhide them at any
                                         time.
                                     </p>

@@ -7,7 +7,7 @@ import React, {
     useState,
     ReactNode,
 } from "react";
-import { supabase } from "@/lib/supabase";
+import { apiRequest } from "@/app/lib/mikeApi";
 
 interface User {
     id: string;
@@ -23,69 +23,40 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const LOCAL_USER: User = {
+    id: "local",
+    email: "local@luke.local",
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-    const [user, setUser] = useState<User | null>(null);
+    const [user, setUser] = useState<User | null>(LOCAL_USER);
     const [authLoading, setAuthLoading] = useState(true);
 
     useEffect(() => {
-        const ensureProfile = async (accessToken: string) => {
-            const apiBase =
-                process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
-            await fetch(`${apiBase}/user/profile`, {
-                method: "POST",
-                headers: { Authorization: `Bearer ${accessToken}` },
-            }).catch((e) => {
+        let cancelled = false;
+        apiRequest("/user/profile")
+            .catch((e) => {
                 console.log(e);
+            })
+            .finally(() => {
+                if (cancelled) return;
+                setUser(LOCAL_USER);
+                setAuthLoading(false);
             });
-        };
-
-        const checkUser = async () => {
-            const {
-                data: { session },
-            } = await supabase.auth.getSession();
-
-            if (session?.user) {
-                setUser({
-                    id: session.user.id,
-                    email: session.user.email || "",
-                });
-                ensureProfile(session.access_token);
-            }
-            setAuthLoading(false);
-        };
-
-        checkUser();
-
-        const {
-            data: { subscription },
-        } = supabase.auth.onAuthStateChange(async (_event, session) => {
-            if (session?.user) {
-                setUser({
-                    id: session.user.id,
-                    email: session.user.email || "",
-                });
-                ensureProfile(session.access_token);
-            } else {
-                setUser(null);
-            }
-            setAuthLoading(false);
-        });
-
         return () => {
-            subscription.unsubscribe();
+            cancelled = true;
         };
     }, []);
 
     const signOut = async () => {
-        await supabase.auth.signOut();
-        setUser(null);
+        setUser(LOCAL_USER);
     };
 
     return (
         <AuthContext.Provider
             value={{
                 user,
-                isAuthenticated: !!user,
+                isAuthenticated: true,
                 authLoading,
                 signOut,
             }}

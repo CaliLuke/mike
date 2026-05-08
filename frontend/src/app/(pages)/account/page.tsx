@@ -23,12 +23,14 @@ export default function AccountPage() {
     const [isDeleting, setIsDeleting] = useState(false);
 
     useEffect(() => {
-        if (profile?.displayName) {
-            setDisplayName(profile.displayName);
-        }
-        if (profile?.organisation) {
-            setOrganisation(profile.organisation);
-        }
+        queueMicrotask(() => {
+            if (profile?.displayName) {
+                setDisplayName(profile.displayName);
+            }
+            if (profile?.organisation) {
+                setOrganisation(profile.organisation);
+            }
+        });
     }, [profile]);
 
     const handleLogout = async () => {

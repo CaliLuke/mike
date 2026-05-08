@@ -1176,7 +1176,16 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                         >
                                             <UserMessage
                                                 content={msg.content ?? ""}
-                                                files={(msg as any).files}
+                                                files={
+                                                    (
+                                                        msg as {
+                                                            files?: {
+                                                                filename: string;
+                                                                document_id?: string;
+                                                            }[];
+                                                        }
+                                                    ).files
+                                                }
                                             />
                                         </div>
                                     ) : (
@@ -1188,7 +1197,10 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                                                 i === messages.length - 1 &&
                                                 isResponseLoading
                                             }
-                                            isError={!!(msg as any).error}
+                                            isError={
+                                                !!(msg as { error?: unknown })
+                                                    .error
+                                            }
                                             annotations={msg.annotations}
                                             onCitationClick={
                                                 handleCitationClick

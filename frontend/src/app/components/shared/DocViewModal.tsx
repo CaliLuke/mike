@@ -25,7 +25,9 @@ export function DocViewModal({
     onDelete,
 }: Props) {
     const [mounted, setMounted] = useState(false);
-    useEffect(() => setMounted(true), []);
+    useEffect(() => {
+        queueMicrotask(() => setMounted(true));
+    }, []);
 
     if (!doc || !mounted) return null;
 

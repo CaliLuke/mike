@@ -63,12 +63,16 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         if (!user) {
-            setChats([]);
-            setCurrentChatId(null);
+            queueMicrotask(() => {
+                setChats([]);
+                setCurrentChatId(null);
+            });
             return;
         }
 
-        void loadChats();
+        queueMicrotask(() => {
+            void loadChats();
+        });
     }, [user, loadChats]);
 
     const replaceChatId = useCallback(

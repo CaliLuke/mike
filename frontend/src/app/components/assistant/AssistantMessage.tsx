@@ -16,7 +16,7 @@ import type {
 } from "../shared/types";
 import { EditCard, applyOptimisticResolution } from "./EditCard";
 import { PreResponseWrapper } from "../shared/PreResponseWrapper";
-import { supabase } from "@/lib/supabase";
+import { API_BASE } from "@/app/lib/mikeApi";
 
 /**
  * Card rendered above the per-edit EditCards when a message produced
@@ -75,13 +75,6 @@ function BulkEditActions({
         setBusy(verb);
         setProgress({ done: 0, total: pending.length });
         try {
-            const {
-                data: { session },
-            } = await supabase.auth.getSession();
-            const token = session?.access_token;
-            const apiBase =
-                process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
-
             // Sequential so the per-document version counter advances in a
             // predictable order and the viewer doesn't race between bumps.
             let done = 0;
@@ -104,12 +97,9 @@ function BulkEditActions({
                 }
                 try {
                     const resp = await fetch(
-                        `${apiBase}/single-documents/${annotation.document_id}/edits/${annotation.edit_id}/${verb}`,
+                        `${API_BASE}/single-documents/${annotation.document_id}/edits/${annotation.edit_id}/${verb}`,
                         {
                             method: "POST",
-                            headers: token
-                                ? { Authorization: `Bearer ${token}` }
-                                : undefined,
                         },
                     );
                     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -316,13 +306,17 @@ function ResponseStatus({ status }: { status: StatusState }) {
 
     useEffect(() => {
         if (wasActiveRef.current && !isActive) {
-            setShowDone(true);
-            setDoneVisible(true);
+            queueMicrotask(() => {
+                setShowDone(true);
+                setDoneVisible(true);
+            });
             const t = setTimeout(() => setDoneVisible(false), 1500);
             return () => clearTimeout(t);
         } else if (!wasActiveRef.current && isActive) {
-            setShowDone(false);
-            setDoneVisible(false);
+            queueMicrotask(() => {
+                setShowDone(false);
+                setDoneVisible(false);
+            });
         }
         wasActiveRef.current = isActive;
     }, [isActive]);
@@ -605,8 +599,6 @@ function DocDownloadBlock({
     // Only backend-relative URLs are accepted. The download fetch carries
     // the user's bearer token, so any absolute URL from tool output is
     // refused to keep the token from leaking off-origin.
-    const API_BASE =
-        process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
     const isSafeHref = download_url.startsWith("/");
     const href = isSafeHref ? `${API_BASE}${download_url}` : null;
     const [busy, setBusy] = useState(false);
@@ -620,13 +612,7 @@ function DocDownloadBlock({
         if (busy || isReloading || !href) return;
         setBusy(true);
         try {
-            const {
-                data: { session },
-            } = await supabase.auth.getSession();
-            const token = session?.access_token;
-            const resp = await fetch(href, {
-                headers: token ? { Authorization: `Bearer ${token}` } : {},
-            });
+            const resp = await fetch(href);
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             const blob = await resp.blob();
             const blobUrl = URL.createObjectURL(blob);
@@ -893,7 +879,11 @@ function MarkdownContent({
                         />
                     ),
                     p: ({ node, ...props }) => {
-                        const parent = (node as any)?.parent;
+                        const parent = (
+                            node as
+                                | { parent?: { type?: string } }
+                                | undefined
+                        )?.parent;
                         if (parent?.type === "listItem") {
                             return (
                                 <p

@@ -1,19 +1,53 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import {
+    AlignLeft,
+    Banknote,
+    Calendar,
+    DollarSign,
+    Hash,
+    List,
+    Percent,
+    Tag,
+    ToggleLeft,
+    X,
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ColumnConfig } from "../shared/types";
-import { formatIcon, formatLabel } from "../tabular/columnFormat";
+import { formatLabel } from "../tabular/columnFormat";
 
 interface Props {
     col: ColumnConfig;
     onClose: () => void;
 }
 
+function FormatIconView({ format }: { format: ColumnConfig["format"] }) {
+    const className = "h-3.5 w-3.5 text-gray-400";
+    switch (format) {
+        case "bulleted_list":
+            return <List className={className} />;
+        case "number":
+            return <Hash className={className} />;
+        case "percentage":
+            return <Percent className={className} />;
+        case "monetary_amount":
+            return <Banknote className={className} />;
+        case "currency":
+            return <DollarSign className={className} />;
+        case "yes_no":
+            return <ToggleLeft className={className} />;
+        case "date":
+            return <Calendar className={className} />;
+        case "tag":
+            return <Tag className={className} />;
+        default:
+            return <AlignLeft className={className} />;
+    }
+}
+
 export function WFColumnViewModal({ col, onClose }: Props) {
-    const FormatIcon = formatIcon(col.format ?? "text");
     return createPortal(
         <div className="fixed inset-0 z-[101] flex items-center justify-center bg-black/20 backdrop-blur-xs">
             <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl flex flex-col h-[600px]">
@@ -35,7 +69,7 @@ export function WFColumnViewModal({ col, onClose }: Props) {
                     <div>
                         <p className="text-sm font-medium text-gray-500 mb-2">Format</p>
                         <span className="inline-flex items-center gap-1.5 text-sm text-gray-700">
-                            <FormatIcon className="h-3.5 w-3.5 text-gray-400" />
+                            <FormatIconView format={col.format} />
                             {formatLabel(col.format ?? "text")}
                         </span>
                     </div>

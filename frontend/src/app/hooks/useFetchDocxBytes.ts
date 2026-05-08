@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { API_BASE } from "@/app/lib/mikeApi";
 
 export interface FetchDocxResult {
     bytes: ArrayBuffer | null;
@@ -57,45 +57,42 @@ export function useFetchDocxBytes(
 
     useEffect(() => {
         if (!documentId) {
-            setBytes(null);
-            setDownloadUrl(null);
+            queueMicrotask(() => {
+                setBytes(null);
+                setDownloadUrl(null);
+            });
             return;
         }
 
         const key = cacheKey(documentId, versionId, refetchKey);
-        const apiBase =
-            process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
         const qs = versionId
             ? `?version_id=${encodeURIComponent(versionId)}`
             : "";
-        const url = `${apiBase}/single-documents/${documentId}/docx${qs}`;
+        const url = `${API_BASE}/single-documents/${documentId}/docx${qs}`;
 
         // Cache hit: reuse bytes synchronously, no network, no spinner.
         const cached = bytesCache.get(key);
         if (cached) {
-            setBytes(cached);
-            setDownloadUrl(url);
-            setLoading(false);
-            setError(null);
+            queueMicrotask(() => {
+                setBytes(cached);
+                setDownloadUrl(url);
+                setLoading(false);
+                setError(null);
+            });
             return;
         }
 
         let cancelled = false;
-        setLoading(true);
-        setError(null);
+        queueMicrotask(() => {
+            setLoading(true);
+            setError(null);
+        });
 
         const pending =
             inFlight.get(key) ??
             (async () => {
-                const {
-                    data: { session },
-                } = await supabase.auth.getSession();
-                const token = session?.access_token;
-                // Stream bytes through the backend (avoids CORS on R2
-                // signed URLs).
-                const bin = await fetch(url, {
-                    headers: token ? { Authorization: `Bearer ${token}` } : {},
-                });
+                // Stream bytes through the local backend.
+                const bin = await fetch(url);
                 if (!bin.ok) throw new Error(`HTTP ${bin.status}`);
                 const buf = await bin.arrayBuffer();
                 bytesCache.set(key, buf);

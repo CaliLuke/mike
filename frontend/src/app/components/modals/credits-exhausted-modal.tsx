@@ -45,8 +45,8 @@ export function CreditsExhaustedModal({
                     {/* Content */}
                     <div className="space-y-4">
                         <p className="text-gray-600">
-                            You've reached your monthly message limit of 100
-                            messages.
+                            Local mode is configured with non-blocking message
+                            credits.
                         </p>
 
                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">

@@ -90,15 +90,17 @@ export default function WorkflowDetailPage({ params }: Props) {
     // ---------------------------------------------------------------------------
     useEffect(() => {
         if (isBuiltin) {
-            const wf = BUILT_IN_WORKFLOWS.find((w) => w.id === id) ?? null;
-            if (!wf) {
-                setNotFound(true);
-            } else {
-                setWorkflow(wf);
-                setPromptMd(wf.prompt_md ?? "");
-                setColumns(wf.columns_config ?? []);
-            }
-            setLoading(false);
+            queueMicrotask(() => {
+                const wf = BUILT_IN_WORKFLOWS.find((w) => w.id === id) ?? null;
+                if (!wf) {
+                    setNotFound(true);
+                } else {
+                    setWorkflow(wf);
+                    setPromptMd(wf.prompt_md ?? "");
+                    setColumns(wf.columns_config ?? []);
+                }
+                setLoading(false);
+            });
             return;
         }
 

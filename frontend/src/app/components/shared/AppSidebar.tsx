@@ -57,7 +57,7 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
     }, [user]);
 
     useEffect(() => {
-        if (!isOpen) setShouldAnimate(true);
+        if (!isOpen) queueMicrotask(() => setShouldAnimate(true));
     }, [isOpen]);
 
     useEffect(() => {

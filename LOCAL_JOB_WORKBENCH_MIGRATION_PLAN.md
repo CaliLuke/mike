@@ -34,7 +34,16 @@ Last updated: 2026-05-08.
   repository-wide coverage floor. Claude final sign-off on 2026-05-08 explicitly
   declared `MILESTONE 4 COMPLETE`; the final review is recorded in
   `backend-go/docs/localdata-m4-final-signoff-review.md`.
-- Next execution target: Milestone 5 frontend Supabase removal.
+- Milestone 5 frontend Supabase removal is complete. The Next frontend no
+  longer imports Supabase helpers, attaches Supabase authorization headers, or
+  carries frontend Supabase/R2/cloud SDK dependencies. Local auth now resolves to
+  the deterministic local user, profile/settings updates go through
+  `/user/profile`, login/signup routes redirect to local mode, and the converted
+  document/chat fetch paths call the local backend directly. The Supabase search
+  gate has no hits, build passes, lint exits 0 with warnings only, and the
+  independent review is recorded in
+  `backend-go/docs/frontend-m5-supabase-removal-review.md`.
+- Next execution target: Milestone 6 local browser smoke path.
 
 ## Milestones
 
@@ -222,25 +231,25 @@ Acceptance Criteria
 
 Checklist
 
-- [ ] Replace `frontend/src/lib/supabase.ts`, `frontend/src/lib/supabase-server.ts`, and `frontend/src/lib/auth.ts` usage with local API helpers or remove the files.
-- [ ] Update `frontend/src/app/lib/mikeApi.ts` to stop attaching Supabase Authorization headers.
-- [ ] Update `frontend/src/contexts/AuthContext.tsx` to provide the deterministic local user and local sign-out behavior.
-- [ ] Update `frontend/src/contexts/UserProfileContext.tsx` to load and mutate profile/model/API-key data through backend profile routes.
-- [ ] Remove or repurpose `frontend/src/app/login/page.tsx` and `frontend/src/app/signup/page.tsx` so local mode has no Supabase login/signup flow.
-- [ ] Update `frontend/src/app/components/assistant/EditCard.tsx` to use local API helpers instead of reading a Supabase session.
-- [ ] Update `frontend/src/app/components/assistant/AssistantMessage.tsx` to use local API helpers instead of reading a Supabase session.
-- [ ] Update `frontend/src/app/components/shared/DocPanel.tsx` to use local API helpers instead of reading a Supabase session.
-- [ ] Update `frontend/src/app/components/shared/DocxView.tsx` to use local API helpers instead of reading a Supabase session.
-- [ ] Update `frontend/src/app/hooks/useDocumentVersions.ts` to use local API helpers instead of reading a Supabase session.
-- [ ] Update `frontend/src/app/hooks/useFetchDocxBytes.ts` to use local API helpers instead of reading a Supabase session.
-- [ ] Update `frontend/src/app/hooks/useFetchSingleDoc.ts` to use local API helpers instead of reading a Supabase session.
-- [ ] Audit converted code for `next/headers`, server actions, and Node-only imports; remove or refactor to client + fetch where reasonable.
-- [ ] Remove login/signup redirects from protected layouts while preserving route access.
-- [ ] Remove `@supabase/*` dependencies and Supabase env examples from the frontend package.
-- [ ] Run `rg -n "supabase|@supabase|SUPABASE|createServerSupabase" frontend/src frontend/package.json frontend/.env.local.example`.
-- [ ] Run `npm run build --prefix frontend`.
-- [ ] Run `npm run lint --prefix frontend`.
-- [ ] Ask an independent reviewer for final sign-off against this milestone's acceptance criteria. The milestone may be marked complete only after the reviewer explicitly says no blockers remain; fix or explicitly defer every finding and request another reviewer pass when needed.
+- [x] Replace `frontend/src/lib/supabase.ts`, `frontend/src/lib/supabase-server.ts`, and `frontend/src/lib/auth.ts` usage with local API helpers or remove the files.
+- [x] Update `frontend/src/app/lib/mikeApi.ts` to stop attaching Supabase Authorization headers.
+- [x] Update `frontend/src/contexts/AuthContext.tsx` to provide the deterministic local user and local sign-out behavior.
+- [x] Update `frontend/src/contexts/UserProfileContext.tsx` to load and mutate profile/model/API-key data through backend profile routes.
+- [x] Remove or repurpose `frontend/src/app/login/page.tsx` and `frontend/src/app/signup/page.tsx` so local mode has no Supabase login/signup flow.
+- [x] Update `frontend/src/app/components/assistant/EditCard.tsx` to use local API helpers instead of reading a Supabase session.
+- [x] Update `frontend/src/app/components/assistant/AssistantMessage.tsx` to use local API helpers instead of reading a Supabase session.
+- [x] Update `frontend/src/app/components/shared/DocPanel.tsx` to use local API helpers instead of reading a Supabase session.
+- [x] Update `frontend/src/app/components/shared/DocxView.tsx` to use local API helpers instead of reading a Supabase session.
+- [x] Update `frontend/src/app/hooks/useDocumentVersions.ts` to use local API helpers instead of reading a Supabase session.
+- [x] Update `frontend/src/app/hooks/useFetchDocxBytes.ts` to use local API helpers instead of reading a Supabase session.
+- [x] Update `frontend/src/app/hooks/useFetchSingleDoc.ts` to use local API helpers instead of reading a Supabase session.
+- [x] Audit converted code for `next/headers`, server actions, and Node-only imports; remove or refactor to client + fetch where reasonable.
+- [x] Remove login/signup redirects from protected layouts while preserving route access.
+- [x] Remove `@supabase/*` dependencies and Supabase env examples from the frontend package.
+- [x] Run `rg -n "supabase|@supabase|SUPABASE|createServerSupabase" frontend/src frontend/package.json frontend/.env.local.example`.
+- [x] Run `npm run build --prefix frontend`.
+- [x] Run `npm run lint --prefix frontend`.
+- [x] Ask an independent reviewer for final sign-off against this milestone's acceptance criteria. The milestone may be marked complete only after the reviewer explicitly says no blockers remain; fix or explicitly defer every finding and request another reviewer pass when needed. Findings and dispositions are recorded in `backend-go/docs/frontend-m5-supabase-removal-review.md`.
 
 ### Milestone 6: Local Browser Smoke Path
 

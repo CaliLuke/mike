@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,13 +22,7 @@ export default function AccountLayout({
 }) {
     const router = useRouter();
     const pathname = usePathname();
-    const { isAuthenticated, authLoading } = useAuth();
-
-    useEffect(() => {
-        if (!authLoading && !isAuthenticated) {
-            router.push("/");
-        }
-    }, [isAuthenticated, authLoading, router]);
+    const { authLoading } = useAuth();
 
     if (authLoading) {
         return (
@@ -37,10 +30,6 @@ export default function AccountLayout({
                 <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
             </div>
         );
-    }
-
-    if (!isAuthenticated) {
-        return null;
     }
 
     return (

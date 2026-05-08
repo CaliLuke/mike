@@ -28,13 +28,16 @@ export function useDirectoryData(enabled: boolean) {
 
         const now = Date.now();
         if (cache && now - cache.fetchedAt < CACHE_TTL_MS) {
-            setStandaloneDocuments(cache.standaloneDocuments);
-            setProjects(cache.projects);
-            setLoading(false);
+            const cached = cache;
+            queueMicrotask(() => {
+                setStandaloneDocuments(cached.standaloneDocuments);
+                setProjects(cached.projects);
+                setLoading(false);
+            });
             return;
         }
 
-        setLoading(true);
+        queueMicrotask(() => setLoading(true));
         Promise.all([listProjects(), listStandaloneDocuments()])
             .then(([ps, ds]) => {
                 const sorted = [...ds].sort((a, b) =>

@@ -187,15 +187,19 @@ function TRResponseStatus({ isActive }: { isActive: boolean }) {
 
     useEffect(() => {
         if (wasActiveRef.current && !isActive) {
-            setShowDone(true);
-            setDoneVisible(true);
+            queueMicrotask(() => {
+                setShowDone(true);
+                setDoneVisible(true);
+            });
             const t = setTimeout(() => setDoneVisible(false), 1500);
             wasActiveRef.current = isActive;
             return () => clearTimeout(t);
         }
         if (!wasActiveRef.current && isActive) {
-            setShowDone(false);
-            setDoneVisible(false);
+            queueMicrotask(() => {
+                setShowDone(false);
+                setDoneVisible(false);
+            });
         }
         wasActiveRef.current = isActive;
     }, [isActive]);

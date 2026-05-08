@@ -34,7 +34,7 @@ export function AssistantWorkflowModal({
 
     useEffect(() => {
         if (!selected) {
-            setRightVisible(false);
+            queueMicrotask(() => setRightVisible(false));
             return;
         }
         const frame = requestAnimationFrame(() => setRightVisible(true));
@@ -43,15 +43,19 @@ export function AssistantWorkflowModal({
 
     useEffect(() => {
         if (!open) {
-            setSelected(null);
-            setSearch("");
+            queueMicrotask(() => {
+                setSelected(null);
+                setSearch("");
+            });
             return;
         }
         const builtins = BUILT_IN_WORKFLOWS.filter(
             (w) => w.type === "assistant",
         );
-        setWorkflows(builtins);
-        setLoading(true);
+        queueMicrotask(() => {
+            setWorkflows(builtins);
+            setLoading(true);
+        });
         listWorkflows("assistant")
             .then((custom) => {
                 const all = [...builtins, ...custom];
@@ -71,7 +75,7 @@ export function AssistantWorkflowModal({
         // Pre-select from builtins immediately if possible
         if (initialWorkflowId) {
             const match = builtins.find((w) => w.id === initialWorkflowId);
-            if (match) setSelected(match);
+            if (match) queueMicrotask(() => setSelected(match));
         }
     }, [open, initialWorkflowId]);
 

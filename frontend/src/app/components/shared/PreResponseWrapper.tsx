@@ -28,7 +28,9 @@ export function PreResponseWrapper({
     useEffect(() => {
         if (shouldMinimize) hasMinimizedRef.current = true;
         if (userToggled) return;
-        setIsOpen(!shouldMinimize && !hasMinimizedRef.current);
+        queueMicrotask(() =>
+            setIsOpen(!shouldMinimize && !hasMinimizedRef.current),
+        );
     }, [shouldMinimize, userToggled]);
 
     const stepWord = `step${stepCount === 1 ? "" : "s"}`;

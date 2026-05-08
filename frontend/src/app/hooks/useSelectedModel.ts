@@ -16,7 +16,7 @@ export function useSelectedModel(): [string, (id: string) => void] {
     const [model, setModelState] = useState<string>(DEFAULT_MODEL_ID);
 
     useEffect(() => {
-        setModelState(readStored());
+        queueMicrotask(() => setModelState(readStored()));
     }, []);
 
     const setModel = useCallback((id: string) => {
