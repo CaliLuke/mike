@@ -1,6 +1,7 @@
 "use client";
 
 import { ZoomIn, ZoomOut } from "lucide-react";
+import type { PageViewport, PDFDocumentProxy, PDFPageProxy } from "pdfjs-dist";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useFetchSingleDoc } from "@/app/hooks/useFetchSingleDoc";
@@ -35,8 +36,8 @@ const ZOOM_MAX = 3.0;
 const ZOOM_STEP = 0.25;
 
 type RenderedPage = {
-  page: import("pdfjs-dist").PDFPageProxy;
-  viewport: import("pdfjs-dist").PageViewport;
+  page: PDFPageProxy;
+  viewport: PageViewport;
   wrapper: HTMLDivElement;
   canvas: HTMLCanvasElement;
   textDivs: HTMLElement[];
@@ -52,7 +53,7 @@ export function DocView({
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const pdfDocRef = useRef<import("pdfjs-dist").PDFDocumentProxy | null>(null);
+  const pdfDocRef = useRef<PDFDocumentProxy | null>(null);
   const renderedPagesRef = useRef<RenderedPage[]>([]);
   const quoteListRef = useRef<QuoteEntry[]>([]);
   const zoomRef = useRef(1.0);
@@ -191,11 +192,7 @@ export function DocView({
   }
 
   const renderPDF = useCallback(
-    async (
-      doc: import("pdfjs-dist").PDFDocumentProxy,
-      list: QuoteEntry[],
-      scrollToPage?: number,
-    ) => {
+    async (doc: PDFDocumentProxy, list: QuoteEntry[], scrollToPage?: number) => {
       if (!containerRef.current) return;
       containerRef.current.innerHTML = "";
       renderedPagesRef.current = [];
@@ -436,7 +433,7 @@ export function DocView({
     return () => {
       cancelled = true;
     };
-  }, [result, renderPDF]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [quoteList, result, renderPDF]);
 
   // Re-render at new scale when container is resized (debounced 150ms)
   useEffect(() => {
@@ -447,7 +444,7 @@ export function DocView({
       }
     }, 150);
     return () => clearTimeout(timer);
-  }, [containerWidth, renderPDF]);  
+  }, [containerWidth, renderPDF]);
 
   // Re-highlight when quotes change without full re-render
   useEffect(() => {
@@ -455,7 +452,7 @@ export function DocView({
     quoteListRef.current = quoteList;
     if (quoteList.length === 0) return;
     rehighlightQuotes(quoteList);
-  }, [quoteKey, rehighlightQuotes]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [quoteKey, quoteList, rehighlightQuotes]);
 
   function handleZoomIn() {
     const next = Math.min(ZOOM_MAX, Math.round((zoomRef.current + ZOOM_STEP) * 100) / 100);

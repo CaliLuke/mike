@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import { Check, ChevronDown, Loader2, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -106,7 +108,7 @@ export function AddNewTRModal({
         setDirectoryProjects([]);
       })
       .finally(() => setLoadingDirectory(false));
-  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fixedProjectDocs, isProjectMode, open]);
 
   if (!open) return null;
 

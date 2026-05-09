@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import { ChevronDown, Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -14,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import type { ColumnConfig, ColumnFormat } from "../shared/types";
-import { FORMAT_OPTIONS, formatIcon,formatLabel } from "./columnFormat";
+import { FORMAT_OPTIONS, formatIcon, formatLabel } from "./columnFormat";
 import { getPresetConfig, PROMPT_PRESETS } from "./columnPresets";
 import { TAG_COLORS } from "./pillUtils";
 
@@ -74,7 +76,7 @@ export function AddColumnModal({
     } else {
       setColumns([{ ...EMPTY_DRAFT }]);
     }
-  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [editingColumn, open]);
 
   useEffect(() => {
     if (presetsOpenIndex === null) return;
@@ -115,7 +117,8 @@ export function AddColumnModal({
 
   function commitTag(index: number) {
     setColumns((prev) => {
-      const col = prev[index]!;
+      const col = prev[index];
+      if (!col) return prev;
       const tag = col.tagInput.trim();
       if (!tag || col.tags.includes(tag)) {
         return prev.map((c, i) => (i === index ? { ...c, tagInput: "" } : c));
@@ -130,11 +133,12 @@ export function AddColumnModal({
       commitTag(index);
     } else if (
       e.key === "Backspace" &&
-      columns[index]!.tagInput === "" &&
-      columns[index]!.tags.length > 0
+      columns[index]?.tagInput === "" &&
+      (columns[index]?.tags.length ?? 0) > 0
     ) {
+      const tags = columns[index]?.tags ?? [];
       updateColumn(index, {
-        tags: columns[index]!.tags.slice(0, -1),
+        tags: tags.slice(0, -1),
       });
     }
   }
@@ -144,7 +148,8 @@ export function AddColumnModal({
     if (!title) return;
     setGeneratingIndices((prev) => [...prev, index]);
     try {
-      const col = columns[index]!;
+      const col = columns[index];
+      if (!col) return;
       const { prompt } = await generateTabularColumnPrompt(title, {
         format: col.format,
         tags: col.format === "tag" ? col.tags : undefined,
@@ -159,7 +164,8 @@ export function AddColumnModal({
     e.preventDefault();
     if (columns.some((col) => !col.name.trim() || !col.prompt.trim())) return;
     if (isEditing && onSave && editingColumn) {
-      const col = columns[0]!;
+      const col = columns[0];
+      if (!col) return;
       onSave({
         index: editingColumn.index,
         name: col.name.trim(),

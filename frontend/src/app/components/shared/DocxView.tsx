@@ -152,17 +152,13 @@ async function tagWIdsOnRenderedDom(
     };
     const domEls = Array.from(container.querySelectorAll("ins, del")) as HTMLElement[];
     const ids = data.ids ?? [];
-    let tagged = 0;
-    let mismatched = 0;
     for (let i = 0; i < Math.min(domEls.length, ids.length); i++) {
       const el = domEls[i];
       const info = ids[i];
       if (el.tagName.toLowerCase() !== info.kind) {
-        mismatched++;
         continue;
       }
       el.setAttribute("data-w-id", info.w_id);
-      tagged++;
     }
   } catch (e) {
     console.warn("[DocxView] tagWIdsOnRenderedDom failed", e);
@@ -198,15 +194,18 @@ export function DocxView({
   // re-render (e.g. clicking a new highlight) creates a new onReady
   // identity, triggers a full re-render, and snaps scroll back to top.
   const onReadyRef = useRef(onReady);
-  onReadyRef.current = onReady;
   const highlightEditRef = useRef(highlightEdit);
-  highlightEditRef.current = highlightEdit;
   const quotesRef = useRef(quotes);
-  quotesRef.current = quotes;
   const initialScrollTopRef = useRef(initialScrollTop ?? null);
-  initialScrollTopRef.current = initialScrollTop ?? null;
   const onScrollChangeRef = useRef(onScrollChange);
-  onScrollChangeRef.current = onScrollChange;
+
+  useEffect(() => {
+    onReadyRef.current = onReady;
+    highlightEditRef.current = highlightEdit;
+    quotesRef.current = quotes;
+    initialScrollTopRef.current = initialScrollTop ?? null;
+    onScrollChangeRef.current = onScrollChange;
+  }, [highlightEdit, initialScrollTop, onReady, onScrollChange, quotes]);
 
   // Stable key for the quote list so the re-highlight effect re-fires
   // only when the actual text/order of quotes changes.
@@ -317,13 +316,6 @@ export function DocxView({
     const scrollEl = scrollRef.current;
     const containerEl = containerRef.current;
 
-    console.log("[DocxView] render effect fired", {
-      documentId,
-      versionId,
-      refetchKey,
-      bytesLen: bytes.byteLength,
-    });
-
     // Remember scroll position across re-renders so Accept/Reject stays put.
     lastScrollTopRef.current = scrollEl.scrollTop;
     const thisRender = ++renderKeyRef.current;
@@ -377,21 +369,21 @@ export function DocxView({
     return () => {
       cancelled = true;
     };
-  }, [bytes]);
+  }, [bytes, documentId, refetchKey, versionId]);
 
   // Re-scroll/highlight if the target edit changes without a re-render
   // (e.g. same doc, different edit clicked).
   useEffect(() => {
     if (!highlightEdit || !containerRef.current || !scrollRef.current) return;
     scrollToHighlight(containerRef.current, scrollRef.current, highlightEdit);
-  }, [highlightEdit?.key]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [highlightEdit]);
 
   // Re-apply quote highlights when the quote list changes without a full
   // re-render (e.g. clicking a different citation on the same doc).
   useEffect(() => {
     if (!containerRef.current || !scrollRef.current) return;
-    applyQuoteHighlights(containerRef.current, scrollRef.current, quotesRef.current);
-  }, [quoteKey]);  
+    applyQuoteHighlights(containerRef.current, scrollRef.current, quotes);
+  }, [quoteKey, quotes]);
 
   // Fire onScrollChange (rAF-throttled) so parents can persist scroll
   // per-tab. We still maintain lastScrollTopRef locally for same-mount

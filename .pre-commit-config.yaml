@@ -38,6 +38,7 @@ repos:
         language: script
         files: ^frontend/.*\.(ts|tsx|js|jsx|mjs|cjs|json|css|md|yml|yaml)$
         pass_filenames: true
+        require_serial: true
 
       - id: frontend-eslint
         name: eslint (frontend, staged)
@@ -45,6 +46,7 @@ repos:
         language: script
         files: ^frontend/.*\.(ts|tsx|js|jsx|mjs|cjs)$
         pass_filenames: true
+        require_serial: true
 
       - id: frontend-typecheck
         name: tsc --noEmit (frontend, full)

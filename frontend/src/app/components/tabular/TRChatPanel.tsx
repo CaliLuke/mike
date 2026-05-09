@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable max-lines, react-hooks/set-state-in-effect */
+
 import {
   ArrowRight,
   ChevronDown,
@@ -276,15 +278,15 @@ function TRAssistantMessage({
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          p: ({ node, ...props }) => <p className="mb-2 leading-6" {...props} />,
-          ul: ({ node, ...props }) => (
+          p: ({ node: _node, ...props }) => <p className="mb-2 leading-6" {...props} />,
+          ul: ({ node: _node, ...props }) => (
             <ul className="mb-2 list-outside list-disc pl-4" {...props} />
           ),
-          ol: ({ node, ...props }) => (
+          ol: ({ node: _node, ...props }) => (
             <ol className="mb-2 list-outside list-decimal pl-4" {...props} />
           ),
-          li: ({ node, ...props }) => <li className="mb-0.5 leading-6" {...props} />,
-          strong: ({ node, ...props }) => <strong className="font-semibold" {...props} />,
+          li: ({ node: _node, ...props }) => <li className="mb-0.5 leading-6" {...props} />,
+          strong: ({ node: _node, ...props }) => <strong className="font-semibold" {...props} />,
           code: ({ children }) => {
             const codeText = String(children);
             const citMatch = codeText.match(/^§(\d+)§$/);
@@ -593,7 +595,7 @@ export function TRChatPanel({
     getTabularChats(reviewId)
       .then(setChats)
       .catch(() => {});
-  }, [reviewId]);
+  }, [initialChatId, reviewId]);
 
   // Load messages for an initial chat id (e.g. from URL)
   useEffect(() => {
@@ -603,7 +605,7 @@ export function TRChatPanel({
       .then((raw) => setMessages(mapTRMessages(raw) as TRMessage[]))
       .catch(() => {})
       .finally(() => setIsLoadingMessages(false));
-  }, [reviewId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [initialChatId, reviewId]);
 
   // Fill in title once chats list arrives
   useEffect(() => {
@@ -646,7 +648,7 @@ export function TRChatPanel({
         setMessagesVisible(true);
       }
     }
-  }, [messages]);  
+  }, [messages]);
 
   useEffect(() => {
     const userEl = latestUserMessageRef.current;
@@ -658,8 +660,7 @@ export function TRChatPanel({
     setMinHeight(
       `${Math.max(0, containerEl.clientHeight - BOTTOM_PAD - userEl.offsetHeight - messageContainerTopPadding - messageGap)}px`,
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages.length, latestUserMessageRef.current]);
+  }, [messages.length]);
 
   useEffect(() => {
     if (!historyOpen) return;

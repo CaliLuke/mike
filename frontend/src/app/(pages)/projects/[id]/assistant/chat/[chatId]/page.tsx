@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable max-lines, react-hooks/set-state-in-effect */
+
 import {
   ChevronLeft,
   ChevronRight,
@@ -242,7 +244,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
 
   useEffect(() => {
     setSidebarOpen(false);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [setSidebarOpen]);
 
   useEffect(() => {
     getProject(projectId)
@@ -312,7 +314,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
       })
       .catch(() => router.replace(`/projects/${projectId}?tab=assistant`))
       .finally(() => setChatLoaded(true));
-  }, [chatId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [chatId, projectId, router, setMessages]);
 
   useEffect(() => {
     const match = chats?.find((c) => c.id === chatId);
@@ -332,7 +334,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
       setNewChatMessages(null);
       void handleChat(newChatMessages[0]);
     }
-  }, [newChatMessages, messages.length, isResponseLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [handleChat, isResponseLoading, messages.length, newChatMessages, setNewChatMessages]);
 
   const scrollLatestUserToTop = useCallback(() => {
     requestAnimationFrame(() => {
@@ -376,7 +378,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
     const containerEl = messagesContainerRef.current;
     if (!userEl || !containerEl) return;
     setMinHeight(`${Math.max(0, containerEl.clientHeight - 48 - userEl.offsetHeight - 16)}px`);
-  }, [messages.length, latestUserMessageRef.current]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [messages.length]);
 
   useEffect(() => {
     if (!activeTabId) return;

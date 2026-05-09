@@ -45,7 +45,15 @@ export default function AssistantChatPage() {
         }
       })
       .catch(() => router.replace("/assistant"));
-  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [
+    id,
+    initialMessages.length,
+    messages.length,
+    newChatMessages,
+    router,
+    setMessages,
+    setNewChatMessages,
+  ]);
 
   useEffect(() => {
     if (
@@ -59,7 +67,7 @@ export default function AssistantChatPage() {
       hasAutoSent.current = true;
       void handleChat(newChatMessages[0]);
     }
-  }, [newChatMessages, messages.length, isResponseLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [handleChat, isResponseLoading, messages.length, newChatMessages]);
 
   return (
     <ChatView
