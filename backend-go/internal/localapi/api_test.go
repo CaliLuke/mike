@@ -160,11 +160,11 @@ func TestLocalAPIDisplayAndBuiltInWorkflowSeed(t *testing.T) {
 
 func TestRewriteTrackedChangeXMLUsesStructuredTokens(t *testing.T) {
 	input := `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:del w:author="a&gt;b"><w:r><w:delText>remove</w:delText></w:r></w:del><w:ins><w:r><w:t>keep</w:t></w:r></w:ins></w:r></w:p></w:body></w:document>`
-	accepted := rewriteTrackedChangeXML(input, true)
+	accepted := rewriteTrackedChangeXML(input, true, "")
 	if strings.Contains(accepted, "remove") || !strings.Contains(accepted, "keep") || strings.Contains(accepted, "w:ins") || strings.Contains(accepted, "w:del") {
 		t.Fatalf("accepted rewrite did not unwrap insert/drop delete correctly: %s", accepted)
 	}
-	rejected := rewriteTrackedChangeXML(input, false)
+	rejected := rewriteTrackedChangeXML(input, false, "")
 	if strings.Contains(rejected, "keep") || !strings.Contains(rejected, "remove") || strings.Contains(rejected, "w:ins") || strings.Contains(rejected, "w:delText") {
 		t.Fatalf("rejected rewrite did not unwrap delete/drop insert correctly: %s", rejected)
 	}

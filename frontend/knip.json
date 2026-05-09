@@ -1,0 +1,32 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "src/app/**/{page,layout,template,loading,error,not-found,route,default,global-error}.{ts,tsx}",
+    "src/app/**/{opengraph-image,twitter-image,icon,apple-icon,sitemap,robots,manifest}.{ts,tsx}",
+    "src/middleware.{ts,tsx}",
+    "src/instrumentation.{ts,tsx}",
+    "src/instrumentation-client.{ts,tsx}",
+    "next.config.ts",
+    "open-next.config.ts",
+    "postcss.config.mjs",
+    "eslint.config.mjs",
+    "scripts/**/*.{ts,tsx,mjs,js}"
+  ],
+  "project": ["src/**/*.{ts,tsx}", "scripts/**/*.{ts,tsx,mjs,js}"],
+  "ignore": [
+    "src/**/*.test.{ts,tsx}",
+    "src/**/*.spec.{ts,tsx}",
+    "src/**/*.stories.{ts,tsx}",
+    "src/**/*.d.ts",
+    ".next/**",
+    ".open-next/**"
+  ],
+  "ignoreDependencies": [
+    "tailwindcss",
+    "@tailwindcss/postcss",
+    "tw-animate-css",
+    "babel-plugin-react-compiler",
+    "baseline-browser-mapping",
+    "prettier-plugin-tailwindcss"
+  ]
+}

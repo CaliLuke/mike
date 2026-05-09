@@ -95,7 +95,7 @@ Acceptance Criteria
 
 Checklist
 
-- [x] Generate `docs/api-compatibility-inventory.md` from `reference/express-backend/src/index.ts`, `reference/express-backend/src/routes/*.ts`, and `frontend/src/app/lib/mikeApi.ts`.
+- [x] Generate `docs/api-compatibility-inventory.md` from `reference/express-backend/src/index.ts`, `reference/express-backend/src/routes/*.ts`, and `frontend/src/app/lib/lukeApi.ts`.
 - [x] Record which frontend calls use `/user` and which use `/users`; preserve the unused prefix as a generated alias only.
 - [x] Include nested project routes in the inventory: `/projects/:projectId/documents`, `/projects/:projectId/folders`, `/projects/:projectId/chats`, and `/projects/:projectId/people`.
 - [x] Include tabular prompt and chat-title routes in the inventory: `POST /tabular-review/prompt` and `POST /chat/:chatId/generate-title`.
@@ -240,14 +240,14 @@ Goal: Keep the current Next.js UI working while replacing direct Supabase sessio
 Acceptance Criteria
 
 - `rg -n "supabase|@supabase|SUPABASE|createServerSupabase" frontend/src frontend/package.json frontend/.env.local.example` has no hits.
-- `frontend/src/app/lib/mikeApi.ts` and all direct fetch call sites work without Supabase Authorization headers.
+- `frontend/src/app/lib/lukeApi.ts` and all direct fetch call sites work without Supabase Authorization headers.
 - Converted code does not import `next/headers`, use server actions, or rely on Node-only APIs. Existing usage is removed where reasonable, not just avoided in new code.
 - `npm run build --prefix frontend` and `npm run lint --prefix frontend` complete.
 
 Checklist
 
 - [x] Replace `frontend/src/lib/supabase.ts`, `frontend/src/lib/supabase-server.ts`, and `frontend/src/lib/auth.ts` usage with local API helpers or remove the files.
-- [x] Update `frontend/src/app/lib/mikeApi.ts` to stop attaching Supabase Authorization headers.
+- [x] Update `frontend/src/app/lib/lukeApi.ts` to stop attaching Supabase Authorization headers.
 - [x] Update `frontend/src/contexts/AuthContext.tsx` to provide the deterministic local user and local sign-out behavior.
 - [x] Update `frontend/src/contexts/UserProfileContext.tsx` to load and mutate profile/model/API-key data through backend profile routes.
 - [x] Remove or repurpose `frontend/src/app/login/page.tsx` and `frontend/src/app/signup/page.tsx` so local mode has no Supabase login/signup flow.

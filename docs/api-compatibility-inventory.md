@@ -1,7 +1,7 @@
 # API Compatibility Inventory
 
 Generated for Milestone 1 from `reference/express-backend/src/index.ts`, `reference/express-backend/src/routes/*.ts`,
-`reference/express-backend/src/lib/chatTools.ts`, and `frontend/src/app/lib/mikeApi.ts`.
+`reference/express-backend/src/lib/chatTools.ts`, and `frontend/src/app/lib/lukeApi.ts`.
 
 Express mounts:
 
@@ -18,7 +18,7 @@ Express mounts:
 | `/download` | `reference/express-backend/src/routes/downloads.ts` |
 
 `/user` is the active frontend prefix. `frontend/src/contexts/AuthContext.tsx`
-posts to `/user/profile`, and `frontend/src/app/lib/mikeApi.ts` deletes
+posts to `/user/profile`, and `frontend/src/app/lib/lukeApi.ts` deletes
 `/user/account`. `/users` has no current frontend caller and must be preserved
 as a generated alias only.
 

@@ -760,12 +760,9 @@ func (s *Server) tabularChatMessages(w http.ResponseWriter, r *http.Request) {
 func (s *Server) tabularChatStream(w http.ResponseWriter, r *http.Request) {
 	reviewID := r.PathValue("reviewId")
 	var req struct {
-		ChatID   *string `json:"chat_id"`
-		Model    *string `json:"model"`
-		Messages []struct {
-			Role    string `json:"role"`
-			Content string `json:"content"`
-		} `json:"messages"`
+		ChatID   *string              `json:"chat_id"`
+		Model    *string              `json:"model"`
+		Messages []chatRequestMessage `json:"messages"`
 	}
 	_ = decodeJSON(r, &req)
 	chatID := ""
@@ -781,7 +778,7 @@ func (s *Server) tabularChatStream(w http.ResponseWriter, r *http.Request) {
 		chatID = trimRecord(asString(row["id"]))
 	}
 	streamSSE(w, func(send func(map[string]any) error) error {
-		text, err := s.persistAndStreamTabularChat(r.Context(), reviewID, chatID, req.Model, req.Messages, send)
+		text, err := s.persistAndStreamAssistantTabularChat(r.Context(), reviewID, chatID, req.Model, req.Messages, send)
 		if err != nil {
 			return err
 		}
@@ -886,7 +883,7 @@ func (s *Server) uploadFromRequest(r *http.Request, projectID *string) (map[stri
 	if projectID != nil {
 		payload["project_id"] = *projectID
 	}
-	if _, err := s.runDocumentWorkflow(localdata.WithUserContext(r.Context(), s.app.User), s.app.Workflows.Upload, docID, payload); err != nil {
+	if err := s.runDocumentWorkflow(localdata.WithUserContext(r.Context(), s.app.User), s.app.Workflows.Upload, docID, payload); err != nil {
 		return nil, err
 	}
 	if projectID != nil {
@@ -897,26 +894,26 @@ func (s *Server) uploadFromRequest(r *http.Request, projectID *string) (map[stri
 	return s.getDocument(r.Context(), docID)
 }
 
-func (s *Server) runDocumentWorkflow(ctx context.Context, workflow *romancy.WorkflowFunc[localdata.DocumentOperationInput, localdata.DocumentOperationResult], targetID string, payload map[string]any) (localdata.DocumentOperationResult, error) {
+func (s *Server) runDocumentWorkflow(ctx context.Context, workflow *romancy.WorkflowFunc[localdata.DocumentOperationInput, localdata.DocumentOperationResult], targetID string, payload map[string]any) error {
 	instanceID := "api_" + workflow.Name() + "_" + targetID
 	_, err := romancy.StartWorkflow(ctx, s.app.Romancy, workflow, localdata.DocumentOperationInput{TargetID: targetID, Payload: payload}, romancy.WithInstanceID(instanceID))
 	if err != nil {
-		return localdata.DocumentOperationResult{}, err
+		return err
 	}
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		result, err := romancy.GetWorkflowResult[localdata.DocumentOperationResult](ctx, s.app.Romancy, instanceID)
 		if err != nil {
-			return localdata.DocumentOperationResult{}, err
+			return err
 		}
 		if result.Status == "completed" {
-			return result.Output, nil
+			return nil
 		}
 		if result.Status == "failed" {
-			return localdata.DocumentOperationResult{}, result.Error
+			return result.Error
 		}
 		if time.Now().After(deadline) {
-			return localdata.DocumentOperationResult{}, fmt.Errorf("document workflow %s did not complete in time", workflow.Name())
+			return fmt.Errorf("document workflow %s did not complete in time", workflow.Name())
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
@@ -1007,12 +1004,11 @@ func (s *Server) zipDocumentBytes(ctx context.Context, documentIDs []string) ([]
 
 func (s *Server) chatStream(w http.ResponseWriter, r *http.Request, projectID *string) {
 	var req struct {
-		ChatID   *string `json:"chat_id"`
-		Model    *string `json:"model"`
-		Messages []struct {
-			Role    string `json:"role"`
-			Content string `json:"content"`
-		} `json:"messages"`
+		ChatID            *string              `json:"chat_id"`
+		Model             *string              `json:"model"`
+		Messages          []chatRequestMessage `json:"messages"`
+		DisplayedDoc      *chatRequestFile     `json:"displayed_doc"`
+		AttachedDocuments []chatRequestFile    `json:"attached_documents"`
 	}
 	_ = decodeJSON(r, &req)
 	chatID := ""
@@ -1028,7 +1024,7 @@ func (s *Server) chatStream(w http.ResponseWriter, r *http.Request, projectID *s
 		chatID = trimRecord(asString(row["id"]))
 	}
 	streamSSE(w, func(send func(map[string]any) error) error {
-		_, err := s.persistAndStreamChat(r.Context(), chatID, req.Model, req.Messages, send)
+		_, err := s.persistAndStreamAssistantChat(r.Context(), chatID, req.Model, projectID, nil, req.Messages, req.DisplayedDoc, req.AttachedDocuments, send)
 		return err
 	})
 }

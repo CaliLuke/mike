@@ -33,26 +33,39 @@ In Luke, a project represents a position being pursued. The knowledge vault repr
 Local-first development uses the Loom Go backend, embedded SurrealKV/Romancy
 state, local file storage, the Next.js browser frontend, and Ollama by default.
 
-Install dependencies:
+Run the app:
+
+```bash
+./dev
+```
+
+This installs frontend dependencies if needed, builds the Rust SurrealDB bridge
+if needed, starts the Go backend and Next frontend, picks free local ports, and
+opens the browser. If Ollama is installed, it also starts Ollama when needed and
+pulls the default `gemma4` model when missing. Press Ctrl-C in that terminal to
+stop the processes it started.
+Set `LUKE_OPEN_BROWSER=0` to skip opening the browser automatically.
+
+The backend data directory is durable and defaults to `.tmp/luke-local`. Set
+`LUKE_DEV_ROOT=/path/to/dev-state` to use a different local data directory.
+Set `LUKE_SKIP_OLLAMA=1` to skip Ollama startup and model checks.
+On macOS, `./dev` builds the Rust bridge and Go backend with the same
+deployment target, defaulting to the installed macOS SDK platform version, to
+avoid linker version-warning spam. Override with
+`LUKE_MACOSX_DEPLOYMENT_TARGET=26.2` only when needed.
+
+Manual commands, when debugging startup:
 
 ```bash
 npm install --prefix frontend
 ```
 
-Build the Rust SurrealDB bridge once before running the Go backend:
+Build the Rust SurrealDB bridge:
 
 ```bash
 cd backend-go/internal/persistence/rustbridge
 cargo build --release
 cd ../../..
-```
-
-Start Ollama and make sure the default local model is available:
-
-```bash
-ollama serve
-ollama pull gemma4
-ollama list
 ```
 
 Start the Loom backend from `backend-go`:

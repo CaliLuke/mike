@@ -1,66 +1,66 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getProject, listProjects, listStandaloneDocuments } from "@/app/lib/mikeApi";
-import type { MikeDocument, MikeProject } from "./types";
+
+import { getProject, listProjects, listStandaloneDocuments } from "@/app/lib/lukeApi";
+
+import type { LukeDocument, LukeProject } from "./types";
 
 const CACHE_TTL_MS = 30_000;
 
 interface DirectoryCache {
-    standaloneDocuments: MikeDocument[];
-    projects: MikeProject[];
-    fetchedAt: number;
+  standaloneDocuments: LukeDocument[];
+  projects: LukeProject[];
+  fetchedAt: number;
 }
 
 let cache: DirectoryCache | null = null;
 
 export function invalidateDirectoryCache() {
-    cache = null;
+  cache = null;
 }
 
 export function useDirectoryData(enabled: boolean) {
-    const [loading, setLoading] = useState(true);
-    const [standaloneDocuments, setStandaloneDocuments] = useState<MikeDocument[]>([]);
-    const [projects, setProjects] = useState<MikeProject[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [standaloneDocuments, setStandaloneDocuments] = useState<LukeDocument[]>([]);
+  const [projects, setProjects] = useState<LukeProject[]>([]);
 
-    useEffect(() => {
-        if (!enabled) return;
+  useEffect(() => {
+    if (!enabled) return;
 
-        const now = Date.now();
-        if (cache && now - cache.fetchedAt < CACHE_TTL_MS) {
-            const cached = cache;
-            queueMicrotask(() => {
-                setStandaloneDocuments(cached.standaloneDocuments);
-                setProjects(cached.projects);
-                setLoading(false);
-            });
-            return;
-        }
+    const now = Date.now();
+    if (cache && now - cache.fetchedAt < CACHE_TTL_MS) {
+      const cached = cache;
+      queueMicrotask(() => {
+        setStandaloneDocuments(cached.standaloneDocuments);
+        setProjects(cached.projects);
+        setLoading(false);
+      });
+      return;
+    }
 
-        queueMicrotask(() => setLoading(true));
-        Promise.all([listProjects(), listStandaloneDocuments()])
-            .then(([ps, ds]) => {
-                const sorted = [...ds].sort((a, b) =>
-                    (b.created_at ?? "").localeCompare(a.created_at ?? ""),
-                );
-                return Promise.all(ps.map((p) => getProject(p.id))).then(
-                    (fullProjects) => {
-                        cache = {
-                            standaloneDocuments: sorted,
-                            projects: fullProjects,
-                            fetchedAt: Date.now(),
-                        };
-                        setStandaloneDocuments(sorted);
-                        setProjects(fullProjects);
-                    },
-                );
-            })
-            .catch(() => {
-                setStandaloneDocuments([]);
-                setProjects([]);
-            })
-            .finally(() => setLoading(false));
-    }, [enabled]);
+    queueMicrotask(() => setLoading(true));
+    Promise.all([listProjects(), listStandaloneDocuments()])
+      .then(([ps, ds]) => {
+        const sorted = [...ds].sort((a, b) =>
+          (b.created_at ?? "").localeCompare(a.created_at ?? ""),
+        );
+        return Promise.all(ps.map((p) => getProject(p.id))).then((fullProjects) => {
+          cache = {
+            standaloneDocuments: sorted,
+            projects: fullProjects,
+            fetchedAt: Date.now(),
+          };
+          setStandaloneDocuments(sorted);
+          setProjects(fullProjects);
+        });
+      })
+      .catch(() => {
+        setStandaloneDocuments([]);
+        setProjects([]);
+      })
+      .finally(() => setLoading(false));
+  }, [enabled]);
 
-    return { loading, standaloneDocuments, projects };
+  return { loading, standaloneDocuments, projects };
 }

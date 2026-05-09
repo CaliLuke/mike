@@ -1,604 +1,514 @@
 "use client";
 
+import { Check, ChevronDown, Loader2, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, Loader2, Upload, X } from "lucide-react";
-import type { MikeDocument, MikeProject, MikeWorkflow } from "../shared/types";
+
+import { DOCUMENT_UPLOAD_ACCEPT } from "@/app/lib/documentTypes";
 import {
-    createProject,
-    getProject,
-    listProjects,
-    listStandaloneDocuments,
-    listWorkflows,
-    uploadProjectDocument,
-    uploadStandaloneDocument,
-} from "@/app/lib/mikeApi";
+  createProject,
+  getProject,
+  listProjects,
+  listStandaloneDocuments,
+  listWorkflows,
+  uploadProjectDocument,
+  uploadStandaloneDocument,
+} from "@/app/lib/lukeApi";
+
 import { FileDirectory } from "../shared/FileDirectory";
+import type { LukeDocument, LukeProject, LukeWorkflow } from "../shared/types";
 import { invalidateDirectoryCache } from "../shared/useDirectoryData";
 import { BUILT_IN_WORKFLOWS } from "../workflows/builtinWorkflows";
-import { DOCUMENT_UPLOAD_ACCEPT } from "@/app/lib/documentTypes";
 
 interface Props {
-    open: boolean;
-    onClose: () => void;
-    onAdd: (
-        title: string,
-        projectId?: string,
-        documentIds?: string[],
-        columnsConfig?: MikeWorkflow["columns_config"],
-        createdProject?: MikeProject,
-    ) => void | Promise<void>;
-    projects?: MikeProject[];
-    /** When provided, skip the project/directory picker and show only these docs */
-    projectDocs?: MikeDocument[];
-    projectName?: string;
-    projectCmNumber?: string | null;
+  open: boolean;
+  onClose: () => void;
+  onAdd: (
+    title: string,
+    projectId?: string,
+    documentIds?: string[],
+    columnsConfig?: LukeWorkflow["columns_config"],
+    createdProject?: LukeProject,
+  ) => void | Promise<void>;
+  projects?: LukeProject[];
+  /** When provided, skip the project/directory picker and show only these docs */
+  projectDocs?: LukeDocument[];
+  projectName?: string;
+  projectCmNumber?: string | null;
 }
 
 export function AddNewTRModal({
-    open,
-    onClose,
-    onAdd,
-    projects = [],
-    projectDocs: fixedProjectDocs,
-    projectName,
-    projectCmNumber,
+  open,
+  onClose,
+  onAdd,
+  projects = [],
+  projectDocs: fixedProjectDocs,
+  projectName,
+  projectCmNumber,
 }: Props) {
-    const isProjectMode = fixedProjectDocs !== undefined;
-    const [title, setTitle] = useState("");
-    const [underProject, setUnderProject] = useState(false);
-    const [selectedProjectId, setSelectedProjectId] = useState("");
-    const [creatingProjectInline, setCreatingProjectInline] = useState(false);
-    const [newProjectName, setNewProjectName] = useState("");
-    const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
+  const isProjectMode = fixedProjectDocs !== undefined;
+  const [title, setTitle] = useState("");
+  const [underProject, setUnderProject] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [creatingProjectInline, setCreatingProjectInline] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
 
-    // Project-scoped docs (when underProject is true and no fixedProjectDocs)
-    const [projectDocs, setProjectDocs] = useState<MikeDocument[]>([]);
-    const [loadingDocs, setLoadingDocs] = useState(false);
+  // Project-scoped docs (when underProject is true and no fixedProjectDocs)
+  const [projectDocs, setProjectDocs] = useState<LukeDocument[]>([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
 
-    // Full directory (when underProject is false)
-    const [standaloneDocs, setStandaloneDocs] = useState<MikeDocument[]>([]);
-    const [directoryProjects, setDirectoryProjects] = useState<MikeProject[]>(
-        [],
-    );
-    const [loadingDirectory, setLoadingDirectory] = useState(false);
+  // Full directory (when underProject is false)
+  const [standaloneDocs, setStandaloneDocs] = useState<LukeDocument[]>([]);
+  const [directoryProjects, setDirectoryProjects] = useState<LukeProject[]>([]);
+  const [loadingDirectory, setLoadingDirectory] = useState(false);
 
-    const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(
-        new Set(),
-    );
-    const [uploading, setUploading] = useState(false);
-    const [submitting, setSubmitting] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
+  const [uploading, setUploading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Workflow templates
-    const [workflows, setWorkflows] = useState<MikeWorkflow[]>([]);
-    const [loadingWorkflows, setLoadingWorkflows] = useState(false);
-    const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(
-        null,
-    );
-    const [workflowDropdownOpen, setWorkflowDropdownOpen] = useState(false);
+  // Workflow templates
+  const [workflows, setWorkflows] = useState<LukeWorkflow[]>([]);
+  const [loadingWorkflows, setLoadingWorkflows] = useState(false);
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
+  const [workflowDropdownOpen, setWorkflowDropdownOpen] = useState(false);
 
-    useEffect(() => {
-        if (!open) return;
+  useEffect(() => {
+    if (!open) return;
 
-        setLoadingWorkflows(true);
-        const builtinTabular = BUILT_IN_WORKFLOWS.filter(
-            (w) => w.type === "tabular",
+    setLoadingWorkflows(true);
+    const builtinTabular = BUILT_IN_WORKFLOWS.filter((w) => w.type === "tabular");
+    listWorkflows("tabular")
+      .then((custom) => setWorkflows([...builtinTabular, ...custom]))
+      .catch(() => setWorkflows(builtinTabular))
+      .finally(() => setLoadingWorkflows(false));
+
+    if (isProjectMode) {
+      setSelectedDocIds(new Set((fixedProjectDocs ?? []).map((d) => d.id)));
+      return;
+    }
+
+    setLoadingDirectory(true);
+    // /projects only returns counts, not the documents array — fetch
+    // each project in parallel so FileDirectory can render the docs
+    // when the user expands a folder.
+    Promise.all([listStandaloneDocuments(), listProjects()])
+      .then(async ([docs, projs]) => {
+        setStandaloneDocs(
+          [...docs].sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? "")),
         );
-        listWorkflows("tabular")
-            .then((custom) => setWorkflows([...builtinTabular, ...custom]))
-            .catch(() => setWorkflows(builtinTabular))
-            .finally(() => setLoadingWorkflows(false));
-
-        if (isProjectMode) {
-            setSelectedDocIds(
-                new Set((fixedProjectDocs ?? []).map((d) => d.id)),
-            );
-            return;
-        }
-
-        setLoadingDirectory(true);
-        // /projects only returns counts, not the documents array — fetch
-        // each project in parallel so FileDirectory can render the docs
-        // when the user expands a folder.
-        Promise.all([listStandaloneDocuments(), listProjects()])
-            .then(async ([docs, projs]) => {
-                setStandaloneDocs(
-                    [...docs].sort((a, b) =>
-                        (b.created_at ?? "").localeCompare(a.created_at ?? ""),
-                    ),
-                );
-                const fullProjects = await Promise.all(
-                    projs.map((p) => getProject(p.id)),
-                );
-                setDirectoryProjects(fullProjects);
-            })
-            .catch(() => {
-                setStandaloneDocs([]);
-                setDirectoryProjects([]);
-            })
-            .finally(() => setLoadingDirectory(false));
-    }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    if (!open) return null;
-
-    function handleClose() {
-        setTitle("");
-        setUnderProject(false);
-        setSelectedProjectId("");
-        setCreatingProjectInline(false);
-        setNewProjectName("");
-        setProjectDropdownOpen(false);
-        setProjectDocs([]);
+        const fullProjects = await Promise.all(projs.map((p) => getProject(p.id)));
+        setDirectoryProjects(fullProjects);
+      })
+      .catch(() => {
         setStandaloneDocs([]);
         setDirectoryProjects([]);
-        setSelectedDocIds(new Set());
-        setSelectedWorkflowId(null);
-        setWorkflowDropdownOpen(false);
-        onClose();
-    }
+      })
+      .finally(() => setLoadingDirectory(false));
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    async function handleSubmit(e: React.FormEvent) {
-        e.preventDefault();
-        if (!title.trim() || submitting) return;
-        if (underProject && !selectedProjectId && !newProjectName.trim())
-            return;
-        const selectedWorkflow = workflows.find(
-            (w) => w.id === selectedWorkflowId,
-        );
-        setSubmitting(true);
-        try {
-            const createdProject =
-                underProject && !selectedProjectId
-                    ? await createProject(newProjectName.trim())
-                    : undefined;
-            if (createdProject) invalidateDirectoryCache();
-            const projectId = createdProject?.id ?? selectedProjectId;
-            await onAdd(
-                title.trim(),
-                underProject ? projectId : undefined,
-                selectedDocIds.size > 0 ? [...selectedDocIds] : undefined,
-                selectedWorkflow?.columns_config ?? undefined,
-                createdProject,
-            );
-            handleClose();
-        } finally {
-            setSubmitting(false);
-        }
-    }
+  if (!open) return null;
 
-    async function handleSelectProject(projectId: string) {
-        setSelectedProjectId(projectId);
-        setCreatingProjectInline(false);
-        setNewProjectName("");
-        setProjectDropdownOpen(false);
-        setProjectDocs([]);
-        setSelectedDocIds(new Set());
-        setLoadingDocs(true);
-        try {
-            const proj = await getProject(projectId);
-            const docs = (proj.documents ?? []).filter(
-                (d) => d.status === "ready",
-            );
-            setProjectDocs(docs);
-            setSelectedDocIds(new Set(docs.map((d) => d.id)));
-        } finally {
-            setLoadingDocs(false);
-        }
-    }
+  function handleClose() {
+    setTitle("");
+    setUnderProject(false);
+    setSelectedProjectId("");
+    setCreatingProjectInline(false);
+    setNewProjectName("");
+    setProjectDropdownOpen(false);
+    setProjectDocs([]);
+    setStandaloneDocs([]);
+    setDirectoryProjects([]);
+    setSelectedDocIds(new Set());
+    setSelectedWorkflowId(null);
+    setWorkflowDropdownOpen(false);
+    onClose();
+  }
 
-    function handleSelectNewProject() {
-        setCreatingProjectInline(true);
-        setSelectedProjectId("");
-        setProjectDropdownOpen(false);
-        setProjectDocs([]);
-        setSelectedDocIds(new Set());
-        setLoadingDocs(false);
-    }
-
-    async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-        const files = Array.from(e.target.files ?? []);
-        if (!files.length) return;
-        setUploading(true);
-        try {
-            const uploaded = await Promise.all(
-                files.map((f) =>
-                    underProject && selectedProjectId
-                        ? uploadProjectDocument(selectedProjectId, f)
-                        : uploadStandaloneDocument(f),
-                ),
-            );
-            if (underProject && selectedProjectId) {
-                setProjectDocs((prev) => [...uploaded, ...prev]);
-            } else {
-                setStandaloneDocs((prev) => [...uploaded, ...prev]);
-            }
-            uploaded.forEach((d) =>
-                setSelectedDocIds((prev) => new Set([...prev, d.id])),
-            );
-        } catch (err) {
-            console.error("Upload failed:", err);
-        } finally {
-            setUploading(false);
-            if (fileInputRef.current) fileInputRef.current.value = "";
-        }
-    }
-
-    const selectedProject = projects.find((p) => p.id === selectedProjectId);
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim() || submitting) return;
+    if (underProject && !selectedProjectId && !newProjectName.trim()) return;
     const selectedWorkflow = workflows.find((w) => w.id === selectedWorkflowId);
-    const trimmedNewProjectName = newProjectName.trim();
+    setSubmitting(true);
+    try {
+      const createdProject =
+        underProject && !selectedProjectId ? await createProject(newProjectName.trim()) : undefined;
+      if (createdProject) invalidateDirectoryCache();
+      const projectId = createdProject?.id ?? selectedProjectId;
+      await onAdd(
+        title.trim(),
+        underProject ? projectId : undefined,
+        selectedDocIds.size > 0 ? [...selectedDocIds] : undefined,
+        selectedWorkflow?.columns_config ?? undefined,
+        createdProject,
+      );
+      handleClose();
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
-    // What to show in the directory depends on mode and toggle state
-    const directoryStandalone = isProjectMode
-        ? (fixedProjectDocs ?? [])
-        : underProject
-          ? []
-          : standaloneDocs;
-    const directoryFolders = isProjectMode
-        ? []
-        : underProject
-          ? []
-          : directoryProjects;
-    const flatProjectDocs: MikeDocument[] =
-        !isProjectMode && underProject ? projectDocs : [];
-    const directoryLoading = isProjectMode
-        ? false
-        : underProject
-          ? loadingDocs
-          : loadingDirectory;
-    const showDirectory =
-        isProjectMode ||
-        !underProject ||
-        !!selectedProjectId ||
-        creatingProjectInline;
+  async function handleSelectProject(projectId: string) {
+    setSelectedProjectId(projectId);
+    setCreatingProjectInline(false);
+    setNewProjectName("");
+    setProjectDropdownOpen(false);
+    setProjectDocs([]);
+    setSelectedDocIds(new Set());
+    setLoadingDocs(true);
+    try {
+      const proj = await getProject(projectId);
+      const docs = (proj.documents ?? []).filter((d) => d.status === "ready");
+      setProjectDocs(docs);
+      setSelectedDocIds(new Set(docs.map((d) => d.id)));
+    } finally {
+      setLoadingDocs(false);
+    }
+  }
 
-    return createPortal(
-        <div className="fixed inset-0 z-[101] flex items-center justify-center bg-black/20 backdrop-blur-xs">
-            <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl flex flex-col h-[600px]">
-                {/* Header */}
-                <div className="flex items-center justify-between px-6 pt-5 pb-2 shrink-0">
-                    <div className="flex items-center gap-1.5 text-xs text-gray-400">
-                        {isProjectMode && projectName ? (
-                            <>
-                                <span>Projects</span>
-                                <span>›</span>
-                                <span>
-                                    {projectName}
-                                    {projectCmNumber ? ` (#${projectCmNumber})` : ""}
-                                </span>
-                                <span>›</span>
-                                <span>Tabular Reviews</span>
-                                <span>›</span>
-                                <span>New review</span>
-                            </>
-                        ) : (
-                            <>
-                                <span>Tabular Reviews</span>
-                                <span>›</span>
-                                <span>New review</span>
-                            </>
-                        )}
-                    </div>
-                    <button
-                        onClick={handleClose}
-                        className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-                    >
-                        <X className="h-4 w-4" />
-                    </button>
-                </div>
+  function handleSelectNewProject() {
+    setCreatingProjectInline(true);
+    setSelectedProjectId("");
+    setProjectDropdownOpen(false);
+    setProjectDocs([]);
+    setSelectedDocIds(new Set());
+    setLoadingDocs(false);
+  }
 
-                <form
-                    onSubmit={handleSubmit}
-                    className="flex flex-col min-h-0 flex-1"
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    setUploading(true);
+    try {
+      const uploaded = await Promise.all(
+        files.map((f) =>
+          underProject && selectedProjectId
+            ? uploadProjectDocument(selectedProjectId, f)
+            : uploadStandaloneDocument(f),
+        ),
+      );
+      if (underProject && selectedProjectId) {
+        setProjectDocs((prev) => [...uploaded, ...prev]);
+      } else {
+        setStandaloneDocs((prev) => [...uploaded, ...prev]);
+      }
+      uploaded.forEach((d) => setSelectedDocIds((prev) => new Set([...prev, d.id])));
+    } catch (err) {
+      console.error("Upload failed:", err);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  const selectedProject = projects.find((p) => p.id === selectedProjectId);
+  const selectedWorkflow = workflows.find((w) => w.id === selectedWorkflowId);
+  const trimmedNewProjectName = newProjectName.trim();
+
+  // What to show in the directory depends on mode and toggle state
+  const directoryStandalone = isProjectMode
+    ? (fixedProjectDocs ?? [])
+    : underProject
+      ? []
+      : standaloneDocs;
+  const directoryFolders = isProjectMode ? [] : underProject ? [] : directoryProjects;
+  const flatProjectDocs: LukeDocument[] = !isProjectMode && underProject ? projectDocs : [];
+  const directoryLoading = isProjectMode ? false : underProject ? loadingDocs : loadingDirectory;
+  const showDirectory =
+    isProjectMode || !underProject || !!selectedProjectId || creatingProjectInline;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[101] flex items-center justify-center bg-black/20 backdrop-blur-xs">
+      <div className="flex h-[600px] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl">
+        {/* Header */}
+        <div className="flex shrink-0 items-center justify-between px-6 pt-5 pb-2">
+          <div className="flex items-center gap-1.5 text-xs text-gray-400">
+            {isProjectMode && projectName ? (
+              <>
+                <span>Projects</span>
+                <span>›</span>
+                <span>
+                  {projectName}
+                  {projectCmNumber ? ` (#${projectCmNumber})` : ""}
+                </span>
+                <span>›</span>
+                <span>Tabular Reviews</span>
+                <span>›</span>
+                <span>New review</span>
+              </>
+            ) : (
+              <>
+                <span>Tabular Reviews</span>
+                <span>›</span>
+                <span>New review</span>
+              </>
+            )}
+          </div>
+          <button
+            onClick={handleClose}
+            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="flex-1 space-y-5 overflow-y-auto px-6 pt-3 pb-4">
+            {/* Title */}
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Review name"
+              className="w-full bg-transparent font-serif text-2xl text-gray-800 placeholder-gray-400 focus:outline-none"
+              autoFocus
+            />
+
+            {/* Workflow template */}
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-gray-700">Workflow Template</p>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setWorkflowDropdownOpen((o) => !o)}
+                  disabled={loadingWorkflows}
+                  className="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors hover:border-gray-400 focus:outline-none"
                 >
-                    <div className="px-6 pt-3 pb-4 space-y-5 overflow-y-auto flex-1">
-                        {/* Title */}
-                        <input
-                            type="text"
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            placeholder="Review name"
-                            className="w-full text-2xl font-serif text-gray-800 placeholder-gray-400 focus:outline-none bg-transparent"
-                            autoFocus
-                        />
-
-                        {/* Workflow template */}
-                        <div className="space-y-2">
-                            <p className="text-xs font-medium text-gray-700">
-                                Workflow Template
-                            </p>
-                            <div className="relative">
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setWorkflowDropdownOpen((o) => !o)
-                                    }
-                                    disabled={loadingWorkflows}
-                                    className="flex items-center justify-between w-full rounded-lg border border-gray-200 px-3 py-2 text-sm hover:border-gray-400 focus:outline-none bg-white transition-colors"
-                                >
-                                    <div className="flex items-center gap-2 min-w-0">
-                                        {loadingWorkflows && (
-                                            <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400 shrink-0" />
-                                        )}
-                                        <span
-                                            className={
-                                                selectedWorkflow
-                                                    ? "text-gray-800 truncate"
-                                                    : "text-gray-400"
-                                            }
-                                        >
-                                            {loadingWorkflows
-                                                ? "Loading templates…"
-                                                : selectedWorkflow
-                                                  ? selectedWorkflow.title
-                                                  : "No template — start from scratch"}
-                                        </span>
-                                    </div>
-                                    <ChevronDown className="h-3.5 w-3.5 text-gray-400 shrink-0 ml-2" />
-                                </button>
-                                {workflowDropdownOpen && !loadingWorkflows && (
-                                    <div className="absolute left-0 top-full z-20 mt-1 w-full rounded-xl border border-gray-100 bg-white shadow-lg overflow-y-auto max-h-52">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setSelectedWorkflowId(null);
-                                                setWorkflowDropdownOpen(false);
-                                            }}
-                                            className={`w-full text-left flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-gray-50 ${!selectedWorkflowId ? "bg-gray-50 text-gray-900" : "text-gray-500"}`}
-                                        >
-                                            <span className="flex-1">
-                                                No template — start from scratch
-                                            </span>
-                                            {!selectedWorkflowId && (
-                                                <Check className="h-3.5 w-3.5 text-gray-500 shrink-0" />
-                                            )}
-                                        </button>
-                                        {workflows.length > 0 && (
-                                            <div className="border-t border-gray-100" />
-                                        )}
-                                        {workflows.map((wf) => (
-                                            <button
-                                                key={wf.id}
-                                                type="button"
-                                                onClick={() => {
-                                                    setSelectedWorkflowId(
-                                                        wf.id,
-                                                    );
-                                                    setWorkflowDropdownOpen(
-                                                        false,
-                                                    );
-                                                }}
-                                                className={`w-full text-left flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-gray-50 ${selectedWorkflowId === wf.id ? "bg-gray-50 text-gray-900" : "text-gray-700"}`}
-                                            >
-                                                <span className="flex-1 truncate">
-                                                    {wf.title}
-                                                </span>
-                                                {selectedWorkflowId ===
-                                                    wf.id && (
-                                                    <Check className="h-3.5 w-3.5 text-gray-500 shrink-0" />
-                                                )}
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Create under a project toggle */}
-                        {!isProjectMode && <div className="space-y-3">
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    const next = !underProject;
-                                    setUnderProject(next);
-                                    if (!next) {
-                                        setSelectedProjectId("");
-                                        setCreatingProjectInline(false);
-                                        setNewProjectName("");
-                                        setProjectDropdownOpen(false);
-                                        setProjectDocs([]);
-                                        setSelectedDocIds(new Set());
-                                    }
-                                }}
-                                className="flex items-center gap-2.5 w-fit"
-                            >
-                                <span
-                                    className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors duration-200 ${underProject ? "bg-gray-900" : "bg-gray-200"}`}
-                                >
-                                    <span
-                                        className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${underProject ? "translate-x-4" : "translate-x-0"}`}
-                                    />
-                                </span>
-                                <span className="text-sm text-gray-600">
-                                    Create under a project
-                                </span>
-                            </button>
-
-                            {underProject && (
-                                <div className="relative">
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setProjectDropdownOpen((o) => !o)
-                                        }
-                                        className="flex items-center justify-between w-full rounded-lg border border-gray-200 px-3 py-2 text-sm hover:border-gray-400 focus:outline-none bg-white transition-colors"
-                                    >
-                                        <span
-                                            className={
-                                                selectedProject ||
-                                                creatingProjectInline
-                                                    ? "text-gray-800"
-                                                    : "text-gray-400"
-                                            }
-                                        >
-                                            {creatingProjectInline
-                                                ? trimmedNewProjectName ||
-                                                  "New project…"
-                                                : selectedProject
-                                                ? selectedProject.name +
-                                                  (selectedProject.cm_number
-                                                      ? ` (#${selectedProject.cm_number})`
-                                                      : "")
-                                                : "Select project…"}
-                                        </span>
-                                        <ChevronDown className="h-3.5 w-3.5 text-gray-400 shrink-0" />
-                                    </button>
-                                    {projectDropdownOpen && (
-                                        <div className="absolute left-0 top-full z-20 mt-1 w-full rounded-xl border border-gray-100 bg-white shadow-lg overflow-y-auto max-h-48">
-                                            <button
-                                                type="button"
-                                                onClick={handleSelectNewProject}
-                                                className={`w-full text-left flex items-center justify-between px-3 py-2 text-sm transition-colors hover:bg-gray-50 ${creatingProjectInline ? "bg-gray-50 text-gray-900" : "text-gray-700"}`}
-                                            >
-                                                <span className="truncate">
-                                                    New project
-                                                </span>
-                                                {creatingProjectInline && (
-                                                    <Check className="h-3.5 w-3.5 text-gray-500 shrink-0" />
-                                                )}
-                                            </button>
-                                            {projects.length > 0 && (
-                                                <div className="border-t border-gray-100" />
-                                            )}
-                                            {projects.map((p) => (
-                                                    <button
-                                                        key={p.id}
-                                                        type="button"
-                                                        onClick={() =>
-                                                            handleSelectProject(
-                                                                p.id,
-                                                            )
-                                                        }
-                                                        className={`w-full text-left flex items-center justify-between px-3 py-2 text-sm transition-colors hover:bg-gray-50 ${selectedProjectId === p.id ? "bg-gray-50 text-gray-900" : "text-gray-700"}`}
-                                                    >
-                                                        <span className="truncate">
-                                                            {p.name}
-                                                            {p.cm_number && (
-                                                                <span className="ml-1 text-gray-400">
-                                                                    (#
-                                                                    {
-                                                                        p.cm_number
-                                                                    }
-                                                                    )
-                                                                </span>
-                                                            )}
-                                                        </span>
-                                                        {selectedProjectId ===
-                                                            p.id && (
-                                                            <Check className="h-3.5 w-3.5 text-gray-500 shrink-0" />
-                                                        )}
-                                                    </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                            {underProject && creatingProjectInline && (
-                                <input
-                                    type="text"
-                                    value={newProjectName}
-                                    onChange={(e) =>
-                                        setNewProjectName(e.target.value)
-                                    }
-                                    placeholder="Project name"
-                                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
-                                />
-                            )}
-                        </div>}
-
-                        {/* File directory */}
-                        {showDirectory && (
-                            <div className="space-y-2">
-                                <p className="text-xs font-medium text-gray-700">
-                                    Select Documents
-                                </p>
-                                <div>
-                                    <FileDirectory
-                                        standaloneDocs={
-                                            isProjectMode
-                                                ? directoryStandalone
-                                                : underProject
-                                                  ? flatProjectDocs
-                                                  : directoryStandalone
-                                        }
-                                        directoryProjects={
-                                            isProjectMode
-                                                ? []
-                                                : underProject
-                                                  ? []
-                                                  : directoryFolders
-                                        }
-                                        loading={directoryLoading}
-                                        selectedIds={selectedDocIds}
-                                        onChange={setSelectedDocIds}
-                                        heading={isProjectMode ? "Project Documents" : "Documents"}
-                                        emptyMessage={
-                                            creatingProjectInline
-                                                ? "Upload documents after creating the project"
-                                                : isProjectMode || underProject
-                                                ? "No ready documents in this project"
-                                                : "No documents yet"
-                                        }
-                                    />
-                                </div>
-                            </div>
+                  <div className="flex min-w-0 items-center gap-2">
+                    {loadingWorkflows && (
+                      <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-gray-400" />
+                    )}
+                    <span className={selectedWorkflow ? "truncate text-gray-800" : "text-gray-400"}>
+                      {loadingWorkflows
+                        ? "Loading templates…"
+                        : selectedWorkflow
+                          ? selectedWorkflow.title
+                          : "No template — start from scratch"}
+                    </span>
+                  </div>
+                  <ChevronDown className="ml-2 h-3.5 w-3.5 shrink-0 text-gray-400" />
+                </button>
+                {workflowDropdownOpen && !loadingWorkflows && (
+                  <div className="absolute top-full left-0 z-20 mt-1 max-h-52 w-full overflow-y-auto rounded-xl border border-gray-100 bg-white shadow-lg">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedWorkflowId(null);
+                        setWorkflowDropdownOpen(false);
+                      }}
+                      className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50 ${!selectedWorkflowId ? "bg-gray-50 text-gray-900" : "text-gray-500"}`}
+                    >
+                      <span className="flex-1">No template — start from scratch</span>
+                      {!selectedWorkflowId && (
+                        <Check className="h-3.5 w-3.5 shrink-0 text-gray-500" />
+                      )}
+                    </button>
+                    {workflows.length > 0 && <div className="border-t border-gray-100" />}
+                    {workflows.map((wf) => (
+                      <button
+                        key={wf.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedWorkflowId(wf.id);
+                          setWorkflowDropdownOpen(false);
+                        }}
+                        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50 ${selectedWorkflowId === wf.id ? "bg-gray-50 text-gray-900" : "text-gray-700"}`}
+                      >
+                        <span className="flex-1 truncate">{wf.title}</span>
+                        {selectedWorkflowId === wf.id && (
+                          <Check className="h-3.5 w-3.5 shrink-0 text-gray-500" />
                         )}
-                    </div>
-
-                    {/* Footer */}
-                    <div className="flex items-center justify-between gap-2 border-t border-gray-100 px-6 py-4 shrink-0">
-                        <div>
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept={DOCUMENT_UPLOAD_ACCEPT}
-                                multiple
-                                className="hidden"
-                                onChange={handleUpload}
-                            />
-                            <button
-                                type="button"
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={
-                                    uploading ||
-                                    (underProject && !selectedProjectId)
-                                }
-                                className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                            >
-                                {uploading ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                    <Upload className="h-3.5 w-3.5" />
-                                )}
-                                {uploading ? "Uploading…" : "Upload"}
-                            </button>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <button
-                                type="button"
-                                onClick={handleClose}
-                                className="rounded-lg px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={
-                                    !title.trim() ||
-                                    submitting ||
-                                    (underProject &&
-                                        !selectedProjectId &&
-                                        !trimmedNewProjectName)
-                                }
-                                className="rounded-lg bg-gray-900 px-5 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-40 transition-colors"
-                            >
-                                {submitting ? "Creating…" : "Create"}
-                            </button>
-                        </div>
-                    </div>
-                </form>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-        </div>,
-        document.body,
-    );
+
+            {/* Create under a project toggle */}
+            {!isProjectMode && (
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !underProject;
+                    setUnderProject(next);
+                    if (!next) {
+                      setSelectedProjectId("");
+                      setCreatingProjectInline(false);
+                      setNewProjectName("");
+                      setProjectDropdownOpen(false);
+                      setProjectDocs([]);
+                      setSelectedDocIds(new Set());
+                    }
+                  }}
+                  className="flex w-fit items-center gap-2.5"
+                >
+                  <span
+                    className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors duration-200 ${underProject ? "bg-gray-900" : "bg-gray-200"}`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${underProject ? "translate-x-4" : "translate-x-0"}`}
+                    />
+                  </span>
+                  <span className="text-sm text-gray-600">Create under a project</span>
+                </button>
+
+                {underProject && (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setProjectDropdownOpen((o) => !o)}
+                      className="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors hover:border-gray-400 focus:outline-none"
+                    >
+                      <span
+                        className={
+                          selectedProject || creatingProjectInline
+                            ? "text-gray-800"
+                            : "text-gray-400"
+                        }
+                      >
+                        {creatingProjectInline
+                          ? trimmedNewProjectName || "New project…"
+                          : selectedProject
+                            ? selectedProject.name +
+                              (selectedProject.cm_number ? ` (#${selectedProject.cm_number})` : "")
+                            : "Select project…"}
+                      </span>
+                      <ChevronDown className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                    </button>
+                    {projectDropdownOpen && (
+                      <div className="absolute top-full left-0 z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-gray-100 bg-white shadow-lg">
+                        <button
+                          type="button"
+                          onClick={handleSelectNewProject}
+                          className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50 ${creatingProjectInline ? "bg-gray-50 text-gray-900" : "text-gray-700"}`}
+                        >
+                          <span className="truncate">New project</span>
+                          {creatingProjectInline && (
+                            <Check className="h-3.5 w-3.5 shrink-0 text-gray-500" />
+                          )}
+                        </button>
+                        {projects.length > 0 && <div className="border-t border-gray-100" />}
+                        {projects.map((p) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => handleSelectProject(p.id)}
+                            className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50 ${selectedProjectId === p.id ? "bg-gray-50 text-gray-900" : "text-gray-700"}`}
+                          >
+                            <span className="truncate">
+                              {p.name}
+                              {p.cm_number && (
+                                <span className="ml-1 text-gray-400">
+                                  (#
+                                  {p.cm_number})
+                                </span>
+                              )}
+                            </span>
+                            {selectedProjectId === p.id && (
+                              <Check className="h-3.5 w-3.5 shrink-0 text-gray-500" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {underProject && creatingProjectInline && (
+                  <input
+                    type="text"
+                    value={newProjectName}
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    placeholder="Project name"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
+                  />
+                )}
+              </div>
+            )}
+
+            {/* File directory */}
+            {showDirectory && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-gray-700">Select Documents</p>
+                <div>
+                  <FileDirectory
+                    standaloneDocs={
+                      isProjectMode
+                        ? directoryStandalone
+                        : underProject
+                          ? flatProjectDocs
+                          : directoryStandalone
+                    }
+                    directoryProjects={isProjectMode ? [] : underProject ? [] : directoryFolders}
+                    loading={directoryLoading}
+                    selectedIds={selectedDocIds}
+                    onChange={setSelectedDocIds}
+                    heading={isProjectMode ? "Project Documents" : "Documents"}
+                    emptyMessage={
+                      creatingProjectInline
+                        ? "Upload documents after creating the project"
+                        : isProjectMode || underProject
+                          ? "No ready documents in this project"
+                          : "No documents yet"
+                    }
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="flex shrink-0 items-center justify-between gap-2 border-t border-gray-100 px-6 py-4">
+            <div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={DOCUMENT_UPLOAD_ACCEPT}
+                multiple
+                className="hidden"
+                onChange={handleUpload}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading || (underProject && !selectedProjectId)}
+                className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
+              >
+                {uploading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Upload className="h-3.5 w-3.5" />
+                )}
+                {uploading ? "Uploading…" : "Upload"}
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleClose}
+                className="rounded-lg px-4 py-2 text-sm text-gray-500 transition-colors hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={
+                  !title.trim() ||
+                  submitting ||
+                  (underProject && !selectedProjectId && !trimmedNewProjectName)
+                }
+                className="rounded-lg bg-gray-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-40"
+              >
+                {submitting ? "Creating…" : "Create"}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>,
+    document.body,
+  );
 }

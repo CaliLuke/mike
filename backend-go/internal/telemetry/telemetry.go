@@ -27,7 +27,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/trace"
 
 	_ "modernc.org/sqlite"
 )
@@ -68,9 +67,9 @@ func Init(ctx context.Context, dbPath string) (*Telemetry, error) {
 	if err != nil {
 		return nil, fmt.Errorf("telemetry: open sqlite: %w", err)
 	}
-	if _, err := db.Exec(spanSchema); err != nil {
+	if _, schemaErr := db.Exec(spanSchema); schemaErr != nil {
 		_ = db.Close()
-		return nil, fmt.Errorf("telemetry: schema: %w", err)
+		return nil, fmt.Errorf("telemetry: schema: %w", schemaErr)
 	}
 
 	rt, err := loomotel.New(ctx, loomotel.Config{
@@ -125,7 +124,7 @@ func (t *Telemetry) SpanIngestHandler() http.HandlerFunc {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 		var body struct {
 			Spans []ingestedSpan `json:"spans"`
 		}
@@ -258,11 +257,6 @@ func attrsToMap(kvs []attribute.KeyValue) map[string]any {
 		m[string(kv.Key)] = kv.Value.AsInterface()
 	}
 	return m
-}
-
-// Tracer returns a tracer for manual instrumentation in backend code.
-func Tracer(name string) trace.Tracer {
-	return otel.Tracer(name)
 }
 
 func nullableString(s string) any {

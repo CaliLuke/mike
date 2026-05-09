@@ -8,11 +8,15 @@ cd "$ROOT"
 
 RUST_BRIDGE_DIR="internal/persistence/rustbridge"
 RUST_BRIDGE_LIB="$RUST_BRIDGE_DIR/target/release/libluke_surreal_bridge.a"
+RUST_BRIDGE_TARGET_STAMP="$RUST_BRIDGE_DIR/target/release/.luke-macosx-deployment-target"
 
 export CGO_ENABLED="${CGO_ENABLED:-1}"
 export CGO_LDFLAGS="${CGO_LDFLAGS:--L$ROOT/$RUST_BRIDGE_DIR/target/release}"
 
 if [ "$(uname -s)" = "Darwin" ]; then
+  if [ -z "${MACOSX_DEPLOYMENT_TARGET:-}" ]; then
+    export MACOSX_DEPLOYMENT_TARGET="$(xcrun --sdk macosx --show-sdk-platform-version 2>/dev/null || sw_vers -productVersion | awk -F. '{ print $1 "." $2 }')"
+  fi
   if [ -x /Library/Developer/CommandLineTools/usr/bin/clang ]; then
     export CC="${CC:-/Library/Developer/CommandLineTools/usr/bin/clang}"
   fi
@@ -48,8 +52,17 @@ require_tool govulncheck golang.org/x/vuln/cmd/govulncheck@latest
 
 printf "Go quality gates for backend-go\n"
 
-if [ ! -f "$RUST_BRIDGE_LIB" ]; then
-  run_gate "rust bridge" bash -c "cd '$RUST_BRIDGE_DIR' && cargo build --release"
+if [ ! -f "$RUST_BRIDGE_LIB" ] || [ "$(cat "$RUST_BRIDGE_TARGET_STAMP" 2>/dev/null || true)" != "${MACOSX_DEPLOYMENT_TARGET:-}" ]; then
+  run_gate "rust bridge" bash -c "
+    cd '$RUST_BRIDGE_DIR'
+    if [ -n '${MACOSX_DEPLOYMENT_TARGET:-}' ]; then
+      cargo clean
+      MACOSX_DEPLOYMENT_TARGET='${MACOSX_DEPLOYMENT_TARGET:-}' cargo build --release
+    else
+      cargo build --release
+    fi
+    printf '%s\n' '${MACOSX_DEPLOYMENT_TARGET:-}' > target/release/.luke-macosx-deployment-target
+  "
 fi
 
 snapshot_generated() {

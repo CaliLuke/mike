@@ -1,0 +1,13 @@
+.next
+.open-next
+out
+build
+coverage
+node_modules
+public
+*.lock
+package-lock.json
+bun.lock
+next-env.d.ts
+cloudflare-env.d.ts
+tsconfig.tsbuildinfo

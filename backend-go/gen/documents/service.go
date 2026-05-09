@@ -45,6 +45,283 @@ const ServiceName = "documents"
 // MethodKey key.
 var MethodNames = [7]string{"list", "upload", "delete", "display", "download_zip", "url", "docx"}
 
+type AssistantDocumentBundle struct {
+	// Fetched document contents
+	Documents []*AssistantDocumentText `json:"documents,omitempty"`
+}
+
+type AssistantDocumentCopy struct {
+	// Copied document filename
+	NewFilename *string `json:"new_filename,omitempty"`
+	// New local document identifier
+	DocumentID *string `json:"document_id,omitempty"`
+	// New version identifier
+	VersionID *string `json:"version_id,omitempty"`
+	// Local download URL
+	DownloadURL *string `json:"download_url,omitempty"`
+}
+
+type AssistantDocumentEdit struct {
+	// Exact text to replace
+	Find *string `json:"find,omitempty"`
+	// Replacement text
+	Replace *string `json:"replace,omitempty"`
+	// Optional expected text before the match
+	ContextBefore *string `json:"context_before,omitempty"`
+	// Optional expected text after the match
+	ContextAfter *string `json:"context_after,omitempty"`
+	// Reason for the change
+	Reason *string `json:"reason,omitempty"`
+}
+
+type AssistantDocumentList struct {
+	// Documents available to the current chat
+	Documents []*AssistantDocumentRef `json:"documents,omitempty"`
+}
+
+type AssistantDocumentMatch struct {
+	// Zero-based match index
+	Index *int `json:"index,omitempty"`
+	// Start character offset
+	Start *int `json:"start,omitempty"`
+	// End character offset
+	End *int `json:"end,omitempty"`
+	// Matched text
+	Quote *string `json:"quote,omitempty"`
+	// Surrounding text context
+	Context *string `json:"context,omitempty"`
+}
+
+type AssistantDocumentMatches struct {
+	// Local document identifier
+	DocumentID *string `json:"document_id,omitempty"`
+	// Document filename
+	Filename *string `json:"filename,omitempty"`
+	// Search matches
+	Matches []*AssistantDocumentMatch `json:"matches,omitempty"`
+	// Total matches found before truncation
+	TotalMatches *int `json:"total_matches,omitempty"`
+}
+
+type AssistantDocumentRef struct {
+	// Local document identifier
+	DocumentID *string `json:"document_id,omitempty"`
+	// Document filename
+	Filename *string `json:"filename,omitempty"`
+	// Owning project identifier, when attached to a project
+	ProjectID *string `json:"project_id,omitempty"`
+	// Stored file type or MIME hint
+	FileType *string `json:"file_type,omitempty"`
+	// Processing status
+	Status *string `json:"status,omitempty"`
+}
+
+type AssistantDocumentText struct {
+	// Local document identifier
+	DocumentID *string `json:"document_id,omitempty"`
+	// Document filename
+	Filename *string `json:"filename,omitempty"`
+	// Plain text extracted from the current document version
+	Text *string `json:"text,omitempty"`
+}
+
+type AssistantDocxSection struct {
+	// Optional section heading
+	Heading *string `json:"heading,omitempty"`
+	// Heading level: 1, 2, or 3
+	Level *int `json:"level,omitempty"`
+	// Section prose; blank lines split paragraphs
+	Content *string `json:"content,omitempty"`
+	// Whether to start this section on a new page
+	PageBreak *bool `json:"pageBreak,omitempty"`
+	// Optional table for this section
+	Table *AssistantDocxTable `json:"table,omitempty"`
+}
+
+type AssistantDocxTable struct {
+	// Table header cells
+	Headers []string `json:"headers,omitempty"`
+	// Table body rows
+	Rows [][]string `json:"rows,omitempty"`
+}
+
+type AssistantEditAnnotation struct {
+	// Annotation kind
+	Kind *string `json:"kind,omitempty"`
+	// Edit identifier
+	EditID *string `json:"edit_id,omitempty"`
+	// Local document identifier
+	DocumentID *string `json:"document_id,omitempty"`
+	// Document version identifier
+	VersionID *string `json:"version_id,omitempty"`
+	// Document version number
+	VersionNumber *int `json:"version_number,omitempty"`
+	// Change identifier
+	ChangeID *string `json:"change_id,omitempty"`
+	// Text removed
+	DeletedText *string `json:"deleted_text,omitempty"`
+	// Text inserted
+	InsertedText *string `json:"inserted_text,omitempty"`
+	// Text before the edit
+	ContextBefore *string `json:"context_before,omitempty"`
+	// Text after the edit
+	ContextAfter *string `json:"context_after,omitempty"`
+	// Reason for the change
+	Reason *string `json:"reason,omitempty"`
+	// Edit status
+	Status *string `json:"status,omitempty"`
+}
+
+type AssistantEditDocumentArgs struct {
+	// Local document identifier to edit
+	DocumentID *string `json:"document_id,omitempty"`
+	// Text replacement edits
+	Edits []*AssistantDocumentEdit `json:"edits,omitempty"`
+}
+
+type AssistantEditedDocument struct {
+	// Whether edits were applied
+	OK *bool `json:"ok,omitempty"`
+	// Document filename
+	Filename *string `json:"filename,omitempty"`
+	// Local download URL
+	DownloadURL *string `json:"download_url,omitempty"`
+	// Local document identifier
+	DocumentID *string `json:"document_id,omitempty"`
+	// New document version identifier
+	VersionID *string `json:"version_id,omitempty"`
+	// New version number
+	VersionNumber *int `json:"version_number,omitempty"`
+	// Edit annotations
+	Annotations []*AssistantEditAnnotation `json:"annotations,omitempty"`
+	// Error message when editing failed
+	Error *string `json:"error,omitempty"`
+}
+
+type AssistantFetchDocumentsArgs struct {
+	// Local document identifiers to fetch
+	DocumentIds []string `json:"document_ids,omitempty"`
+}
+
+type AssistantFindDocumentArgs struct {
+	// Local document identifier to search
+	DocumentID *string `json:"document_id,omitempty"`
+	// Exact text to find
+	Query *string `json:"query,omitempty"`
+	// Maximum number of matches to return
+	MaxResults *int `json:"max_results,omitempty"`
+	// Characters of context to include around each match
+	ContextChars *int `json:"context_chars,omitempty"`
+}
+
+type AssistantGenerateDocxArgs struct {
+	// Document title
+	Title *string `json:"title,omitempty"`
+	// Whether to use landscape orientation
+	Landscape *bool `json:"landscape,omitempty"`
+	// Document sections
+	Sections []*AssistantDocxSection `json:"sections,omitempty"`
+}
+
+type AssistantGeneratedDocument struct {
+	// Whether the document was generated
+	OK *bool `json:"ok,omitempty"`
+	// Generated filename
+	Filename *string `json:"filename,omitempty"`
+	// Local download URL
+	DownloadURL *string `json:"download_url,omitempty"`
+	// Local document identifier
+	DocumentID *string `json:"document_id,omitempty"`
+	// Current document version identifier
+	VersionID *string `json:"version_id,omitempty"`
+	// Current version number
+	VersionNumber *int `json:"version_number,omitempty"`
+	// Error message when generation failed
+	Error *string `json:"error,omitempty"`
+}
+
+type AssistantNoArgs struct {
+}
+
+type AssistantReadDocumentArgs struct {
+	// Local document identifier to read
+	DocumentID *string `json:"document_id,omitempty"`
+}
+
+type AssistantReadTableCellsArgs struct {
+	// Tabular review identifier
+	ReviewID *string `json:"review_id,omitempty"`
+	// Column positions to read; omit for all
+	ColIndices []int `json:"col_indices,omitempty"`
+	// Row positions to read; omit for all
+	RowIndices []int `json:"row_indices,omitempty"`
+}
+
+type AssistantReadWorkflowArgs struct {
+	// Local workflow identifier to read
+	WorkflowID *string `json:"workflow_id,omitempty"`
+}
+
+type AssistantReplicateDocumentArgs struct {
+	// Local document identifier to copy
+	DocumentID *string `json:"document_id,omitempty"`
+	// Number of copies to create
+	Count *int `json:"count,omitempty"`
+	// Optional filename for a single copy
+	NewFilename *string `json:"new_filename,omitempty"`
+}
+
+type AssistantReplicatedDocuments struct {
+	// Whether replication succeeded
+	OK *bool `json:"ok,omitempty"`
+	// Source filename
+	Filename *string `json:"filename,omitempty"`
+	// Number of copies created
+	Count *int `json:"count,omitempty"`
+	// Created copies
+	Copies []*AssistantDocumentCopy `json:"copies,omitempty"`
+	// Error message when replication failed
+	Error *string `json:"error,omitempty"`
+}
+
+type AssistantTableCellsText struct {
+	// Human-readable row/column count
+	Label *string `json:"label,omitempty"`
+	// Readable cell content
+	Text *string `json:"text,omitempty"`
+}
+
+type AssistantWorkflowList struct {
+	// Saved workflows
+	Workflows []*AssistantWorkflowRef `json:"workflows,omitempty"`
+}
+
+type AssistantWorkflowRef struct {
+	// Local workflow identifier
+	WorkflowID *string `json:"workflow_id,omitempty"`
+	// Workflow title
+	Title *string `json:"title,omitempty"`
+	// Workflow type
+	Type *string `json:"type,omitempty"`
+	// Workflow practice or category
+	Practice *string `json:"practice,omitempty"`
+}
+
+type AssistantWorkflowText struct {
+	// Local workflow identifier
+	WorkflowID *string `json:"workflow_id,omitempty"`
+	// Workflow title
+	Title *string `json:"title,omitempty"`
+	// Workflow type
+	Type *string `json:"type,omitempty"`
+	// Workflow prompt
+	PromptMd *string `json:"prompt_md,omitempty"`
+	// Workflow column configuration
+	ColumnsConfig []any `json:"columns_config,omitempty"`
+	// Workflow practice or category
+	Practice *string `json:"practice,omitempty"`
+}
+
 // DeletePayload is the payload type of the documents service delete method.
 type DeletePayload struct {
 	DocumentID string `json:"documentId"`

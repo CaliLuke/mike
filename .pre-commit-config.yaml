@@ -2,10 +2,12 @@
 # Run once: `prek install` (writes .git/hooks/pre-commit).
 # Manual: `prek run` (staged) | `prek run --all-files`.
 #
-# Fast gates only — runs in seconds on staged files. Full gates live in backend-go/check.sh.
+# Fast gates only — runs in seconds on staged files.
+# Full gates: backend-go/check.sh and frontend/check.sh.
 repos:
   - repo: local
     hooks:
+      # ── backend-go ────────────────────────────────────────────────
       - id: goimports
         name: goimports
         entry: scripts/hooks/goimports-check.sh
@@ -28,3 +30,33 @@ repos:
         types: [go]
         files: ^backend-go/
         pass_filenames: false
+
+      # ── frontend ──────────────────────────────────────────────────
+      - id: frontend-prettier
+        name: prettier (frontend, staged)
+        entry: scripts/hooks/frontend-prettier-staged.sh
+        language: script
+        files: ^frontend/.*\.(ts|tsx|js|jsx|mjs|cjs|json|css|md|yml|yaml)$
+        pass_filenames: true
+
+      - id: frontend-eslint
+        name: eslint (frontend, staged)
+        entry: scripts/hooks/frontend-eslint-staged.sh
+        language: script
+        files: ^frontend/.*\.(ts|tsx|js|jsx|mjs|cjs)$
+        pass_filenames: true
+
+      - id: frontend-typecheck
+        name: tsc --noEmit (frontend, full)
+        entry: scripts/hooks/frontend-typecheck.sh
+        language: script
+        files: ^frontend/.*\.(ts|tsx)$
+        pass_filenames: true
+
+      - id: frontend-knip
+        name: knip (frontend, full)
+        entry: scripts/hooks/frontend-knip.sh
+        language: script
+        files: ^frontend/.*\.(ts|tsx|json)$
+        pass_filenames: true
+        stages: [pre-push]

@@ -29,8 +29,8 @@ func main() {
 	defer func() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := app.Close(shutdownCtx); err != nil {
-			log.Printf("close local data: %v", err)
+		if closeErr := app.Close(shutdownCtx); closeErr != nil {
+			log.Printf("close local data: %v", closeErr)
 		}
 	}()
 

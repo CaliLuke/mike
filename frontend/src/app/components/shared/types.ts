@@ -1,6 +1,6 @@
-// Shared TypeScript types for Mike AI legal assistant
+// Shared TypeScript types for Luke AI legal assistant
 
-export interface MikeFolder {
+export interface LukeFolder {
   id: string;
   project_id: string;
   user_id: string;
@@ -10,7 +10,7 @@ export interface MikeFolder {
   updated_at: string;
 }
 
-export interface MikeProject {
+export interface LukeProject {
   id: string;
   user_id: string;
   is_owner?: boolean;
@@ -19,14 +19,14 @@ export interface MikeProject {
   shared_with: string[];
   created_at: string;
   updated_at: string;
-  documents?: MikeDocument[];
-  folders?: MikeFolder[];
+  documents?: LukeDocument[];
+  folders?: LukeFolder[];
   document_count?: number;
   chat_count?: number;
   review_count?: number;
 }
 
-export interface MikeDocument {
+export interface LukeDocument {
   id: string;
   user_id?: string;
   project_id: string | null;
@@ -53,7 +53,7 @@ export interface StructureNode {
   children: StructureNode[];
 }
 
-export interface MikeChat {
+export interface LukeChat {
   id: string;
   project_id: string | null;
   user_id: string;
@@ -61,7 +61,7 @@ export interface MikeChat {
   created_at: string;
 }
 
-export interface MikeEditAnnotation {
+export interface LukeEditAnnotation {
   type?: "edit_data";
   kind?: "edit";
   edit_id: string;
@@ -83,72 +83,72 @@ export interface MikeEditAnnotation {
 export type AssistantEvent =
   | { type: "reasoning"; text: string; isStreaming?: boolean }
   | {
-        type: "tool_call_start";
-        name: string;
-        isStreaming?: boolean;
+      type: "tool_call_start";
+      name: string;
+      isStreaming?: boolean;
     }
   | { type: "thinking"; isStreaming?: boolean }
   | {
-        type: "doc_read";
-        filename: string;
-        document_id?: string;
-        isStreaming?: boolean;
+      type: "doc_read";
+      filename: string;
+      document_id?: string;
+      isStreaming?: boolean;
     }
   | {
-        type: "doc_find";
-        filename: string;
-        query: string;
-        total_matches: number;
-        isStreaming?: boolean;
+      type: "doc_find";
+      filename: string;
+      query: string;
+      total_matches: number;
+      isStreaming?: boolean;
     }
   | {
-        type: "doc_created";
-        filename: string;
-        download_url: string;
-        /** Set when the generated doc is persisted as a first-class document. */
-        document_id?: string;
-        version_id?: string;
-        version_number?: number | null;
-        isStreaming?: boolean;
+      type: "doc_created";
+      filename: string;
+      download_url: string;
+      /** Set when the generated doc is persisted as a first-class document. */
+      document_id?: string;
+      version_id?: string;
+      version_number?: number | null;
+      isStreaming?: boolean;
     }
   | { type: "doc_download"; filename: string; download_url: string }
   | {
-        type: "doc_replicated";
-        /** Source document filename. */
-        filename: string;
-        /** How many copies were produced in this single tool call. */
-        count: number;
-        /** One entry per new copy. Empty while streaming. */
-        copies?: {
-            new_filename: string;
-            document_id: string;
-            version_id: string;
-        }[];
-        error?: string;
-        isStreaming?: boolean;
+      type: "doc_replicated";
+      /** Source document filename. */
+      filename: string;
+      /** How many copies were produced in this single tool call. */
+      count: number;
+      /** One entry per new copy. Empty while streaming. */
+      copies?: {
+        new_filename: string;
+        document_id: string;
+        version_id: string;
+      }[];
+      error?: string;
+      isStreaming?: boolean;
     }
   | { type: "workflow_applied"; workflow_id: string; title: string }
   | {
-        type: "doc_edited";
-        filename: string;
-        document_id: string;
-        version_id: string;
-        /** Per-document monotonic Vn written at emit time. */
-        version_number?: number | null;
-        download_url: string;
-        annotations: MikeEditAnnotation[];
-        error?: string;
-        isStreaming?: boolean;
+      type: "doc_edited";
+      filename: string;
+      document_id: string;
+      version_id: string;
+      /** Per-document monotonic Vn written at emit time. */
+      version_number?: number | null;
+      download_url: string;
+      annotations: LukeEditAnnotation[];
+      error?: string;
+      isStreaming?: boolean;
     }
   | { type: "content"; text: string; isStreaming?: boolean };
 
-export interface MikeMessage {
+export interface LukeMessage {
   role: "user" | "assistant";
   content: string;
   files?: { filename: string; document_id?: string }[];
   workflow?: { id: string; title: string };
   model?: string;
-  annotations?: MikeCitationAnnotation[];
+  annotations?: LukeCitationAnnotation[];
   events?: AssistantEvent[];
   /** Set when streaming failed; rendered as a red error block. */
   error?: string;
@@ -166,7 +166,7 @@ export interface CitationQuote {
  * like "41-42" and a `quote` containing the `[[PAGE_BREAK]]` sentinel at the
  * break point (text before is on page 41, text after is on page 42).
  */
-export interface MikeCitationAnnotation {
+export interface LukeCitationAnnotation {
   type: "citation_data";
   ref: number;
   doc_id: string;
@@ -185,13 +185,8 @@ const PAGE_BREAK_SENTINEL = "[[PAGE_BREAK]]";
  * highlighting in the PDF viewer. A single-page citation yields one entry; a
  * cross-page citation with page "N-M" and a `[[PAGE_BREAK]]` split yields two.
  */
-export function expandCitationToEntries(
-  a: MikeCitationAnnotation,
-): CitationQuote[] {
-  const rangeMatch =
-    typeof a.page === "string"
-      ? a.page.match(/^(\d+)\s*-\s*(\d+)$/)
-      : null;
+export function expandCitationToEntries(a: LukeCitationAnnotation): CitationQuote[] {
+  const rangeMatch = typeof a.page === "string" ? a.page.match(/^(\d+)\s*-\s*(\d+)$/) : null;
   if (rangeMatch && a.quote.includes(PAGE_BREAK_SENTINEL)) {
     const startPage = parseInt(rangeMatch[1], 10);
     const endPage = parseInt(rangeMatch[2], 10);
@@ -201,42 +196,41 @@ export function expandCitationToEntries(
       { page: endPage, quote: after.trim() },
     ].filter((e) => e.quote.length > 0);
   }
-  const pageNum =
-    typeof a.page === "number" ? a.page : parseInt(String(a.page), 10);
+  const pageNum = typeof a.page === "number" ? a.page : parseInt(String(a.page), 10);
   if (!Number.isFinite(pageNum)) return [];
   return [{ page: pageNum, quote: a.quote }];
 }
 
 /** Format the page(s) of a citation for display, e.g. "Page 3" or "Page 41-42". */
-export function formatCitationPage(a: MikeCitationAnnotation): string {
+export function formatCitationPage(a: LukeCitationAnnotation): string {
   if (typeof a.page === "string") return `Page ${a.page}`;
   return `Page ${a.page}`;
 }
 
 /** Produce a reader-friendly version of the quote (replaces [[PAGE_BREAK]] with "..."). */
-export function displayCitationQuote(a: MikeCitationAnnotation): string {
+export function displayCitationQuote(a: LukeCitationAnnotation): string {
   return a.quote.replaceAll(PAGE_BREAK_SENTINEL, "...");
 }
 
 // Tabular Review
 
 export type ColumnFormat =
-    | "text"
-    | "bulleted_list"
-    | "number"
-    | "currency"
-    | "yes_no"
-    | "date"
-    | "tag"
-    | "percentage"
-    | "monetary_amount";
+  | "text"
+  | "bulleted_list"
+  | "number"
+  | "currency"
+  | "yes_no"
+  | "date"
+  | "tag"
+  | "percentage"
+  | "monetary_amount";
 
 export interface ColumnConfig {
-    index: number;
-    name: string;
-    prompt: string;
-    format?: ColumnFormat;
-    tags?: string[];
+  index: number;
+  name: string;
+  prompt: string;
+  format?: ColumnFormat;
+  tags?: string[];
 }
 
 export interface TabularReview {
@@ -272,7 +266,7 @@ export interface TabularCell {
 
 // Workflows
 
-export interface MikeWorkflow {
+export interface LukeWorkflow {
   id: string;
   user_id: string | null;
   title: string;
@@ -289,13 +283,13 @@ export interface MikeWorkflow {
 
 // API helpers
 
-export interface MikeChatDetailOut {
-  chat: MikeChat;
-  messages: MikeMessage[];
+export interface LukeChatDetailOut {
+  chat: LukeChat;
+  messages: LukeMessage[];
 }
 
 export interface TabularReviewDetailOut {
   review: TabularReview;
   cells: TabularCell[];
-  documents: MikeDocument[];
+  documents: LukeDocument[];
 }

@@ -1,8 +1,60 @@
 package design
 
-import . "github.com/CaliLuke/loom/dsl"
+import (
+	. "github.com/CaliLuke/loom-mcp/dsl"
+	. "github.com/CaliLuke/loom/dsl"
+)
 
 var _ = Service("chat", func() {
+	Agent("assistant", "Career operations assistant for resumes, job searches, and application materials", func() {
+		Use("career_context", func() {
+			Tool("list_documents", "List local documents available to the current chat", func() {
+				Args(AssistantNoArgs)
+				Return(AssistantDocumentList)
+			})
+			Tool("read_document", "Read the text content of one local document", func() {
+				Args(AssistantReadDocumentArgs)
+				Return(AssistantDocumentText)
+			})
+			Tool("find_in_document", "Find exact text matches in one local document", func() {
+				Args(AssistantFindDocumentArgs)
+				Return(AssistantDocumentMatches)
+			})
+			Tool("fetch_documents", "Fetch text from multiple local documents", func() {
+				Args(AssistantFetchDocumentsArgs)
+				Return(AssistantDocumentBundle)
+			})
+			Tool("list_workflows", "List saved local workflows available to the user", func() {
+				Args(AssistantNoArgs)
+				Return(AssistantWorkflowList)
+			})
+			Tool("read_workflow", "Read one saved local workflow", func() {
+				Args(AssistantReadWorkflowArgs)
+				Return(AssistantWorkflowText)
+			})
+			Tool("generate_docx", "Generate a new editable DOCX document and store it locally", func() {
+				Args(AssistantGenerateDocxArgs)
+				Return(AssistantGeneratedDocument)
+			})
+			Tool("edit_document", "Apply text replacements to an editable DOCX document as a new version", func() {
+				Args(AssistantEditDocumentArgs)
+				Return(AssistantEditedDocument)
+			})
+			Tool("replicate_document", "Copy an existing document into one or more new local documents", func() {
+				Args(AssistantReplicateDocumentArgs)
+				Return(AssistantReplicatedDocuments)
+			})
+			Tool("read_table_cells", "Read generated tabular review cells by row and column", func() {
+				Args(AssistantReadTableCellsArgs)
+				Return(AssistantTableCellsText)
+			})
+		})
+		RunPolicy(func() {
+			DefaultCaps(MaxToolCalls(8), MaxConsecutiveFailedToolCalls(3))
+			TimeBudget("2m")
+		})
+	})
+
 	Method("list", func() {
 		Result(ArrayOf(Chat))
 		HTTP(func() {

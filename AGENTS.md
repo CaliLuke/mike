@@ -23,17 +23,10 @@ npm install --prefix frontend
 Run locally:
 
 ```bash
-cd backend-go
-CGO_LDFLAGS="-L$(pwd)/internal/persistence/rustbridge/target/release" go run ./cmd/luke-backend
+./dev
 ```
 
-In a second terminal from the repo root:
-
-```bash
-npm run dev --prefix frontend
-```
-
-The active backend is `backend-go`; the frontend runs with `next dev` and is available at `http://localhost:3000`.
+The active backend is `backend-go`; the `./dev` launcher starts the Go backend and Next frontend together, picks free local ports, and opens the browser. Use manual `backend-go` and `frontend` commands only when debugging startup behavior.
 
 Required checks before submitting changes:
 
@@ -59,9 +52,12 @@ For the Loom backend, add Go tests near the package they cover and run `go test 
 - `./check.sh` from `backend-go` runs the full Go backend gate.
 - `./check.sh --fix` from `backend-go` applies goimports and lint autofixes before checking.
 - `make tools` from `backend-go` installs pinned Go gate tools from `tools.go`.
-- `prek run` from the repo root runs the fast staged-file hooks.
+- `./check.sh` from `frontend` runs the full frontend gate (typecheck, eslint, prettier, jscpd, knip, next build). `--fix` applies eslint and prettier autofixes. `SKIP_BUILD=1` skips the next build step.
+- `prek run` from the repo root runs the fast staged-file hooks. `prek install` wires it into git.
 
-Full gates: Rust bridge build when missing, Loom generated-code freshness, Go build, vet, goimports, go mod tidy drift, golangci-lint, deadcode, dupl, gocyclo, govulncheck, race tests, and coverage. Set `COVERAGE_MIN` to override the default 80% floor.
+Full Go gates: Rust bridge build when missing, Loom generated-code freshness, Go build, vet, goimports, go mod tidy drift, golangci-lint, deadcode, dupl, gocyclo, govulncheck, race tests, and coverage. Set `COVERAGE_MIN` to override the default 80% floor.
+
+Full frontend gates: `tsc --noEmit`, ESLint with `--max-warnings=0` (strict: max-lines 500, no-explicit-any, no-console, exhaustive-deps as errors), Prettier `--check`, jscpd duplication (2% threshold), knip dead-code/unused-deps, and `next build`. Pre-commit (prek) runs prettier + eslint on staged frontend files plus a full `tsc --noEmit`; pre-push adds knip.
 
 ## Local Telemetry For Debugging
 

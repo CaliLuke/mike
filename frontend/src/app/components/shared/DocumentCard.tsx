@@ -1,23 +1,24 @@
 "use client";
 
-import { FileText, File, X, AlertCircle, Loader2 } from "lucide-react";
-import type { MikeDocument } from "./types";
+import { AlertCircle, File, FileText, Loader2,X } from "lucide-react";
+
+import type { LukeDocument } from "./types";
 
 interface Props {
-  document: MikeDocument;
+  document: LukeDocument;
   onRemove?: (id: string) => void;
-  onClick?: (doc: MikeDocument) => void;
+  onClick?: (doc: LukeDocument) => void;
   selected?: boolean;
 }
 
 function FileIcon({ fileType }: { fileType: string | null }) {
   if (fileType === "pdf") {
-    return <FileText className="h-4 w-4 text-red-600 shrink-0" />;
+    return <FileText className="h-4 w-4 shrink-0 text-red-600" />;
   }
   if (fileType === "docx" || fileType === "doc") {
-    return <File className="h-4 w-4 text-blue-600 shrink-0" />;
+    return <File className="h-4 w-4 shrink-0 text-blue-600" />;
   }
-  return <File className="h-4 w-4 text-gray-500 shrink-0" />;
+  return <File className="h-4 w-4 shrink-0 text-gray-500" />;
 }
 
 function formatBytes(bytes: number): string {
@@ -39,14 +40,14 @@ export function DocumentCard({ document, onRemove, onClick, selected }: Props) {
         selected
           ? "border-blue-500 bg-blue-50"
           : isError
-          ? "border-red-200 bg-red-50"
-          : "border-gray-200 bg-white hover:border-gray-300",
+            ? "border-red-200 bg-red-50"
+            : "border-gray-200 bg-white hover:border-gray-300",
       ].join(" ")}
     >
       {isProcessing ? (
-        <Loader2 className="h-4 w-4 animate-spin text-gray-400 shrink-0" />
+        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-gray-400" />
       ) : isError ? (
-        <AlertCircle className="h-4 w-4 text-red-500 shrink-0" />
+        <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
       ) : (
         <FileIcon fileType={document.file_type} />
       )}
@@ -59,13 +60,13 @@ export function DocumentCard({ document, onRemove, onClick, selected }: Props) {
           {isProcessing
             ? "Processing…"
             : isError
-            ? "Upload failed"
-            : [
-                document.size_bytes != null ? formatBytes(document.size_bytes) : null,
-                document.page_count ? `${document.page_count}p` : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
+              ? "Upload failed"
+              : [
+                  document.size_bytes != null ? formatBytes(document.size_bytes) : null,
+                  document.page_count ? `${document.page_count}p` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
         </p>
       </div>
 

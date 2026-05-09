@@ -1,11 +1,15 @@
 package design
 
-import . "github.com/CaliLuke/loom/dsl"
+import (
+	. "github.com/CaliLuke/loom-mcp/dsl"
+	. "github.com/CaliLuke/loom/dsl"
+)
 
 var _ = API("luke", func() {
 	Title("Luke Local Workbench API")
 	Description("Compatibility contract for the local-first Luke backend.")
 	Version("0.1.0")
+	DisableAgentDocs()
 
 	Server("luke", func() {
 		Description("Local browser development server")

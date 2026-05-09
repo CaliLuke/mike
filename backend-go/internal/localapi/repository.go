@@ -261,7 +261,7 @@ func (s *Server) resolveEdit(w http.ResponseWriter, r *http.Request, status stri
 		return
 	}
 	accept := status == "accepted"
-	resolvedBytes, changed, applyErr := applyTrackedChange(data, accept)
+	resolvedBytes, changed, applyErr := applyTrackedChange(data, accept, asString(edit["change_id"]))
 	if applyErr != nil {
 		writeError(w, http.StatusInternalServerError, applyErr)
 		return
@@ -349,50 +349,11 @@ func (s *Server) chatDetail(ctx context.Context, chatID string) (map[string]any,
 	return map[string]any{"chat": chats[0], "messages": messages}, nil
 }
 
-func (s *Server) persistAndStreamChat(ctx context.Context, chatID string, model *string, messages []struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}, send func(map[string]any) error) (string, error) {
-	requestMessages := make([]chatRequestMessage, 0, len(messages))
-	var lastUser string
-	for _, message := range messages {
-		requestMessages = append(requestMessages, chatRequestMessage{Role: message.Role, Content: message.Content})
-		if message.Role == "user" {
-			lastUser = message.Content
-		}
-	}
-	if err := send(map[string]any{"type": "chat_id", "chat_id": chatID}); err != nil {
-		return "", err
-	}
-	var fullText strings.Builder
-	text, err := s.streamChatText(ctx, modelOrDefault(model), requestMessages, func(delta string) error {
-		fullText.WriteString(delta)
-		return send(map[string]any{"type": "content_delta", "text": delta})
-	})
-	if err != nil {
-		return fullText.String(), err
-	}
-	if text == "" {
-		text = fullText.String()
-	}
-	if err := send(map[string]any{"type": "citations", "citations": []any{}}); err != nil {
-		return text, err
-	}
-	if err := send(map[string]any{"type": "done"}); err != nil {
-		return text, err
-	}
-	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-	defer cancel()
-	if err := s.insertChatMessage(persistCtx, chatID, "user", lastUser, nil); err != nil {
-		return text, err
-	}
-	if err := s.insertChatMessage(persistCtx, chatID, "assistant", text, []map[string]any{}); err != nil {
-		return text, err
-	}
-	return text, nil
+func (s *Server) insertChatMessage(ctx context.Context, chatID, role, content string, annotations []map[string]any) error {
+	return s.insertChatMessageWithFiles(ctx, chatID, role, content, nil, annotations)
 }
 
-func (s *Server) insertChatMessage(ctx context.Context, chatID, role, content string, annotations []map[string]any) error {
+func (s *Server) insertChatMessageWithFiles(ctx context.Context, chatID, role, content string, files []chatRequestFile, annotations []map[string]any) error {
 	if strings.TrimSpace(content) == "" {
 		return nil
 	}
@@ -401,7 +362,20 @@ func (s *Server) insertChatMessage(ctx context.Context, chatID, role, content st
 	if err != nil {
 		return err
 	}
-	filesJSON := []byte("[]")
+	filePayload := make([]map[string]string, 0, len(files))
+	for _, file := range files {
+		if file.Filename == "" && file.DocumentID == "" {
+			continue
+		}
+		filePayload = append(filePayload, map[string]string{
+			"filename":    file.Filename,
+			"document_id": file.DocumentID,
+		})
+	}
+	filesJSON, err := json.Marshal(filePayload)
+	if err != nil {
+		return err
+	}
 	_, err = s.app.DB.Query(ctx, fmt.Sprintf(`
 		CREATE %s CONTENT {
 			chat_id: %s,
@@ -413,50 +387,6 @@ func (s *Server) insertChatMessage(ctx context.Context, chatID, role, content st
 		};
 	`, recordID("chat_messages", id), recordID("chats", chatID), surrealString(role), surrealString(content), string(filesJSON), string(annotationsJSON)))
 	return err
-}
-
-func (s *Server) persistAndStreamTabularChat(ctx context.Context, reviewID, chatID string, model *string, messages []struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}, send func(map[string]any) error) (string, error) {
-	requestMessages := make([]chatRequestMessage, 0, len(messages))
-	var lastUser string
-	for _, message := range messages {
-		requestMessages = append(requestMessages, chatRequestMessage{Role: message.Role, Content: message.Content})
-		if message.Role == "user" {
-			lastUser = message.Content
-		}
-	}
-	if err := send(map[string]any{"type": "chat_id", "chat_id": chatID}); err != nil {
-		return "", err
-	}
-	var fullText strings.Builder
-	text, err := s.streamChatText(ctx, modelOrDefault(model), requestMessages, func(delta string) error {
-		fullText.WriteString(delta)
-		return send(map[string]any{"type": "content_delta", "text": delta})
-	})
-	if err != nil {
-		return fullText.String(), err
-	}
-	if text == "" {
-		text = fullText.String()
-	}
-	if err := send(map[string]any{"type": "citations", "citations": []any{}}); err != nil {
-		return text, err
-	}
-	if err := send(map[string]any{"type": "done"}); err != nil {
-		return text, err
-	}
-	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-	defer cancel()
-	if err := s.insertTabularChatMessage(persistCtx, chatID, "user", lastUser); err != nil {
-		return text, err
-	}
-	if err := s.insertTabularChatMessage(persistCtx, chatID, "assistant", text); err != nil {
-		return text, err
-	}
-	_, _ = s.app.DB.Query(persistCtx, "UPDATE "+recordID("tabular_review_chats", chatID)+" SET review_id = "+recordID("tabular_reviews", reviewID)+", updated_at = time::now();")
-	return text, nil
 }
 
 func (s *Server) insertTabularChatMessage(ctx context.Context, chatID, role, content string) error {

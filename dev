@@ -1,0 +1,199 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FRONTEND_DIR="$ROOT_DIR/frontend"
+BACKEND_DIR="$ROOT_DIR/backend-go"
+BRIDGE_DIR="$BACKEND_DIR/internal/persistence/rustbridge"
+BRIDGE_LIB="$BRIDGE_DIR/target/release/libluke_surreal_bridge.a"
+BRIDGE_TARGET_STAMP="$BRIDGE_DIR/target/release/.luke-macosx-deployment-target"
+DATA_ROOT="${LUKE_DEV_ROOT:-$ROOT_DIR/.tmp/luke-local}"
+BRIDGE_BUILD_LOCK="$ROOT_DIR/.tmp/luke-rust-bridge-build.lock"
+BACKEND_BIN="$DATA_ROOT/bin/luke-backend"
+OLLAMA_HOST_URL="${OLLAMA_BASE_URL:-http://127.0.0.1:11434}"
+OLLAMA_MODEL="${LUKE_OLLAMA_MODEL:-gemma4}"
+
+default_macos_deployment_target() {
+  if [[ "$(uname -s)" != "Darwin" ]]; then
+    return 1
+  fi
+  if command -v xcrun >/dev/null 2>&1; then
+    xcrun --sdk macosx --show-sdk-platform-version 2>/dev/null && return 0
+  fi
+  sw_vers -productVersion | awk -F. '{ print $1 "." $2 }'
+}
+
+MACOS_DEPLOYMENT_TARGET="${LUKE_MACOSX_DEPLOYMENT_TARGET:-${MACOSX_DEPLOYMENT_TARGET:-}}"
+if [[ -z "$MACOS_DEPLOYMENT_TARGET" ]] && target="$(default_macos_deployment_target)"; then
+  MACOS_DEPLOYMENT_TARGET="$target"
+fi
+
+port_is_free() {
+  local port="$1"
+  if command -v lsof >/dev/null 2>&1; then
+    ! lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1
+    return
+  fi
+  if command -v nc >/dev/null 2>&1; then
+    ! nc -z 127.0.0.1 "$port" >/dev/null 2>&1
+    return
+  fi
+  return 0
+}
+
+pick_port() {
+  local port="$1"
+  shift
+  local excluded=" $* "
+  while ! port_is_free "$port" || [[ "$excluded" == *" $port "* ]]; do
+    port=$((port + 1))
+  done
+  printf "%s\n" "$port"
+}
+
+wait_for_url() {
+  local url="$1"
+  local label="$2"
+  local attempts=120
+  local i
+
+  for ((i = 1; i <= attempts; i++)); do
+    if curl -fsS "$url" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.5
+  done
+
+  echo "Timed out waiting for $label at $url" >&2
+  return 1
+}
+
+cleanup() {
+  trap - INT TERM EXIT
+  if [[ -n "${BRIDGE_LOCK_HELD:-}" ]]; then
+    rmdir "$BRIDGE_BUILD_LOCK" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "${FRONTEND_PID:-}" ]]; then
+    kill "$FRONTEND_PID" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "${BACKEND_PID:-}" ]]; then
+    kill "$BACKEND_PID" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "${OLLAMA_PID:-}" ]]; then
+    kill "$OLLAMA_PID" >/dev/null 2>&1 || true
+  fi
+  wait >/dev/null 2>&1 || true
+}
+
+trap cleanup INT TERM EXIT
+
+with_bridge_lock() {
+  local i
+  mkdir -p "$(dirname "$BRIDGE_BUILD_LOCK")"
+  for ((i = 1; i <= 240; i++)); do
+    if mkdir "$BRIDGE_BUILD_LOCK" >/dev/null 2>&1; then
+      BRIDGE_LOCK_HELD=1
+      "$@"
+      rmdir "$BRIDGE_BUILD_LOCK"
+      BRIDGE_LOCK_HELD=""
+      return 0
+    fi
+    if [[ "$i" -eq 1 ]]; then
+      echo "Waiting for another Luke Rust bridge build to finish..."
+    fi
+    sleep 1
+  done
+  echo "Timed out waiting for Rust bridge build lock: $BRIDGE_BUILD_LOCK" >&2
+  return 1
+}
+
+build_bridge_if_needed() {
+  if [[ ! -f "$BRIDGE_LIB" ]] || [[ "$(cat "$BRIDGE_TARGET_STAMP" 2>/dev/null || true)" != "$MACOS_DEPLOYMENT_TARGET" ]]; then
+    echo "Building Rust SurrealDB bridge..."
+    (
+      cd "$BRIDGE_DIR"
+      if [[ -n "$MACOS_DEPLOYMENT_TARGET" ]]; then
+        cargo clean
+        MACOSX_DEPLOYMENT_TARGET="$MACOS_DEPLOYMENT_TARGET" cargo build --release
+      else
+        cargo build --release
+      fi
+    )
+    printf "%s\n" "$MACOS_DEPLOYMENT_TARGET" > "$BRIDGE_TARGET_STAMP"
+  fi
+}
+
+BACKEND_PORT="${LUKE_BACKEND_PORT:-$(pick_port 3001)}"
+FRONTEND_PORT="${LUKE_FRONTEND_PORT:-$(pick_port 3000 "$BACKEND_PORT")}"
+API_BASE="http://127.0.0.1:$BACKEND_PORT"
+APP_URL="http://localhost:$FRONTEND_PORT"
+
+if [[ ! -d "$FRONTEND_DIR/node_modules" ]]; then
+  echo "Installing frontend dependencies..."
+  npm install --prefix "$FRONTEND_DIR"
+fi
+
+with_bridge_lock build_bridge_if_needed
+
+if [[ "${LUKE_SKIP_OLLAMA:-0}" != "1" ]]; then
+  if command -v ollama >/dev/null 2>&1; then
+    if ! curl -fsS "$OLLAMA_HOST_URL/api/tags" >/dev/null 2>&1; then
+      echo "Starting Ollama on $OLLAMA_HOST_URL"
+      ollama serve &
+      OLLAMA_PID="$!"
+      wait_for_url "$OLLAMA_HOST_URL/api/tags" "ollama"
+    fi
+    if ! ollama list | awk 'NR > 1 { print $1 }' | grep -Eq "^${OLLAMA_MODEL}(:latest)?$"; then
+      echo "Pulling Ollama model $OLLAMA_MODEL"
+      ollama pull "$OLLAMA_MODEL"
+    fi
+  else
+    echo "Ollama is not installed; the app will run, but local AI responses will fail until Ollama is available." >&2
+  fi
+fi
+
+mkdir -p "$DATA_ROOT/bin" "$DATA_ROOT/data" "$DATA_ROOT/storage"
+
+echo "Building Luke backend..."
+(
+  cd "$BACKEND_DIR"
+  if [[ -n "$MACOS_DEPLOYMENT_TARGET" ]]; then
+    MACOSX_DEPLOYMENT_TARGET="$MACOS_DEPLOYMENT_TARGET" \
+    CGO_LDFLAGS="-L$BRIDGE_DIR/target/release" \
+    go build -o "$BACKEND_BIN" ./cmd/luke-backend
+  else
+    CGO_LDFLAGS="-L$BRIDGE_DIR/target/release" go build -o "$BACKEND_BIN" ./cmd/luke-backend
+  fi
+)
+
+echo "Starting Luke backend on $API_BASE"
+(
+  cd "$BACKEND_DIR"
+  CGO_LDFLAGS="-L$BRIDGE_DIR/target/release" \
+  LUKE_DATA_DIR="$DATA_ROOT/data" \
+  LOCAL_STORAGE_ROOT="$DATA_ROOT/storage" \
+  OLLAMA_BASE_URL="$OLLAMA_HOST_URL" \
+  LUKE_BACKEND_ADDR="127.0.0.1:$BACKEND_PORT" \
+  "$BACKEND_BIN"
+) &
+BACKEND_PID="$!"
+
+wait_for_url "$API_BASE/health" "backend"
+
+echo "Starting Luke frontend on $APP_URL"
+(
+  cd "$ROOT_DIR"
+  NEXT_PUBLIC_API_BASE_URL="$API_BASE" \
+  NEXT_PUBLIC_OTEL_TRACES_URL="$API_BASE/v1/traces" \
+  npm run dev --prefix "$FRONTEND_DIR" -- --hostname 127.0.0.1 --port "$FRONTEND_PORT"
+) &
+FRONTEND_PID="$!"
+
+wait_for_url "$APP_URL/projects" "frontend"
+
+echo "Luke is running: $APP_URL"
+if [[ "${LUKE_OPEN_BROWSER:-1}" != "0" ]] && command -v open >/dev/null 2>&1; then
+  open "$APP_URL"
+fi
+
+wait "$BACKEND_PID" "$FRONTEND_PID"

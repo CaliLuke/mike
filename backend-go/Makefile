@@ -1,9 +1,11 @@
 RUST_BRIDGE_DIR = internal/persistence/rustbridge
 RUST_BRIDGE_LIB = $(RUST_BRIDGE_DIR)/target/release/libluke_surreal_bridge.a
+RUST_BRIDGE_TARGET_STAMP = $(RUST_BRIDGE_DIR)/target/release/.luke-macosx-deployment-target
 
 export CGO_LDFLAGS := -L$(CURDIR)/$(RUST_BRIDGE_DIR)/target/release
 
 ifeq ($(shell uname -s),Darwin)
+  export MACOSX_DEPLOYMENT_TARGET ?= $(shell xcrun --sdk macosx --show-sdk-platform-version 2>/dev/null || sw_vers -productVersion | awk -F. '{ print $$1 "." $$2 }')
   ifneq (,$(wildcard /Library/Developer/CommandLineTools/usr/bin/clang))
     export CC := /Library/Developer/CommandLineTools/usr/bin/clang
   endif
@@ -14,8 +16,12 @@ endif
 
 .PHONY: test check tools clean
 
-$(RUST_BRIDGE_LIB): $(RUST_BRIDGE_DIR)/Cargo.toml $(RUST_BRIDGE_DIR)/src/lib.rs
+$(RUST_BRIDGE_LIB): $(RUST_BRIDGE_TARGET_STAMP)
+
+$(RUST_BRIDGE_TARGET_STAMP): $(RUST_BRIDGE_DIR)/Cargo.toml $(RUST_BRIDGE_DIR)/src/lib.rs
+	if [ "$$(cat $(RUST_BRIDGE_TARGET_STAMP) 2>/dev/null || true)" != "$(MACOSX_DEPLOYMENT_TARGET)" ]; then cd $(RUST_BRIDGE_DIR) && cargo clean; fi
 	cd $(RUST_BRIDGE_DIR) && cargo build --release
+	printf '%s\n' "$(MACOSX_DEPLOYMENT_TARGET)" > $(RUST_BRIDGE_TARGET_STAMP)
 
 test: $(RUST_BRIDGE_LIB)
 	go test ./...
