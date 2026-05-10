@@ -15,6 +15,7 @@ import (
 	"unicode"
 
 	"github.com/CaliLuke/loom-mcp/runtime/agent/planner"
+	"go.opentelemetry.io/otel/attribute"
 	xhtml "golang.org/x/net/html"
 
 	careercontext "github.com/CaliLuke/luke/backend-go/gen/chat/toolsets/career_context"
@@ -33,22 +34,36 @@ type simplifiedWebPage struct {
 }
 
 func (s *Server) executeFetchWebPage(ctx context.Context, call *planner.ToolRequest, send func(map[string]any) error) (*planner.ToolResult, error) {
+	ctx, span := startLocalSpan(ctx, "assistant.tool.fetch_web_page",
+		attribute.String("assistant.tool_call_id", call.ToolCallID),
+	)
+	defer span.End()
 	payload, err := careercontext.UnmarshalFetchWebPagePayload([]byte(call.Payload))
 	if err != nil {
+		recordSpanError(span, err)
 		return toolError(call.Name, err), nil
 	}
 	rawURL, err := requiredString(payload.URL, "url")
 	if err != nil {
+		recordSpanError(span, err)
 		return toolError(call.Name, err), nil
 	}
+	span.SetAttributes(attribute.String("http.url", rawURL))
 	maxChars := defaultWebPageMaxChars
 	if payload.MaxChars != nil && *payload.MaxChars > 0 {
 		maxChars = min(*payload.MaxChars, defaultWebPageMaxChars)
 	}
 	page, err := fetchSimplifiedWebPage(ctx, rawURL, maxChars)
 	if err != nil {
+		recordSpanError(span, err)
 		return toolError(call.Name, err), nil
 	}
+	span.SetAttributes(
+		attribute.String("http.final_url", page.URL),
+		attribute.String("web_page.title", page.Title),
+		attribute.Int("web_page.text_chars", len([]rune(page.Text))),
+		attribute.Bool("web_page.truncated", page.Truncated),
+	)
 	_ = send(map[string]any{"type": "web_page_fetched", "url": page.URL, "title": page.Title})
 	return &planner.ToolResult{Name: call.Name, Result: &careercontext.FetchWebPageResult{
 		URL:       stringPtr(page.URL),

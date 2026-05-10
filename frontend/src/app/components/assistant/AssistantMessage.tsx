@@ -1,9 +1,11 @@
 "use client";
 
+/* eslint-disable max-lines */
+
 import "katex/dist/katex.min.css";
 
 import { Check, ChevronDown, Copy, Download, Loader2 } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
@@ -30,7 +32,6 @@ import { applyOptimisticResolution, EditCard } from "./EditCard";
  */
 function BulkEditActions({
   pending,
-  filenameByDocId,
   onViewClick,
   onResolveStart,
   onResolved,
@@ -40,7 +41,6 @@ function BulkEditActions({
     annotation: LukeEditAnnotation;
     filename: string;
   }[];
-  filenameByDocId: Map<string, string>;
   onViewClick?: (ann: LukeEditAnnotation, filename: string) => void;
   onResolveStart?: (args: {
     editId: string;
@@ -254,7 +254,6 @@ function EditCardsSection({
         <div className="px-3 pt-3">
           <BulkEditActions
             pending={pending}
-            filenameByDocId={filenameByDocId}
             onViewClick={onViewClick}
             onResolveStart={onResolveStart}
             onResolved={onResolved}
@@ -376,7 +375,7 @@ function ReasoningBlock({
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
-              code: ({ node, ...props }) => (
+              code: ({ node: _node, ...props }) => (
                 <code className="font-serif text-gray-600" {...props} />
               ),
             }}
@@ -698,7 +697,15 @@ function WorkflowAppliedBlock({
   );
 }
 
-function CompanyCreatedBlock({ name, showConnector }: { name: string; showConnector?: boolean }) {
+function CompanyCreatedBlock({
+  name,
+  reusedExisting,
+  showConnector,
+}: {
+  name: string;
+  reusedExisting?: boolean;
+  showConnector?: boolean;
+}) {
   return (
     <div className="relative flex items-start font-serif text-sm text-gray-500">
       {showConnector && (
@@ -706,7 +713,40 @@ function CompanyCreatedBlock({ name, showConnector }: { name: string; showConnec
       )}
       <div className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-green-400" />
       <div className="ml-2 min-w-0 flex-1 break-words whitespace-normal">
-        <span className="font-medium">Created Company</span> <span>{name}</span>
+        <span className="font-medium">{reusedExisting ? "Reused Company" : "Created Company"}</span>{" "}
+        <span>{name}</span>
+      </div>
+    </div>
+  );
+}
+
+function CompanyMatchWarningBlock({
+  requestedName,
+  similarCompanyName,
+  similarity,
+  showConnector,
+}: {
+  requestedName: string;
+  similarCompanyName: string;
+  similarity?: number;
+  showConnector?: boolean;
+}) {
+  const similarityText =
+    typeof similarity === "number" && Number.isFinite(similarity)
+      ? ` (${Math.round(similarity * 100)}% similar)`
+      : "";
+  return (
+    <div className="relative flex items-start font-serif text-sm text-gray-500">
+      {showConnector && (
+        <div className="absolute top-[13px] bottom-0 left-[2.5px] h-[calc(100%+11px)] w-[1px] bg-gray-300" />
+      )}
+      <div className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
+      <div className="ml-2 min-w-0 flex-1 break-words whitespace-normal">
+        <span className="font-medium">Found Similar Company</span>{" "}
+        <span>
+          {requestedName} -&gt; {similarCompanyName}
+          {similarityText}
+        </span>
       </div>
     </div>
   );
@@ -837,7 +877,7 @@ function MarkdownContent({
         remarkPlugins={[[remarkMath, { singleDollarTextMath: false }], remarkGfm]}
         rehypePlugins={[rehypeKatex]}
         components={{
-          table: ({ node, ...props }) => (
+          table: ({ node: _node, ...props }) => (
             <div className="my-4 overflow-x-auto">
               <table
                 className="min-w-full divide-y divide-gray-300 overflow-hidden rounded-lg border border-gray-200"
@@ -845,25 +885,29 @@ function MarkdownContent({
               />
             </div>
           ),
-          thead: ({ node, ...props }) => <thead className="bg-gray-50" {...props} />,
-          tbody: ({ node, ...props }) => (
+          thead: ({ node: _node, ...props }) => <thead className="bg-gray-50" {...props} />,
+          tbody: ({ node: _node, ...props }) => (
             <tbody className="divide-y divide-gray-200 bg-white" {...props} />
           ),
-          tr: ({ node, ...props }) => <tr {...props} />,
-          th: ({ node, ...props }) => (
+          tr: ({ node: _node, ...props }) => <tr {...props} />,
+          th: ({ node: _node, ...props }) => (
             <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900" {...props} />
           ),
-          td: ({ node, ...props }) => (
+          td: ({ node: _node, ...props }) => (
             <td className="px-3 py-4 text-sm whitespace-normal text-gray-900" {...props} />
           ),
-          h1: ({ node, ...props }) => (
+          h1: ({ node: _node, ...props }) => (
             <h1 className="mt-6 mb-4 font-serif text-3xl font-semibold" {...props} />
           ),
-          h2: ({ node, ...props }) => (
+          h2: ({ node: _node, ...props }) => (
             <h2 className="mt-5 mb-3 font-serif text-2xl font-semibold" {...props} />
           ),
-          h3: ({ node, ...props }) => <h3 className="mt-4 mb-2 text-xl font-semibold" {...props} />,
-          h4: ({ node, ...props }) => <h4 className="mt-4 mb-2 text-lg font-semibold" {...props} />,
+          h3: ({ node: _node, ...props }) => (
+            <h3 className="mt-4 mb-2 text-xl font-semibold" {...props} />
+          ),
+          h4: ({ node: _node, ...props }) => (
+            <h4 className="mt-4 mb-2 text-lg font-semibold" {...props} />
+          ),
           p: ({ node, ...props }) => {
             const parent = (node as { parent?: { type?: string } } | undefined)?.parent;
             if (parent?.type === "listItem") {
@@ -871,16 +915,16 @@ function MarkdownContent({
             }
             return <p className="mb-4 leading-7" {...props} />;
           },
-          ul: ({ node, ...props }) => (
+          ul: ({ node: _node, ...props }) => (
             <ul className="mb-4 list-outside list-disc pl-6" {...props} />
           ),
-          ol: ({ node, ...props }) => (
+          ol: ({ node: _node, ...props }) => (
             <ol className="mb-4 list-outside list-decimal pl-6" {...props} />
           ),
-          li: ({ node, ...props }) => <li className="mb-2 leading-7" {...props} />,
-          strong: ({ node, ...props }) => <strong className="font-semibold" {...props} />,
-          em: ({ node, ...props }) => <em className="italic" {...props} />,
-          code: ({ node, children, ...props }) => {
+          li: ({ node: _node, ...props }) => <li className="mb-2 leading-7" {...props} />,
+          strong: ({ node: _node, ...props }) => <strong className="font-semibold" {...props} />,
+          em: ({ node: _node, ...props }) => <em className="italic" {...props} />,
+          code: ({ node: _node, children, ...props }) => {
             const text = String(children);
             const citMatch = text.match(/^§(\d+)§$/);
             if (citMatch) {
@@ -891,7 +935,6 @@ function MarkdownContent({
                 return (
                   <button
                     onClick={() => {
-                      console.log("[AssistantMessage] citation clicked", annotation);
                       onCitationClick?.(annotation);
                     }}
                     className="mx-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-gray-100 align-super text-[10px] font-medium text-gray-900 transition-colors hover:bg-gray-200"
@@ -908,10 +951,10 @@ function MarkdownContent({
               </code>
             );
           },
-          blockquote: ({ node, ...props }) => (
+          blockquote: ({ node: _node, ...props }) => (
             <blockquote className="my-4 border-l-4 border-gray-300 pl-4 italic" {...props} />
           ),
-          a: ({ node, href, children, ...props }) => (
+          a: ({ node: _node, href, children, ...props }) => (
             <a
               href={href}
               className="text-blue-600 underline hover:text-blue-700"
@@ -922,7 +965,7 @@ function MarkdownContent({
               {children}
             </a>
           ),
-          hr: ({ node, ...props }) => <hr className="my-6 border-gray-200" {...props} />,
+          hr: ({ node: _node, ...props }) => <hr className="my-6 border-gray-200" {...props} />,
         }}
       >
         {text}
@@ -1017,7 +1060,6 @@ export function AssistantMessage({
   isEditReloading,
   resolvedEditStatuses,
 }: Props) {
-  const messageKey = useId();
   const contentDivRef = useRef<HTMLDivElement | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   // Per-document override of the download URL, set as Accept/Reject resolves
@@ -1031,7 +1073,6 @@ export function AssistantMessage({
     versionId: string | null;
     downloadUrl: string | null;
   }) => {
-    console.log("[AssistantMessage] handleEditResolved", args);
     if (args.downloadUrl) {
       setResolvedOverrides((prev) => ({
         ...prev,
@@ -1255,7 +1296,23 @@ export function AssistantMessage({
     }
     if (event.type === "company_created") {
       return (
-        <CompanyCreatedBlock key={globalIdx} name={event.name} showConnector={showConnector} />
+        <CompanyCreatedBlock
+          key={globalIdx}
+          name={event.name}
+          reusedExisting={event.reused_existing}
+          showConnector={showConnector}
+        />
+      );
+    }
+    if (event.type === "company_match_warning") {
+      return (
+        <CompanyMatchWarningBlock
+          key={globalIdx}
+          requestedName={event.requested_name}
+          similarCompanyName={event.similar_company_name}
+          similarity={event.similarity}
+          showConnector={showConnector}
+        />
       );
     }
     if (event.type === "web_page_fetched") {
@@ -1445,24 +1502,23 @@ export function AssistantMessage({
                 const documentId = e.document_id;
                 const versionId = e.version_id ?? null;
                 const versionNumber = e.version_number ?? null;
-                const canOpen = !!onOpenDocument && !!documentId;
+                const openDocument =
+                  onOpenDocument && documentId
+                    ? () =>
+                        onOpenDocument({
+                          documentId,
+                          filename: e.filename,
+                          versionId,
+                          versionNumber,
+                        })
+                    : undefined;
                 return (
                   <DocDownloadBlock
                     key={i}
                     filename={e.filename}
                     download_url={e.download_url}
                     versionNumber={versionNumber}
-                    onOpen={
-                      canOpen
-                        ? () =>
-                            onOpenDocument!({
-                              documentId: documentId!,
-                              filename: e.filename,
-                              versionId,
-                              versionNumber,
-                            })
-                        : undefined
-                    }
+                    onOpen={openDocument}
                   />
                 );
               })}

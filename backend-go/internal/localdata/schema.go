@@ -135,6 +135,8 @@ DEFINE FIELD IF NOT EXISTS website ON TABLE companies TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS created_at ON TABLE companies TYPE datetime;
 DEFINE FIELD IF NOT EXISTS updated_at ON TABLE companies TYPE datetime;
 DEFINE INDEX IF NOT EXISTS companies_user_idx ON TABLE companies FIELDS user_id;
+DEFINE ANALYZER IF NOT EXISTS company_name_analyzer TOKENIZERS blank, class, camel, punct FILTERS lowercase, ascii;
+DEFINE INDEX IF NOT EXISTS companies_name_search ON TABLE companies FIELDS name FULLTEXT ANALYZER company_name_analyzer BM25;
 
 DEFINE TABLE IF NOT EXISTS applications SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS user_id ON TABLE applications TYPE record<users>;

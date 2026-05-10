@@ -12,6 +12,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/CaliLuke/luke/backend-go/internal/localdata"
 	"github.com/CaliLuke/luke/backend-go/internal/persistence"
@@ -54,6 +58,17 @@ SELECT
 	count(SELECT VALUE id FROM applications WHERE company_id = $parent.id) AS application_count
 FROM companies ORDER BY name;`
 
+type companySimilarityMatch struct {
+	ID            string
+	Name          string
+	Website       string
+	Similarity    float64
+	NormalizedKey string
+	ExactKey      bool
+}
+
+const companySimilarityThreshold = 0.86
+
 func (s *Server) createCompany(ctx context.Context, name string, website *string) (map[string]any, error) {
 	id := newID("company")
 	_, err := s.app.DB.Query(ctx, fmt.Sprintf(`
@@ -69,6 +84,110 @@ func (s *Server) createCompany(ctx context.Context, name string, website *string
 		return nil, err
 	}
 	return s.getCompany(ctx, id)
+}
+
+func (s *Server) findSimilarCompanies(ctx context.Context, name string) ([]companySimilarityMatch, error) {
+	ctx, span := startLocalSpan(ctx, "company.similarity_search")
+	defer span.End()
+	needleKey := companySearchKey(name)
+	span.SetAttributes(
+		attribute.String("company.requested_name", name),
+		attribute.String("company.normalized_key", needleKey),
+		attribute.Float64("company.similarity_threshold", companySimilarityThreshold),
+	)
+	if needleKey == "" {
+		span.SetAttributes(attribute.String("company.similarity_search.skip_reason", "empty_normalized_key"))
+		return nil, nil
+	}
+	searchText := strings.Join(companySearchTerms(name), " ")
+	span.SetAttributes(attribute.String("company.search_text", searchText))
+	rows, err := queryRows(ctx, s.app.DB, fmt.Sprintf(`
+SELECT
+	id,
+	name,
+	website,
+	search::score(1) AS ft_score,
+	string::similarity::jaro(string::lowercase(name), %s) AS similarity
+FROM companies
+WHERE name @1@ %s OR string::similarity::jaro(string::lowercase(name), %s) >= %f
+ORDER BY ft_score DESC, similarity DESC, name
+LIMIT 8;
+`,
+		surrealString(strings.ToLower(strings.TrimSpace(name))),
+		surrealString(searchText),
+		surrealString(strings.ToLower(strings.TrimSpace(name))),
+		companySimilarityThreshold,
+	))
+	if err != nil {
+		recordSpanError(span, err)
+		return nil, err
+	}
+	span.SetAttributes(attribute.Int("company.similarity_search.raw_result_count", len(rows)))
+	matches := make([]companySimilarityMatch, 0, len(rows))
+	for _, row := range rows {
+		candidateName := asString(row["name"])
+		candidateKey := companySearchKey(candidateName)
+		similarity := asFloat64(row["similarity"])
+		exactKey := needleKey != "" && candidateKey == needleKey
+		candidateAttrs := []attribute.KeyValue{
+			attribute.String("company.candidate.id", trimRecord(asString(row["id"]))),
+			attribute.String("company.candidate.name", candidateName),
+			attribute.String("company.candidate.normalized_key", candidateKey),
+			attribute.Float64("company.candidate.similarity", similarity),
+			attribute.Bool("company.candidate.exact_key", exactKey),
+			attribute.Bool("company.candidate.accepted", exactKey || similarity >= companySimilarityThreshold),
+		}
+		if !exactKey && similarity < companySimilarityThreshold {
+			span.AddEvent("company.similarity_candidate", trace.WithAttributes(candidateAttrs...))
+			continue
+		}
+		span.AddEvent("company.similarity_candidate", trace.WithAttributes(candidateAttrs...))
+		matches = append(matches, companySimilarityMatch{
+			ID:            trimRecord(asString(row["id"])),
+			Name:          candidateName,
+			Website:       asString(row["website"]),
+			Similarity:    similarity,
+			NormalizedKey: candidateKey,
+			ExactKey:      exactKey,
+		})
+	}
+	span.SetAttributes(attribute.Int("company.similarity_search.match_count", len(matches)))
+	if len(matches) > 0 {
+		span.SetAttributes(
+			attribute.String("company.best_match.id", matches[0].ID),
+			attribute.String("company.best_match.name", matches[0].Name),
+			attribute.Float64("company.best_match.similarity", matches[0].Similarity),
+			attribute.Bool("company.best_match.exact_key", matches[0].ExactKey),
+		)
+	}
+	return matches, nil
+}
+
+func companySearchTerms(value string) []string {
+	words := strings.FieldsFunc(strings.ToLower(value), func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	})
+	filtered := words[:0]
+	for _, word := range words {
+		if isCompanyLegalSuffix(word) {
+			continue
+		}
+		filtered = append(filtered, word)
+	}
+	return filtered
+}
+
+func companySearchKey(value string) string {
+	return strings.Join(companySearchTerms(value), "")
+}
+
+func isCompanyLegalSuffix(word string) bool {
+	switch word {
+	case "inc", "incorporated", "llc", "ltd", "limited", "corp", "corporation", "co", "company", "plc", "gmbh", "ag":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Server) getCompany(ctx context.Context, companyID string) (map[string]any, error) {
@@ -404,12 +523,23 @@ func (s *Server) insertChatMessage(ctx context.Context, chatID, role, content st
 }
 
 func (s *Server) insertChatMessageWithFiles(ctx context.Context, chatID, role, content string, files []chatRequestFile, annotations []map[string]any) error {
+	_, span := startLocalSpan(ctx, "chat.persist_message",
+		attribute.String("chat.id", chatID),
+		attribute.String("chat.role", role),
+		attribute.Int("chat.content_chars", len(content)),
+		attribute.Int("chat.file_count", len(files)),
+		attribute.Int("chat.annotation_count", len(annotations)),
+	)
+	defer span.End()
 	if strings.TrimSpace(content) == "" {
+		span.SetAttributes(attribute.Bool("chat.persist_skipped", true))
 		return nil
 	}
 	id := newID("chatmsg")
+	span.SetAttributes(attribute.String("chat.message_id", id))
 	annotationsJSON, err := json.Marshal(annotations)
 	if err != nil {
+		recordSpanError(span, err)
 		return err
 	}
 	filePayload := make([]map[string]string, 0, len(files))
@@ -424,6 +554,7 @@ func (s *Server) insertChatMessageWithFiles(ctx context.Context, chatID, role, c
 	}
 	filesJSON, err := json.Marshal(filePayload)
 	if err != nil {
+		recordSpanError(span, err)
 		return err
 	}
 	_, err = s.app.DB.Query(ctx, fmt.Sprintf(`
@@ -436,14 +567,23 @@ func (s *Server) insertChatMessageWithFiles(ctx context.Context, chatID, role, c
 			created_at: time::now()
 		};
 	`, recordID("chat_messages", id), recordID("chats", chatID), surrealString(role), surrealString(content), string(filesJSON), string(annotationsJSON)))
+	recordSpanError(span, err)
 	return err
 }
 
 func (s *Server) insertTabularChatMessage(ctx context.Context, chatID, role, content string) error {
+	_, span := startLocalSpan(ctx, "tabular_chat.persist_message",
+		attribute.String("chat.id", chatID),
+		attribute.String("chat.role", role),
+		attribute.Int("chat.content_chars", len(content)),
+	)
+	defer span.End()
 	if strings.TrimSpace(content) == "" {
+		span.SetAttributes(attribute.Bool("chat.persist_skipped", true))
 		return nil
 	}
 	id := newID("tabchatmsg")
+	span.SetAttributes(attribute.String("chat.message_id", id))
 	_, err := s.app.DB.Query(ctx, fmt.Sprintf(`
 		CREATE %s CONTENT {
 			chat_id: %s,
@@ -453,6 +593,7 @@ func (s *Server) insertTabularChatMessage(ctx context.Context, chatID, role, con
 			created_at: time::now()
 		};
 	`, recordID("tabular_review_chat_messages", id), recordID("tabular_review_chats", chatID), surrealString(role), surrealString(content)))
+	recordSpanError(span, err)
 	return err
 }
 
@@ -722,6 +863,24 @@ func asInt(value any) int {
 	case json.Number:
 		n, _ := v.Int64()
 		return int(n)
+	default:
+		return 0
+	}
+}
+
+func asFloat64(value any) float64 {
+	switch v := value.(type) {
+	case float64:
+		return v
+	case float32:
+		return float64(v)
+	case int:
+		return float64(v)
+	case int64:
+		return float64(v)
+	case json.Number:
+		n, _ := v.Float64()
+		return n
 	default:
 		return 0
 	}

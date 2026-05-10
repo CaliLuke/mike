@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
+
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -42,7 +44,10 @@ Job evaluation guidance:
 - For compensation, market, company news, or current hiring signals, say when current external research would be needed instead of guessing.
 - You can access public job-ad URLs through the fetch_web_page tool. Never tell the user you cannot access external websites when a public HTTP(S) job URL is provided; call fetch_web_page instead. If the tool fails, report the tool error and ask for pasted text only then.
 - When the user provides a public job-ad URL, call fetch_web_page before asking them to paste the job description. Use the simplified page text as source material for role title, company, requirements, and next steps.
-- When the user gives you a job ad or job-ad URL and asks to track, create, or start an application, create the employer with create_company if you do not already have a company_id, then create the application with create_application using the role title as the application name, the company_id from create_company, the fetched job description text as job_description_text, and the job URL as job_description_url. Do not claim the application was submitted; only say it was tracked locally and that the job description was saved to the application.
+- When the user gives you a job ad or job-ad URL and asks to track, create, start, save, or evaluate it, be action-first. If the fetched or provided job text gives you a clear company and role title, create the employer with create_company if you do not already have a company_id, then create the application with create_application using the role title as the application name, the company_id from create_company, the fetched job description text as job_description_text, and the job URL as job_description_url. Do this before asking for resumes, CVs, portfolios, notes, or other candidate materials.
+- Missing candidate materials are not a blocker to tracking an application. After the application is created, briefly summarize the role from the job description and ask for resume/CV or other materials only as optional next context for fit analysis, tailoring, or interview preparation.
+- Ask clarifying questions before creating an application only when the company or role title cannot be determined from the job text, or when the user explicitly says they only want analysis and do not want the role tracked. Do not claim the application was submitted; only say it was tracked locally and that the job description was saved to the application.
+- Avoid duplicate companies. The create_company tool searches existing companies by name. If it returns reused_existing=true, use that company_id for the application. If it returns requires_confirmation=true with a similar_company_id, reuse similar_company_id unless the user explicitly confirms the requested name should be a separate company. Do not call create_company with confirm_new=true on your own.
 
 Document citation instructions:
 - Cite local documents only when document context is provided and you make a specific claim from that context.
@@ -95,16 +100,26 @@ func modelOrDefault(model *string) string {
 }
 
 func (s *Server) completeText(ctx context.Context, req completionRequest) (string, error) {
-	if os.Getenv(mockProviderEnvVar) == "1" {
-		return mockCompletion(req.User), nil
-	}
 	model := req.Model
 	if model == "" {
 		model = defaultTitleModel
 	}
-	if strings.HasPrefix(model, "claude") || strings.HasPrefix(model, "gemini") {
-		return "", fmt.Errorf("%s provider is configured but hosted provider calls are disabled in local M4", model)
+	ctx, span := startLocalSpan(ctx, "llm.complete_text",
+		attribute.String("llm.model", model),
+		attribute.Int("llm.user_chars", len(req.User)),
+		attribute.Int("llm.system_prompt_chars", len(req.SystemPrompt)),
+	)
+	defer span.End()
+	if os.Getenv(mockProviderEnvVar) == "1" {
+		span.SetAttributes(attribute.Bool("llm.mock", true))
+		return mockCompletion(req.User), nil
 	}
+	if strings.HasPrefix(model, "claude") || strings.HasPrefix(model, "gemini") {
+		err := fmt.Errorf("%s provider is configured but hosted provider calls are disabled in local M4", model)
+		recordSpanError(span, err)
+		return "", err
+	}
+	span.SetAttributes(attribute.String("llm.model", model))
 	body := map[string]any{
 		"model": model,
 		"messages": []map[string]string{
@@ -120,34 +135,63 @@ func (s *Server) completeText(ctx context.Context, req completionRequest) (strin
 		Error string `json:"error"`
 	}
 	if err := postOllama(ctx, body, &response); err != nil {
+		recordSpanError(span, err)
 		return "", err
 	}
 	if response.Error != "" {
-		return "", fmt.Errorf("ollama error: %s", response.Error)
+		err := fmt.Errorf("ollama error: %s", response.Error)
+		recordSpanError(span, err)
+		return "", err
 	}
+	span.SetAttributes(attribute.Int("llm.response_chars", len(response.Message.Content)))
 	return response.Message.Content, nil
 }
 
 func postOllama(ctx context.Context, body map[string]any, target any) error {
+	attrs := []attribute.KeyValue{attribute.String("http.method", http.MethodPost)}
+	if model, ok := body["model"].(string); ok {
+		attrs = append(attrs, attribute.String("llm.model", model))
+	}
+	if messages, ok := body["messages"].([]ollamaMessage); ok {
+		attrs = append(attrs, attribute.Int("llm.message_count", len(messages)))
+	} else if messages, ok := body["messages"].([]map[string]string); ok {
+		attrs = append(attrs, attribute.Int("llm.message_count", len(messages)))
+	}
+	if tools, ok := body["tools"].([]map[string]any); ok {
+		attrs = append(attrs, attribute.Int("llm.tool_count", len(tools)))
+	}
+	_, span := startLocalSpan(ctx, "ollama.chat", attrs...)
+	defer span.End()
 	data, err := json.Marshal(body)
 	if err != nil {
+		recordSpanError(span, err)
 		return err
 	}
+	span.SetAttributes(attribute.Int("http.request_content_length", len(data)))
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, ollamaBaseURL()+"/api/chat", bytes.NewReader(data))
 	if err != nil {
+		recordSpanError(span, err)
 		return err
 	}
 	request.Header.Set("Content-Type", "application/json")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
+		recordSpanError(span, err)
 		return err
 	}
 	defer func() { _ = response.Body.Close() }()
+	span.SetAttributes(attribute.Int("http.status_code", response.StatusCode))
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		buf, _ := ioReadAllLimit(response.Body, 4096)
-		return fmt.Errorf("ollama request failed (%d): %s", response.StatusCode, string(buf))
+		err := fmt.Errorf("ollama request failed (%d): %s", response.StatusCode, string(buf))
+		recordSpanError(span, err)
+		return err
 	}
-	return json.NewDecoder(response.Body).Decode(target)
+	if err := json.NewDecoder(response.Body).Decode(target); err != nil {
+		recordSpanError(span, err)
+		return err
+	}
+	return nil
 }
 
 func ollamaBaseURL() string {

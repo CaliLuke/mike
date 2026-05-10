@@ -1,15 +1,18 @@
 "use client";
 
+/* eslint-disable max-lines */
+
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
 import type {
   AssistantEvent,
   LukeCitationAnnotation,
+  LukeEditAnnotation,
   LukeMessage,
 } from "@/app/components/shared/types";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
-import { streamChat, streamApplicationChat } from "@/app/lib/lukeApi";
+import { streamApplicationChat, streamChat } from "@/app/lib/lukeApi";
 
 import { useGenerateChatTitle } from "./useGenerateChatTitle";
 
@@ -511,6 +514,58 @@ export function useAssistantChat({
               continue;
             }
 
+            if (data.type === "web_page_fetched") {
+              pushEvent({
+                type: "web_page_fetched",
+                url: data.url as string,
+                title: typeof data.title === "string" ? (data.title as string) : undefined,
+              });
+              pushThinkingPlaceholder();
+              continue;
+            }
+
+            if (data.type === "company_created") {
+              pushEvent({
+                type: "company_created",
+                company_id: data.company_id as string,
+                name: data.name as string,
+                reused_existing:
+                  typeof data.reused_existing === "boolean"
+                    ? (data.reused_existing as boolean)
+                    : undefined,
+              });
+              pushThinkingPlaceholder();
+              continue;
+            }
+
+            if (data.type === "company_match_warning") {
+              pushEvent({
+                type: "company_match_warning",
+                requested_name: data.requested_name as string,
+                similar_company_id: data.similar_company_id as string,
+                similar_company_name: data.similar_company_name as string,
+                similarity:
+                  typeof data.similarity === "number" ? (data.similarity as number) : undefined,
+              });
+              pushThinkingPlaceholder();
+              continue;
+            }
+
+            if (data.type === "application_created") {
+              pushEvent({
+                type: "application_created",
+                application_id: data.application_id as string,
+                company_id: data.company_id as string,
+                name: data.name as string,
+                job_description_document_id:
+                  typeof data.job_description_document_id === "string"
+                    ? (data.job_description_document_id as string)
+                    : undefined,
+              });
+              pushThinkingPlaceholder();
+              continue;
+            }
+
             if (data.type === "doc_read_start") {
               pushEvent({
                 type: "doc_read",
@@ -675,7 +730,7 @@ export function useAssistantChat({
                       : null,
                   download_url: (data.download_url as string) ?? "",
                   annotations: Array.isArray(data.annotations)
-                    ? (data.annotations as import("@/app/components/shared/types").LukeEditAnnotation[])
+                    ? (data.annotations as LukeEditAnnotation[])
                     : [],
                   error: typeof data.error === "string" ? (data.error as string) : undefined,
                   isStreaming: false,

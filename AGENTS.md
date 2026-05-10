@@ -119,6 +119,8 @@ When a reviewer calls out gaps, fix the gate failures and lifecycle or data-safe
 
 Git history is minimal and uses short, imperative summaries, for example `Add local repo contents`. Keep commits focused and use concise subject lines.
 
+Never bypass git hooks with `--no-verify` unless the user explicitly authorizes that exact bypass for the current command. If a hook fails, stop and report the failing hook, the relevant error output, and the safest fix or next action instead of committing through it.
+
 Pull requests should include a short description, the affected package (`frontend`, `backend`, `backend-go`, or multiple), setup or migration notes, linked issues when applicable, and screenshots for visible UI changes. Include the exact checks you ran.
 
 ## Security & Configuration Tips

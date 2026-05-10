@@ -64,6 +64,9 @@ type AssistantCreateCompanyArgs struct {
 	Name *string `json:"name,omitempty"`
 	// Optional company website
 	Website *string `json:"website,omitempty"`
+	// Set true only after reviewing a similar existing company and deciding a
+	// separate company should be created
+	ConfirmNew *bool `json:"confirm_new,omitempty"`
 }
 
 type AssistantCreatedApplication struct {
@@ -92,6 +95,16 @@ type AssistantCreatedCompany struct {
 	Name *string `json:"name,omitempty"`
 	// Company website
 	Website *string `json:"website,omitempty"`
+	// Whether an existing company was reused instead of creating a duplicate
+	ReusedExisting *bool `json:"reused_existing,omitempty"`
+	// Whether a similar existing company blocked creation until confirm_new is true
+	RequiresConfirmation *bool `json:"requires_confirmation,omitempty"`
+	// Similar existing company identifier, when one was found
+	SimilarCompanyID *string `json:"similar_company_id,omitempty"`
+	// Similar existing company name, when one was found
+	SimilarCompanyName *string `json:"similar_company_name,omitempty"`
+	// Similarity score for the nearest existing company, from 0 to 1
+	Similarity *float64 `json:"similarity,omitempty"`
 	// Error message when creation failed
 	Error *string `json:"error,omitempty"`
 }

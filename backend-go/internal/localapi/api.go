@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/i2y/romancy"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/CaliLuke/luke/backend-go/internal/localdata"
 	"github.com/CaliLuke/luke/backend-go/internal/persistence"
@@ -773,7 +775,7 @@ func (s *Server) tabularGenerate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, fmt.Errorf("document_ids is required"))
 		return
 	}
-	streamSSE(w, func(send func(map[string]any) error) error {
+	streamSSE(r.Context(), w, func(send func(map[string]any) error) error {
 		for _, docID := range req.DocumentIDs {
 			for _, column := range req.ColumnIndices {
 				summary, err := s.completeText(r.Context(), completionRequest{
@@ -847,6 +849,11 @@ func (s *Server) tabularChatMessages(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) tabularChatStream(w http.ResponseWriter, r *http.Request) {
+	ctx, span := startLocalSpan(r.Context(), "api.tabular_chat_stream",
+		attribute.String("tabular_review.id", r.PathValue("reviewId")),
+	)
+	r = r.WithContext(ctx)
+	defer span.End()
 	reviewID := r.PathValue("reviewId")
 	var req struct {
 		ChatID   *string              `json:"chat_id"`
@@ -858,19 +865,28 @@ func (s *Server) tabularChatStream(w http.ResponseWriter, r *http.Request) {
 	if req.ChatID != nil {
 		chatID = *req.ChatID
 	}
+	span.SetAttributes(
+		attribute.Bool("chat.existing", chatID != ""),
+		attribute.Int("chat.request_message_count", len(req.Messages)),
+		attribute.String("assistant.model", modelOrDefault(req.Model)),
+	)
 	if chatID == "" {
 		row, err := s.createTabularChat(r.Context(), reviewID)
 		if err != nil {
+			recordSpanError(span, err)
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
 		chatID = trimRecord(asString(row["id"]))
 	}
-	streamSSE(w, func(send func(map[string]any) error) error {
+	span.SetAttributes(attribute.String("chat.id", chatID))
+	streamSSE(r.Context(), w, func(send func(map[string]any) error) error {
 		text, err := s.persistAndStreamAssistantTabularChat(r.Context(), reviewID, chatID, req.Model, req.Messages, send)
 		if err != nil {
+			recordSpanError(span, err)
 			return err
 		}
+		span.SetAttributes(attribute.Int("assistant.response_chars", len(text)))
 		_ = text
 		return nil
 	})
@@ -1092,6 +1108,9 @@ func (s *Server) zipDocumentBytes(ctx context.Context, documentIDs []string) ([]
 }
 
 func (s *Server) chatStream(w http.ResponseWriter, r *http.Request, applicationID *string) {
+	ctx, span := startLocalSpan(r.Context(), "api.chat_stream")
+	r = r.WithContext(ctx)
+	defer span.End()
 	var req struct {
 		ChatID            *string              `json:"chat_id"`
 		Model             *string              `json:"model"`
@@ -1104,56 +1123,86 @@ func (s *Server) chatStream(w http.ResponseWriter, r *http.Request, applicationI
 	if req.ChatID != nil {
 		chatID = *req.ChatID
 	}
+	span.SetAttributes(
+		attribute.Bool("chat.existing", chatID != ""),
+		attribute.Int("chat.request_message_count", len(req.Messages)),
+		attribute.Int("chat.attached_document_count", len(req.AttachedDocuments)),
+		attribute.Bool("chat.has_displayed_doc", req.DisplayedDoc != nil),
+		attribute.String("assistant.model", modelOrDefault(req.Model)),
+	)
+	if applicationID != nil {
+		span.SetAttributes(attribute.String("application.id", *applicationID))
+	}
 	if chatID == "" {
 		row, err := s.createChat(r.Context(), applicationID)
 		if err != nil {
+			recordSpanError(span, err)
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
 		chatID = trimRecord(asString(row["id"]))
 	}
-	streamSSE(w, func(send func(map[string]any) error) error {
+	span.SetAttributes(attribute.String("chat.id", chatID))
+	streamSSE(r.Context(), w, func(send func(map[string]any) error) error {
 		_, err := s.persistAndStreamAssistantChat(r.Context(), chatID, req.Model, applicationID, nil, req.Messages, req.DisplayedDoc, req.AttachedDocuments, send)
+		recordSpanError(span, err)
 		return err
 	})
 }
 
-func streamSSE(w http.ResponseWriter, fn func(func(map[string]any) error) error) {
+func streamSSE(ctx context.Context, w http.ResponseWriter, fn func(func(map[string]any) error) error) {
+	_, span := startLocalSpan(ctx, "api.sse_stream")
+	defer span.End()
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.WriteHeader(http.StatusOK)
 	flusher, _ := w.(http.Flusher)
+	eventCount := 0
 	send := func(payload map[string]any) error {
+		eventType, _ := payload["type"].(string)
+		span.AddEvent("api.sse_send", trace.WithAttributes(attribute.String("sse.event_type", eventType)))
 		data, err := json.Marshal(payload)
 		if err != nil {
+			recordSpanError(span, err)
 			return err
 		}
 		if _, err := fmt.Fprintf(w, "event: message\ndata: %s\n\n", data); err != nil {
+			recordSpanError(span, err)
 			return err
 		}
+		eventCount++
 		if flusher != nil {
 			flusher.Flush()
 		}
 		return nil
 	}
 	if err := fn(send); err != nil {
+		recordSpanError(span, err)
 		_ = send(map[string]any{"type": "error", "error": err.Error()})
 	}
+	span.SetAttributes(attribute.Int("sse.event_count", eventCount))
 }
 
 func queryRows(ctx context.Context, db *persistence.DB, query string) ([]map[string]any, error) {
+	ctx, span := startLocalSpan(ctx, "surreal.query", surrealQueryAttributes(query)...)
+	defer span.End()
 	result, err := db.Query(ctx, query)
 	if err != nil {
+		recordSpanError(span, err)
 		return nil, err
 	}
 	var statements [][]map[string]any
 	if err := json.Unmarshal(result, &statements); err != nil {
+		recordSpanError(span, err)
 		return nil, err
 	}
 	if len(statements) == 0 {
+		span.SetAttributes(attribute.Int("db.statement_count", 0), attribute.Int("db.row_count", 0))
 		return nil, nil
 	}
-	return statements[len(statements)-1], nil
+	rows := statements[len(statements)-1]
+	span.SetAttributes(attribute.Int("db.statement_count", len(statements)), attribute.Int("db.row_count", len(rows)))
+	return rows, nil
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {
@@ -1172,7 +1221,10 @@ func (s *Server) writeQueryRows(w http.ResponseWriter, r *http.Request, query st
 }
 
 func (s *Server) writeNoContentQuery(w http.ResponseWriter, r *http.Request, query string) {
+	_, span := startLocalSpan(r.Context(), "surreal.exec", surrealQueryAttributes(query)...)
+	defer span.End()
 	if _, err := s.app.DB.Query(r.Context(), query); err != nil {
+		recordSpanError(span, err)
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}

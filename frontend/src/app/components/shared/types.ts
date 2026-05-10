@@ -140,7 +140,14 @@ export type AssistantEvent =
       isStreaming?: boolean;
     }
   | { type: "web_page_fetched"; url: string; title?: string }
-  | { type: "company_created"; company_id: string; name: string }
+  | { type: "company_created"; company_id: string; name: string; reused_existing?: boolean }
+  | {
+      type: "company_match_warning";
+      requested_name: string;
+      similar_company_id: string;
+      similar_company_name: string;
+      similarity?: number;
+    }
   | {
       type: "application_created";
       application_id: string;

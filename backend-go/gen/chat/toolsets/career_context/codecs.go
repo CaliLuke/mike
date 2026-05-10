@@ -502,15 +502,21 @@ var CreateApplicationResultFieldDescs = map[string]string{
 	"ok":                          "Whether the application was created",
 }
 var CreateCompanyPayloadFieldDescs = map[string]string{
-	"name":    "Company name",
-	"website": "Optional company website",
+	"confirm_new": "Set true only after reviewing a similar existing company and deciding a separate company should be created",
+	"name":        "Company name",
+	"website":     "Optional company website",
 }
 var CreateCompanyResultFieldDescs = map[string]string{
-	"company_id": "Local company identifier",
-	"error":      "Error message when creation failed",
-	"name":       "Company name",
-	"ok":         "Whether the company was created",
-	"website":    "Company website",
+	"company_id":            "Local company identifier",
+	"error":                 "Error message when creation failed",
+	"name":                  "Company name",
+	"ok":                    "Whether the company was created",
+	"requires_confirmation": "Whether a similar existing company blocked creation until confirm_new is true",
+	"reused_existing":       "Whether an existing company was reused instead of creating a duplicate",
+	"similar_company_id":    "Similar existing company identifier, when one was found",
+	"similar_company_name":  "Similar existing company name, when one was found",
+	"similarity":            "Similarity score for the nearest existing company, from 0 to 1",
+	"website":               "Company website",
 }
 var EditDocumentPayloadFieldDescs = map[string]string{
 	"document_id":          "Local document identifier to edit",
@@ -852,8 +858,9 @@ func MarshalCreateCompanyPayload(v *CreateCompanyPayload) ([]byte, error) {
 	_ = in
 	var out *toolhttp.CreateCompanyPayloadTransport
 	out = &toolhttp.CreateCompanyPayloadTransport{
-		Name:    in.Name,
-		Website: in.Website,
+		Name:       in.Name,
+		Website:    in.Website,
+		ConfirmNew: in.ConfirmNew,
 	}
 	return json.Marshal(out)
 }
@@ -871,8 +878,9 @@ func UnmarshalCreateCompanyPayload(data []byte) (*CreateCompanyPayload, error) {
 	_ = in
 	var out *CreateCompanyPayload
 	out = &CreateCompanyPayload{
-		Name:    in.Name,
-		Website: in.Website,
+		Name:       in.Name,
+		Website:    in.Website,
+		ConfirmNew: in.ConfirmNew,
 	}
 	return out, nil
 }
@@ -886,11 +894,16 @@ func MarshalCreateCompanyResult(v *CreateCompanyResult) ([]byte, error) {
 	_ = in
 	var out *toolhttp.CreateCompanyResultTransport
 	out = &toolhttp.CreateCompanyResultTransport{
-		OK:        in.OK,
-		CompanyID: in.CompanyID,
-		Name:      in.Name,
-		Website:   in.Website,
-		Error:     in.Error,
+		OK:                   in.OK,
+		CompanyID:            in.CompanyID,
+		Name:                 in.Name,
+		Website:              in.Website,
+		ReusedExisting:       in.ReusedExisting,
+		RequiresConfirmation: in.RequiresConfirmation,
+		SimilarCompanyID:     in.SimilarCompanyID,
+		SimilarCompanyName:   in.SimilarCompanyName,
+		Similarity:           in.Similarity,
+		Error:                in.Error,
 	}
 	return json.Marshal(out)
 }
@@ -908,11 +921,16 @@ func UnmarshalCreateCompanyResult(data []byte) (*CreateCompanyResult, error) {
 	_ = in
 	var out *CreateCompanyResult
 	out = &CreateCompanyResult{
-		OK:        in.OK,
-		CompanyID: in.CompanyID,
-		Name:      in.Name,
-		Website:   in.Website,
-		Error:     in.Error,
+		OK:                   in.OK,
+		CompanyID:            in.CompanyID,
+		Name:                 in.Name,
+		Website:              in.Website,
+		ReusedExisting:       in.ReusedExisting,
+		RequiresConfirmation: in.RequiresConfirmation,
+		SimilarCompanyID:     in.SimilarCompanyID,
+		SimilarCompanyName:   in.SimilarCompanyName,
+		Similarity:           in.Similarity,
+		Error:                in.Error,
 	}
 	return out, nil
 }
