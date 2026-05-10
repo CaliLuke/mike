@@ -8,7 +8,7 @@ import { HeaderSearchBtn } from "@/app/components/shared/HeaderSearchBtn";
 import { OwnerOnlyModal } from "@/app/components/shared/OwnerOnlyModal";
 import { RowActions } from "@/app/components/shared/RowActions";
 import { ToolbarTabs } from "@/app/components/shared/ToolbarTabs";
-import type { LukeApplication, TabularReview } from "@/app/components/shared/types";
+import type { ColumnConfig, LukeApplication, TabularReview } from "@/app/components/shared/types";
 import { AddNewTRModal } from "@/app/components/tabular/AddNewTRModal";
 import {
   createTabularReview,
@@ -68,10 +68,6 @@ export default function TabularReviewsPage() {
   }, []);
 
   useEffect(() => {
-    setSelectedIds([]);
-  }, [activeTab, applicationFilter]);
-
-  useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (filterRef.current && !filterRef.current.contains(e.target as Node)) setFilterOpen(false);
     }
@@ -101,6 +97,7 @@ export default function TabularReviewsPage() {
 
   const allSelected = filtered.length > 0 && filtered.every((r) => selectedIds.includes(r.id));
   const someSelected = !allSelected && filtered.some((r) => selectedIds.includes(r.id));
+  const visibleSelectedIds = selectedIds.filter((id) => filtered.some((r) => r.id === id));
 
   function toggleAll() {
     if (allSelected) setSelectedIds([]);
@@ -117,7 +114,7 @@ export default function TabularReviewsPage() {
     title: string,
     applicationId?: string,
     documentIds?: string[],
-    columnsConfig?: import("@/app/components/shared/types").ColumnConfig[] | null,
+    columnsConfig?: ColumnConfig[] | null,
     createdApplication?: LukeApplication,
   ) => {
     setCreating(true);
@@ -159,7 +156,7 @@ export default function TabularReviewsPage() {
   }
 
   async function handleDeleteSelected() {
-    const ids = [...selectedIds];
+    const ids = [...visibleSelectedIds];
     setActionsOpen(false);
     const owned = ids.filter((id) => {
       const r = reviews.find((rr) => rr.id === id);
@@ -224,7 +221,7 @@ export default function TabularReviewsPage() {
 
   const toolbarActions = (
     <div className="flex items-center gap-2">
-      {selectedIds.length > 0 && (
+      {visibleSelectedIds.length > 0 && (
         <div ref={actionsRef} className="relative">
           <button
             onClick={() => setActionsOpen((v) => !v)}

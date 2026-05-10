@@ -1,7 +1,7 @@
 "use client";
 
 import { Download, Loader2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { API_BASE } from "@/app/lib/lukeApi";
 
@@ -302,14 +302,8 @@ function EditResolveButtons({
   }) => void;
 }) {
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState<"pending" | "accepted" | "rejected">(edit.status);
-  // Sync with the prop when this edit is resolved elsewhere (bulk
-  // accept/reject, inline per-edit card, another open panel for the same
-  // edit). Skips while our own request is in flight so we don't flicker.
-  useEffect(() => {
-    if (busy) return;
-    setStatus(edit.status);
-  }, [edit.status, edit.edit_id, busy]);
+  const [localStatus, setLocalStatus] = useState<"accepted" | "rejected" | null>(null);
+  const status = localStatus ?? edit.status;
   const resolved = status !== "pending";
 
   const handle = useCallback(
@@ -344,7 +338,7 @@ function EditResolveButtons({
           download_url: string | null;
         };
         const nextStatus = data.status ?? (verb === "accept" ? "accepted" : "rejected");
-        setStatus(nextStatus);
+        setLocalStatus(nextStatus);
         onResolved?.({
           editId: edit.edit_id,
           documentId: edit.document_id,

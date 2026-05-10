@@ -1,8 +1,8 @@
 "use client";
 
-import { Check,LogOut } from "lucide-react";
+import { Check, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect,useState } from "react";
+import { useEffect, useState } from "react";
 
 import { deleteAccount } from "@/app/lib/lukeApi";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ export default function AccountPage() {
   const [orgSaved, setOrgSaved] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -40,6 +41,7 @@ export default function AccountPage() {
   };
 
   const handleDeleteAccount = async () => {
+    setErrorMessage(null);
     setIsDeleting(true);
     try {
       await deleteAccount();
@@ -48,11 +50,12 @@ export default function AccountPage() {
     } catch {
       setIsDeleting(false);
       setDeleteConfirm(false);
-      alert("Failed to delete account. Please try again.");
+      setErrorMessage("Failed to delete account. Please try again.");
     }
   };
 
   const handleSaveDisplayName = async () => {
+    setErrorMessage(null);
     setIsSavingName(true);
     const success = await updateDisplayName(displayName.trim());
     setIsSavingName(false);
@@ -61,11 +64,12 @@ export default function AccountPage() {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } else {
-      alert("Failed to update display name. Please try again.");
+      setErrorMessage("Failed to update display name. Please try again.");
     }
   };
 
   const handleSaveOrganisation = async () => {
+    setErrorMessage(null);
     setIsSavingOrg(true);
     const success = await updateOrganisation(organisation.trim());
     setIsSavingOrg(false);
@@ -74,7 +78,7 @@ export default function AccountPage() {
       setOrgSaved(true);
       setTimeout(() => setOrgSaved(false), 2000);
     } else {
-      alert("Failed to update organisation. Please try again.");
+      setErrorMessage("Failed to update organisation. Please try again.");
     }
   };
 
@@ -82,6 +86,11 @@ export default function AccountPage() {
 
   return (
     <div className="space-y-4">
+      {errorMessage && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {errorMessage}
+        </div>
+      )}
       {/* Profile Settings */}
       <div className="pb-6">
         <div className="mb-4 flex items-center gap-2">

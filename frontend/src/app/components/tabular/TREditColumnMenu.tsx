@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, Loader2, MoreHorizontal, Plus, Trash2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { generateTabularColumnPrompt } from "@/app/lib/lukeApi";
 import {
@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import type { ColumnConfig, ColumnFormat } from "../shared/types";
-import { FORMAT_OPTIONS, formatIcon,formatLabel } from "./columnFormat";
+import { FORMAT_OPTIONS, formatIcon, formatLabel } from "./columnFormat";
 import { TAG_COLORS } from "./pillUtils";
 
 export interface TREditColumnMenuProps {
@@ -34,15 +34,13 @@ export function TREditColumnMenu({ column, disabled, onSave, onDelete }: TREditC
   const [deleting, setDeleting] = useState(false);
   const [generating, setGenerating] = useState(false);
 
-  useEffect(() => {
-    if (!open) {
-      setName(column.name);
-      setPrompt(column.prompt);
-      setFormat(column.format ?? "text");
-      setTags(column.tags ?? []);
-      setTagInput("");
-    }
-  }, [column.name, column.prompt, column.format, column.tags, open]);
+  function resetDraft() {
+    setName(column.name);
+    setPrompt(column.prompt);
+    setFormat(column.format ?? "text");
+    setTags(column.tags ?? []);
+    setTagInput("");
+  }
 
   function commitTag() {
     const tag = tagInput.trim();
@@ -73,17 +71,17 @@ export function TREditColumnMenu({ column, disabled, onSave, onDelete }: TREditC
         format,
         tags: format === "tag" ? tags : undefined,
       });
+      resetDraft();
       setOpen(false);
     } finally {
       setSaving(false);
     }
   }
-  console.log(tags);
-
   async function handleDelete() {
     setDeleting(true);
     try {
       await onDelete(column.index);
+      resetDraft();
       setOpen(false);
     } finally {
       setDeleting(false);
@@ -110,7 +108,10 @@ export function TREditColumnMenu({ column, disabled, onSave, onDelete }: TREditC
         onClick={(e) => {
           e.stopPropagation();
           if (disabled) return;
-          setOpen((v) => !v);
+          setOpen((v) => {
+            if (v) resetDraft();
+            return !v;
+          });
         }}
         disabled={disabled}
         className={`flex h-4 w-4 items-center justify-center rounded transition-colors ${

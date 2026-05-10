@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, Plus, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { createElement, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { generateTabularColumnPrompt } from "@/app/lib/lukeApi";
@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import type { ColumnConfig, ColumnFormat } from "../shared/types";
-import { FORMAT_OPTIONS, formatIcon,formatLabel } from "../tabular/columnFormat";
+import { FORMAT_OPTIONS, formatIcon, formatLabel } from "../tabular/columnFormat";
 import { getPresetConfig, PROMPT_PRESETS } from "../tabular/columnPresets";
 import { TAG_COLORS } from "../tabular/pillUtils";
 
@@ -44,17 +44,6 @@ export function WFEditColumnModal({ column, onClose, onSave, onDelete }: Props) 
   const [generating, setGenerating] = useState(false);
   const [presetsOpen, setPresetsOpen] = useState(false);
   const presetsRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setDraft({
-      name: column.name,
-      prompt: column.prompt,
-      format: column.format ?? "text",
-      tags: column.tags ?? [],
-      tagInput: "",
-    });
-    setPresetsOpen(false);
-  }, [column]);
 
   useEffect(() => {
     if (!presetsOpen) return;
@@ -115,8 +104,6 @@ export function WFEditColumnModal({ column, onClose, onSave, onDelete }: Props) 
       tags: draft.format === "tag" ? draft.tags : undefined,
     });
   }
-
-  const FormatIcon = formatIcon(draft.format);
 
   return createPortal(
     <div className="fixed inset-0 z-[101] flex items-center justify-center bg-black/20 backdrop-blur-xs">
@@ -217,7 +204,9 @@ export function WFEditColumnModal({ column, onClose, onSave, onDelete }: Props) 
                 <DropdownMenuTrigger asChild>
                   <button className="mt-1 flex items-center justify-between rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-700 hover:border-gray-400 focus:outline-none">
                     <span className="flex items-center gap-2">
-                      <FormatIcon className="h-3.5 w-3.5 text-gray-400" />
+                      {createElement(formatIcon(draft.format), {
+                        className: "h-3.5 w-3.5 text-gray-400",
+                      })}
                       {formatLabel(draft.format)}
                     </span>
                     <ChevronDown className="h-3.5 w-3.5 text-gray-400" />

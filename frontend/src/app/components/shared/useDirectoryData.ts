@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import { getApplication, listApplications, listStandaloneDocuments } from "@/app/lib/lukeApi";
 
-import type { LukeDocument, LukeApplication } from "./types";
+import type { LukeApplication, LukeDocument } from "./types";
 
 const CACHE_TTL_MS = 30_000;
 

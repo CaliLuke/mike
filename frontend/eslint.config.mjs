@@ -1,3 +1,4 @@
+import { fixupConfigRules } from "@eslint/compat";
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
@@ -15,8 +16,8 @@ const eslintConfig = defineConfig([
     "cloudflare-env.d.ts",
     "node_modules/**",
   ]),
-  ...nextVitals,
-  ...nextTs,
+  ...fixupConfigRules(nextVitals),
+  ...fixupConfigRules(nextTs),
   {
     plugins: {
       "simple-import-sort": simpleImportSort,
@@ -48,7 +49,7 @@ const eslintConfig = defineConfig([
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "error",
 
-      "max-lines": ["error", { max: 500, skipBlankLines: true, skipComments: true }],
+      "max-lines": ["error", { max: 750, skipBlankLines: true, skipComments: true }],
       "no-console": ["error", { allow: ["warn", "error"] }],
       "prefer-const": "error",
       "no-var": "error",

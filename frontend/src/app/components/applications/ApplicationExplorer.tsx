@@ -93,7 +93,8 @@ export function ApplicationExplorer({
   function toggleFolder(id: string) {
     setExpandedIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
@@ -135,7 +136,8 @@ export function ApplicationExplorer({
     while (cur) {
       if (cur.id === movingId) return true;
       if (!cur.parent_folder_id) break;
-      cur = folders.find((f) => f.id === cur!.parent_folder_id);
+      const parentFolderId = cur.parent_folder_id;
+      cur = parentFolderId ? folders.find((f) => f.id === parentFolderId) : undefined;
     }
     return false;
   }
@@ -366,7 +368,8 @@ export function ApplicationExplorer({
               onClick={() => {
                 setContextMenu(null);
                 if (contextMenu.parentId) {
-                  setExpandedIds((prev) => new Set([...prev, contextMenu.parentId!]));
+                  const parentId = contextMenu.parentId;
+                  setExpandedIds((prev) => new Set([...prev, parentId]));
                 }
                 setCreatingIn(contextMenu.parentId);
                 setNewFolderName("");
@@ -382,7 +385,9 @@ export function ApplicationExplorer({
               onClick={() => {
                 const f = folders.find((x) => x.id === contextMenu.folderId);
                 setRenameValue(f?.name ?? "");
-                setRenamingId(contextMenu.folderId!);
+                const folderId = contextMenu.folderId;
+                if (!folderId) return;
+                setRenamingId(folderId);
                 setContextMenu(null);
               }}
             >
@@ -393,7 +398,9 @@ export function ApplicationExplorer({
             <button
               className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-red-600 hover:bg-red-50"
               onClick={() => {
-                onDeleteFolder(contextMenu.folderId!);
+                const folderId = contextMenu.folderId;
+                if (!folderId) return;
+                onDeleteFolder(folderId);
                 setContextMenu(null);
               }}
             >
@@ -405,7 +412,9 @@ export function ApplicationExplorer({
             <button
               className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-red-600 hover:bg-red-50"
               onClick={() => {
-                void onDeleteDoc(contextMenu.docId!);
+                const docId = contextMenu.docId;
+                if (!docId) return;
+                void onDeleteDoc(docId);
                 setContextMenu(null);
               }}
             >

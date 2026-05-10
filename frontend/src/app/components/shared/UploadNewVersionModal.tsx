@@ -1,6 +1,6 @@
 "use client";
 
-import { Upload,X } from "lucide-react";
+import { Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -16,18 +16,28 @@ interface Props {
 }
 
 export function UploadNewVersionModal({ open, onClose, doc, onSubmit }: Props) {
-  const [name, setName] = useState("");
+  if (!open || !doc) return null;
+  return (
+    <UploadNewVersionModalContent key={doc.id} doc={doc} onClose={onClose} onSubmit={onSubmit} />
+  );
+}
+
+function UploadNewVersionModalContent({
+  doc,
+  onClose,
+  onSubmit,
+}: {
+  doc: LukeDocument;
+  onClose: () => void;
+  onSubmit: (file: File, displayName: string) => Promise<void>;
+}) {
+  const [name, setName] = useState(doc.filename);
   const [stagedFile, setStagedFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [currentVersion, setCurrentVersion] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!open || !doc) return;
-    setName(doc.filename);
-    setStagedFile(null);
-    setSubmitting(false);
-    setCurrentVersion(null);
     let cancelled = false;
     (async () => {
       try {
@@ -45,9 +55,7 @@ export function UploadNewVersionModal({ open, onClose, doc, onSubmit }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [open, doc]);
-
-  if (!open || !doc) return null;
+  }, [doc]);
 
   const accept =
     doc.file_type === "pdf"

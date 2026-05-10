@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, File, FileText, Loader2,X } from "lucide-react";
+import { AlertCircle, File, FileText, Loader2, X } from "lucide-react";
 
 import type { LukeDocument } from "./types";
 
@@ -62,7 +62,7 @@ export function DocumentCard({ document, onRemove, onClick, selected }: Props) {
             : isError
               ? "Upload failed"
               : [
-                  document.size_bytes != null ? formatBytes(document.size_bytes) : null,
+                  document.size_bytes !== null ? formatBytes(document.size_bytes) : null,
                   document.page_count ? `${document.page_count}p` : null,
                 ]
                   .filter(Boolean)

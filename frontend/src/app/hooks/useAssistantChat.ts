@@ -1,32 +1,28 @@
 "use client";
 
-/* eslint-disable max-lines */
-
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
 import type {
   AssistantEvent,
   LukeCitationAnnotation,
-  LukeEditAnnotation,
   LukeMessage,
 } from "@/app/components/shared/types";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { streamApplicationChat, streamChat } from "@/app/lib/lukeApi";
 
+import {
+  appendCancelledAssistantMessage,
+  appendErroredAssistantMessage,
+  findLastContentIndex,
+} from "./assistantChatMessages";
+import { handleAssistantSseEvent } from "./assistantSseEvents";
 import { useGenerateChatTitle } from "./useGenerateChatTitle";
 
 interface UseAssistantChatOptions {
   initialMessages?: LukeMessage[];
   chatId?: string;
   applicationId?: string;
-}
-
-function findLastContentIndex(events: AssistantEvent[]): number {
-  for (let i = events.length - 1; i >= 0; i--) {
-    if (events[i].type === "content") return i;
-  }
-  return -1;
 }
 
 export function useAssistantChat({
@@ -257,6 +253,121 @@ export function useAssistantChat({
     });
   };
 
+  const startContentDelta = (text: string) => {
+    clearStreamingPlaceholders();
+    finalizeStreamingReasoning();
+
+    const events = eventsRef.current;
+    const lastEvent = events[events.length - 1];
+    if (lastEvent?.type !== "content" || !lastEvent.isStreaming) {
+      dripTargetRef.current = text;
+      dripDisplayLenRef.current = 0;
+      eventsRef.current = [
+        ...events,
+        {
+          type: "content",
+          text: "",
+          isStreaming: true,
+        },
+      ];
+      const snapshot = [...eventsRef.current];
+      setMessages((prev) => {
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        if (last?.role === "assistant") {
+          updated[updated.length - 1] = {
+            ...last,
+            events: snapshot,
+          };
+        }
+        return updated;
+      });
+    } else {
+      dripTargetRef.current += text;
+    }
+
+    startDrip();
+  };
+
+  const appendReasoningDelta = (text: string) => {
+    let events = eventsRef.current;
+    const last = events[events.length - 1];
+    if (last?.type === "reasoning" && last.isStreaming) {
+      eventsRef.current = [
+        ...events.slice(0, -1),
+        {
+          type: "reasoning",
+          text: last.text + text,
+          isStreaming: true,
+        },
+      ];
+    } else {
+      finalizeStreamingContent();
+      clearStreamingPlaceholders();
+      events = eventsRef.current;
+      eventsRef.current = [
+        ...events,
+        {
+          type: "reasoning",
+          text,
+          isStreaming: true,
+        },
+      ];
+    }
+    const snapshot = [...eventsRef.current];
+    setMessages((prev) => {
+      const updated = [...prev];
+      const last = updated[updated.length - 1];
+      if (last?.role === "assistant") {
+        updated[updated.length - 1] = {
+          ...last,
+          events: snapshot,
+        };
+      }
+      return updated;
+    });
+  };
+
+  const endReasoningBlock = () => {
+    const events = eventsRef.current;
+    const last = events[events.length - 1];
+    if (last?.type === "reasoning" && last.isStreaming) {
+      eventsRef.current = [
+        ...events.slice(0, -1),
+        {
+          type: "reasoning",
+          text: last.text,
+        },
+      ];
+    }
+    const snapshot = [...eventsRef.current];
+    setMessages((prev) => {
+      const updated = [...prev];
+      const last = updated[updated.length - 1];
+      if (last?.role === "assistant") {
+        updated[updated.length - 1] = {
+          ...last,
+          events: snapshot,
+        };
+      }
+      return updated;
+    });
+  };
+
+  const setCitations = (incoming: LukeCitationAnnotation[]) => {
+    setMessages((prev) => {
+      const updated = [...prev];
+      const last = updated[updated.length - 1];
+      if (last?.role === "assistant") {
+        updated[updated.length - 1] = {
+          ...last,
+          annotations: incoming,
+        };
+      }
+      return updated;
+    });
+  };
+
   const handleChat = async (
     message: LukeMessage,
     opts?: {
@@ -358,407 +469,20 @@ export function useAssistantChat({
           try {
             const data = JSON.parse(dataStr);
 
-            if (data.type === "chat_id") {
-              streamedChatId = data.chatId;
-              setChatId(data.chatId);
-              setCurrentChatId(data.chatId);
-              continue;
-            }
-
-            if (data.type === "content_done") {
-              setIsLoadingCitations(true);
-              continue;
-            }
-
-            if (data.type === "content_delta") {
-              const text = data.text as string;
-
-              // Real content is streaming — retire any
-              // "Thinking…" / "Running…" placeholders, and
-              // finalize any in-flight reasoning block so it
-              // doesn't get stuck rendering as streaming.
-              clearStreamingPlaceholders();
-              finalizeStreamingReasoning();
-
-              // Ensure a streaming content event exists. If
-              // the last event isn't already a streaming
-              // content block, start a fresh one — and reset
-              // the drip so we don't inherit a previous
-              // block's accumulated text.
-              const events = eventsRef.current;
-              const lastEvent = events[events.length - 1];
-              if (lastEvent?.type !== "content" || !lastEvent.isStreaming) {
-                dripTargetRef.current = text;
-                dripDisplayLenRef.current = 0;
-                eventsRef.current = [
-                  ...events,
-                  {
-                    type: "content" as const,
-                    text: "",
-                    isStreaming: true,
-                  },
-                ];
-                const snapshot = [...eventsRef.current];
-                setMessages((prev) => {
-                  const updated = [...prev];
-                  const last = updated[updated.length - 1];
-                  if (last?.role === "assistant") {
-                    updated[updated.length - 1] = {
-                      ...last,
-                      events: snapshot,
-                    };
-                  }
-                  return updated;
-                });
-              } else {
-                dripTargetRef.current += text;
-              }
-
-              startDrip();
-              continue;
-            }
-
-            if (data.type === "reasoning_delta") {
-              const text = data.text as string;
-              let events = eventsRef.current;
-              const last = events[events.length - 1];
-              if (last?.type === "reasoning" && last.isStreaming) {
-                eventsRef.current = [
-                  ...events.slice(0, -1),
-                  {
-                    type: "reasoning" as const,
-                    text: last.text + text,
-                    isStreaming: true,
-                  },
-                ];
-              } else {
-                // New reasoning block — finalize any in-flight
-                // content event first so the next content_delta
-                // starts a fresh block at the correct position.
-                finalizeStreamingContent();
-                clearStreamingPlaceholders();
-                events = eventsRef.current;
-                eventsRef.current = [
-                  ...events,
-                  {
-                    type: "reasoning" as const,
-                    text,
-                    isStreaming: true,
-                  },
-                ];
-              }
-              const snapshot = [...eventsRef.current];
-              setMessages((prev) => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last?.role === "assistant") {
-                  updated[updated.length - 1] = {
-                    ...last,
-                    events: snapshot,
-                  };
-                }
-                return updated;
-              });
-              continue;
-            }
-
-            if (data.type === "reasoning_block_end") {
-              const events = eventsRef.current;
-              const last = events[events.length - 1];
-              if (last?.type === "reasoning" && last.isStreaming) {
-                eventsRef.current = [
-                  ...events.slice(0, -1),
-                  {
-                    type: "reasoning" as const,
-                    text: last.text,
-                  },
-                ];
-              }
-              const snapshot = [...eventsRef.current];
-              setMessages((prev) => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last?.role === "assistant") {
-                  updated[updated.length - 1] = {
-                    ...last,
-                    events: snapshot,
-                  };
-                }
-                return updated;
-              });
-              pushThinkingPlaceholder();
-              continue;
-            }
-
-            if (data.type === "tool_call_start") {
-              // Transient placeholder so the client immediately
-              // shows activity after Claude ends a turn with
-              // tool_use. Replaced by the real tool event
-              // (doc_edited_start, doc_read_start, …) if one
-              // arrives; otherwise it lingers as a "Working…"
-              // indicator until the next iteration streams.
-              pushEvent({
-                type: "tool_call_start",
-                name: (data.name as string) ?? "",
-                isStreaming: true,
-              });
-              continue;
-            }
-
-            if (data.type === "workflow_applied") {
-              pushEvent({
-                type: "workflow_applied",
-                workflow_id: data.workflow_id as string,
-                title: data.title as string,
-              });
-              continue;
-            }
-
-            if (data.type === "web_page_fetched") {
-              pushEvent({
-                type: "web_page_fetched",
-                url: data.url as string,
-                title: typeof data.title === "string" ? (data.title as string) : undefined,
-              });
-              pushThinkingPlaceholder();
-              continue;
-            }
-
-            if (data.type === "company_created") {
-              pushEvent({
-                type: "company_created",
-                company_id: data.company_id as string,
-                name: data.name as string,
-                reused_existing:
-                  typeof data.reused_existing === "boolean"
-                    ? (data.reused_existing as boolean)
-                    : undefined,
-              });
-              pushThinkingPlaceholder();
-              continue;
-            }
-
-            if (data.type === "company_match_warning") {
-              pushEvent({
-                type: "company_match_warning",
-                requested_name: data.requested_name as string,
-                similar_company_id: data.similar_company_id as string,
-                similar_company_name: data.similar_company_name as string,
-                similarity:
-                  typeof data.similarity === "number" ? (data.similarity as number) : undefined,
-              });
-              pushThinkingPlaceholder();
-              continue;
-            }
-
-            if (data.type === "application_created") {
-              pushEvent({
-                type: "application_created",
-                application_id: data.application_id as string,
-                company_id: data.company_id as string,
-                name: data.name as string,
-                job_description_document_id:
-                  typeof data.job_description_document_id === "string"
-                    ? (data.job_description_document_id as string)
-                    : undefined,
-              });
-              pushThinkingPlaceholder();
-              continue;
-            }
-
-            if (data.type === "doc_read_start") {
-              pushEvent({
-                type: "doc_read",
-                filename: data.filename as string,
-                isStreaming: true,
-              });
-              continue;
-            }
-
-            if (data.type === "doc_read") {
-              updateMatchingEvent(
-                (e) => e.type === "doc_read" && e.filename === data.filename && !!e.isStreaming,
-                (e) => ({ ...e, isStreaming: false }),
-              );
-              pushThinkingPlaceholder();
-              continue;
-            }
-
-            if (data.type === "doc_find_start") {
-              pushEvent({
-                type: "doc_find",
-                filename: data.filename as string,
-                query: (data.query as string) ?? "",
-                total_matches: 0,
-                isStreaming: true,
-              });
-              continue;
-            }
-
-            if (data.type === "doc_find") {
-              updateMatchingEvent(
-                (e) =>
-                  e.type === "doc_find" &&
-                  e.filename === data.filename &&
-                  e.query === (data.query as string) &&
-                  !!e.isStreaming,
-                (e) => ({
-                  ...e,
-                  isStreaming: false,
-                  total_matches:
-                    typeof data.total_matches === "number"
-                      ? (data.total_matches as number)
-                      : (
-                          e as {
-                            type: "doc_find";
-                            total_matches: number;
-                          }
-                        ).total_matches,
-                }),
-              );
-              pushThinkingPlaceholder();
-              continue;
-            }
-
-            if (data.type === "doc_created_start") {
-              pushEvent({
-                type: "doc_created",
-                filename: data.filename as string,
-                download_url: "",
-                isStreaming: true,
-              });
-              continue;
-            }
-
-            if (data.type === "doc_download") {
-              pushEvent({
-                type: "doc_download",
-                filename: data.filename as string,
-                download_url: data.download_url as string,
-              });
-              continue;
-            }
-
-            if (data.type === "doc_created") {
-              updateMatchingEvent(
-                (e) => e.type === "doc_created" && e.filename === data.filename && !!e.isStreaming,
-                (e) => {
-                  const next: Extract<AssistantEvent, { type: "doc_created" }> = {
-                    type: "doc_created",
-                    filename: (e as { filename: string }).filename,
-                    download_url: data.download_url as string,
-                    isStreaming: false,
-                  };
-                  if (typeof data.document_id === "string") {
-                    next.document_id = data.document_id as string;
-                  }
-                  if (typeof data.version_id === "string") {
-                    next.version_id = data.version_id as string;
-                  }
-                  if (typeof data.version_number === "number") {
-                    next.version_number = data.version_number as number;
-                  }
-                  return next;
-                },
-              );
-              pushThinkingPlaceholder();
-              continue;
-            }
-
-            if (data.type === "doc_replicate_start") {
-              pushEvent({
-                type: "doc_replicated",
-                filename: data.filename as string,
-                count: typeof data.count === "number" ? (data.count as number) : 1,
-                isStreaming: true,
-              });
-              continue;
-            }
-
-            if (data.type === "doc_replicated") {
-              updateMatchingEvent(
-                (e) =>
-                  e.type === "doc_replicated" && e.filename === data.filename && !!e.isStreaming,
-                () => ({
-                  type: "doc_replicated",
-                  filename: data.filename as string,
-                  count:
-                    typeof data.count === "number"
-                      ? (data.count as number)
-                      : Array.isArray(data.copies)
-                        ? (data.copies as unknown[]).length
-                        : 1,
-                  copies: Array.isArray(data.copies)
-                    ? (data.copies as {
-                        new_filename: string;
-                        document_id: string;
-                        version_id: string;
-                      }[])
-                    : undefined,
-                  error: typeof data.error === "string" ? (data.error as string) : undefined,
-                  isStreaming: false,
-                }),
-              );
-              pushThinkingPlaceholder();
-              continue;
-            }
-
-            if (data.type === "doc_edited_start") {
-              pushEvent({
-                type: "doc_edited",
-                filename: data.filename as string,
-                document_id: "",
-                version_id: "",
-                download_url: "",
-                annotations: [],
-                isStreaming: true,
-              });
-              continue;
-            }
-
-            if (data.type === "doc_edited") {
-              updateMatchingEvent(
-                (e) => e.type === "doc_edited" && e.filename === data.filename && !!e.isStreaming,
-                () => ({
-                  type: "doc_edited",
-                  filename: data.filename as string,
-                  document_id: (data.document_id as string) ?? "",
-                  version_id: (data.version_id as string) ?? "",
-                  version_number:
-                    typeof data.version_number === "number"
-                      ? (data.version_number as number)
-                      : null,
-                  download_url: (data.download_url as string) ?? "",
-                  annotations: Array.isArray(data.annotations)
-                    ? (data.annotations as LukeEditAnnotation[])
-                    : [],
-                  error: typeof data.error === "string" ? (data.error as string) : undefined,
-                  isStreaming: false,
-                }),
-              );
-              pushThinkingPlaceholder();
-              continue;
-            }
-
-            if (data.type === "citations") {
-              // End-of-stream signal — scrub any lingering
-              // placeholders so they don't persist into the
-              // finalised message.
-              clearStreamingPlaceholders();
-              const incoming = (data.citations ?? []) as LukeCitationAnnotation[];
-              setMessages((prev) => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last?.role === "assistant") {
-                  updated[updated.length - 1] = {
-                    ...last,
-                    annotations: incoming,
-                  };
-                }
-                return updated;
-              });
-              continue;
-            }
+            const nextChatId = handleAssistantSseEvent(data, {
+              setChatId,
+              setCurrentChatId,
+              setIsLoadingCitations,
+              startContentDelta,
+              appendReasoningDelta,
+              endReasoningBlock,
+              clearStreamingPlaceholders,
+              pushThinkingPlaceholder,
+              pushEvent,
+              updateMatchingEvent,
+              setCitations,
+            });
+            if (nextChatId) streamedChatId = nextChatId;
           } catch (e) {
             console.warn("[useAssistantChat] failed to parse SSE line:", trimmed, e);
           }
@@ -797,44 +521,7 @@ export function useAssistantChat({
     } catch (error: unknown) {
       if ((error as { name?: string }).name === "AbortError") {
         flushDrip();
-        setMessages((prev) => {
-          const last = prev[prev.length - 1];
-          if (last?.role === "assistant") {
-            const updated = [...prev];
-            const events = last.events ?? [];
-            const idx = findLastContentIndex(events);
-            const cancelText = "Cancelled by user";
-            if (idx >= 0) {
-              const newEvents = [...events];
-              const existing = newEvents[idx] as {
-                type: "content";
-                text: string;
-              };
-              newEvents[idx] = {
-                type: "content",
-                text: existing.text ? `${existing.text}\n\nCancelled by user` : cancelText,
-              };
-              updated[updated.length - 1] = {
-                ...last,
-                events: newEvents,
-              };
-            } else {
-              updated[updated.length - 1] = {
-                ...last,
-                events: [...events, { type: "content", text: cancelText }],
-              };
-            }
-            return updated;
-          }
-          return [
-            ...prev,
-            {
-              role: "assistant",
-              content: "",
-              events: [{ type: "content", text: "Cancelled by user" }],
-            },
-          ];
-        });
+        setMessages(appendCancelledAssistantMessage);
       } else {
         stopDrip();
         const err = error as { message?: unknown };
@@ -842,25 +529,7 @@ export function useAssistantChat({
           typeof err.message === "string" && err.message
             ? err.message
             : "Sorry, something went wrong.";
-        setMessages((prev) => {
-          const last = prev[prev.length - 1];
-          if (last?.role === "assistant") {
-            const updated = [...prev];
-            updated[updated.length - 1] = {
-              ...last,
-              error: errorMessage,
-            };
-            return updated;
-          }
-          return [
-            ...prev,
-            {
-              role: "assistant",
-              content: "",
-              error: errorMessage,
-            },
-          ];
-        });
+        setMessages((prev) => appendErroredAssistantMessage(prev, errorMessage));
       }
 
       setIsResponseLoading(false);

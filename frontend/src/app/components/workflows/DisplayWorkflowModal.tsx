@@ -251,35 +251,24 @@ export function DisplayWorkflowModal({ workflows, workflow, onClose }: Props) {
   } = useDirectoryData(screen === "configure");
 
   useEffect(() => {
-    if (workflow) {
-      setSelected(workflow);
-      setScreen("select");
-      setListSearch("");
-    } else {
-      setSelected(null);
-    }
-  }, [workflow?.id]);
-
-  useEffect(() => {
     if (selected && selectedRowRef.current) {
       selectedRowRef.current.scrollIntoView({ block: "nearest" });
     }
-  }, [selected?.id]);
+  }, [selected]);
 
-  // Reset configure state on back
-  useEffect(() => {
-    if (screen === "select") {
-      setInApplication(false);
-      setSelectedApplicationId(null);
-      setSelectedDocIds(new Set());
-      setDocSearch("");
-      setAssistantPrompt("");
-    }
-  }, [screen]);
+  function resetConfigureState() {
+    setInApplication(false);
+    setSelectedApplicationId(null);
+    setSelectedDocIds(new Set());
+    setDocSearch("");
+    setAssistantPrompt("");
+  }
 
   function handleClose() {
     setSelected(null);
     setScreen("select");
+    setListSearch("");
+    resetConfigureState();
     onClose();
   }
 
@@ -292,7 +281,7 @@ export function DisplayWorkflowModal({ workflows, workflow, onClose }: Props) {
   async function handleStartChat() {
     setSaving(true);
     try {
-      const applicationId = inApplication ? selectedApplicationId! : undefined;
+      const applicationId = inApplication ? (selectedApplicationId ?? undefined) : undefined;
       const chatId = await saveChat(applicationId);
       if (!chatId) return;
       const allDocs: LukeDocument[] = [
@@ -329,7 +318,7 @@ export function DisplayWorkflowModal({ workflows, workflow, onClose }: Props) {
       ...applications.flatMap((p) => p.documents || []),
     ];
     const docIds = allDocs.filter((d) => selectedDocIds.has(d.id)).map((d) => d.id);
-    const applicationId = inApplication ? selectedApplicationId! : undefined;
+    const applicationId = inApplication ? (selectedApplicationId ?? undefined) : undefined;
 
     setSaving(true);
     try {
@@ -393,7 +382,10 @@ export function DisplayWorkflowModal({ workflows, workflow, onClose }: Props) {
             ) : (
               <>
                 <button
-                  onClick={() => setScreen("select")}
+                  onClick={() => {
+                    resetConfigureState();
+                    setScreen("select");
+                  }}
                   className="transition-colors hover:text-gray-700"
                 >
                   Workflows

@@ -15,21 +15,21 @@ import {
 import { useRouter } from "next/navigation";
 import { use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
+import { ApplicationExplorer } from "@/app/components/applications/ApplicationExplorer";
 import { AssistantMessage } from "@/app/components/assistant/AssistantMessage";
 import type { ChatInputHandle } from "@/app/components/assistant/ChatInput";
 import { ChatInput } from "@/app/components/assistant/ChatInput";
 import { UserMessage } from "@/app/components/assistant/UserMessage";
-import { ApplicationExplorer } from "@/app/components/applications/ApplicationExplorer";
 import { DocView } from "@/app/components/shared/DocView";
 import { DocxView } from "@/app/components/shared/DocxView";
 import { OwnerOnlyModal } from "@/app/components/shared/OwnerOnlyModal";
 import type {
   CitationQuote,
+  LukeApplication,
   LukeCitationAnnotation,
   LukeDocument,
   LukeEditAnnotation,
   LukeMessage,
-  LukeApplication,
 } from "@/app/components/shared/types";
 import { expandCitationToEntries } from "@/app/components/shared/types";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
@@ -38,11 +38,11 @@ import { useAssistantChat } from "@/app/hooks/useAssistantChat";
 import { DOCUMENT_UPLOAD_ACCEPT } from "@/app/lib/documentTypes";
 import {
   createApplicationFolder,
+  deleteApplicationFolder,
   deleteChat,
   deleteDocument,
-  deleteApplicationFolder,
-  getChat,
   getApplication,
+  getChat,
   moveDocumentToFolder,
   moveSubfolderToFolder,
   renameApplicationFolder,

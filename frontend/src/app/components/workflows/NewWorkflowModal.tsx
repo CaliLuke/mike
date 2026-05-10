@@ -1,6 +1,6 @@
 "use client";
 
-import { MessageSquare, Table2,X } from "lucide-react";
+import { MessageSquare, Table2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { createWorkflow, updateWorkflow } from "@/app/lib/lukeApi";
@@ -17,10 +17,39 @@ interface Props {
 }
 
 export function NewWorkflowModal({ open, onClose, onCreated, editWorkflow, onUpdated }: Props) {
-  const [title, setTitle] = useState("");
-  const [type, setType] = useState<"assistant" | "tabular">("assistant");
-  const [practice, setPractice] = useState<string>("");
-  const [customPractice, setCustomPractice] = useState("");
+  if (!open) return null;
+  return (
+    <NewWorkflowModalContent
+      key={editWorkflow?.id ?? "new"}
+      onClose={onClose}
+      onCreated={onCreated}
+      editWorkflow={editWorkflow}
+      onUpdated={onUpdated}
+    />
+  );
+}
+
+function initialPractice(editWorkflow?: LukeWorkflow): {
+  practice: string;
+  customPractice: string;
+} {
+  const saved = editWorkflow?.practice ?? "";
+  const isKnown = (PRACTICE_OPTIONS as readonly string[]).includes(saved);
+  if (!isKnown && saved) return { practice: "Others", customPractice: saved };
+  return { practice: saved, customPractice: "" };
+}
+
+function NewWorkflowModalContent({
+  onClose,
+  onCreated,
+  editWorkflow,
+  onUpdated,
+}: Omit<Props, "open">) {
+  const [title, setTitle] = useState(editWorkflow?.title ?? "");
+  const [type, setType] = useState<"assistant" | "tabular">(editWorkflow?.type ?? "assistant");
+  const initial = initialPractice(editWorkflow);
+  const [practice, setPractice] = useState<string>(initial.practice);
+  const [customPractice, setCustomPractice] = useState(initial.customPractice);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const customInputRef = useRef<HTMLInputElement>(null);
@@ -30,29 +59,10 @@ export function NewWorkflowModal({ open, onClose, onCreated, editWorkflow, onUpd
   const effectivePractice = isOthers ? customPractice.trim() || null : practice || null;
 
   useEffect(() => {
-    if (open && editWorkflow) {
-      setTitle(editWorkflow.title);
-      setType(editWorkflow.type);
-      const saved = editWorkflow.practice ?? "";
-      const isKnown = (PRACTICE_OPTIONS as readonly string[]).includes(saved);
-      if (!isKnown && saved) {
-        setPractice("Others");
-        setCustomPractice(saved);
-      } else {
-        setPractice(saved);
-        setCustomPractice("");
-      }
-      setError("");
-    }
-  }, [open, editWorkflow?.id]);
-
-  useEffect(() => {
     if (isOthers) {
       customInputRef.current?.focus();
     }
   }, [isOthers]);
-
-  if (!open) return null;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

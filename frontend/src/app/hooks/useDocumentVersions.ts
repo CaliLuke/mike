@@ -36,13 +36,9 @@ export function useDocumentVersions(
 
   useEffect(() => {
     if (!documentId) {
-      setVersions([]);
-      setCurrentVersionId(null);
       return;
     }
     let cancelled = false;
-    setLoading(true);
-    setError(null);
 
     (async () => {
       try {
@@ -68,8 +64,8 @@ export function useDocumentVersions(
   }, [documentId, refreshKey, tick]);
 
   return {
-    versions,
-    currentVersionId,
+    versions: documentId ? versions : [],
+    currentVersionId: documentId ? currentVersionId : null,
     loading,
     error,
     refresh: () => setTick((t) => t + 1),

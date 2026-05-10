@@ -21,16 +21,16 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserProfile } from "@/contexts/UserProfileContext";
 
-import { AddDocumentsModal } from "../shared/AddDocumentsModal";
 import { AddApplicationDocsModal } from "../shared/AddApplicationDocsModal";
+import { AddDocumentsModal } from "../shared/AddDocumentsModal";
 import { ApiKeyMissingModal } from "../shared/ApiKeyMissingModal";
 import { HeaderSearchBtn } from "../shared/HeaderSearchBtn";
 import { OwnerOnlyModal } from "../shared/OwnerOnlyModal";
 import { RenameableTitle } from "../shared/RenameableTitle";
 import type {
   ColumnConfig,
-  LukeDocument,
   LukeApplication,
+  LukeDocument,
   TabularCell,
   TabularReview,
 } from "../shared/types";
@@ -60,7 +60,7 @@ export function TRView({ reviewId, applicationId }: Props) {
   const [addColOpen, setAddColOpen] = useState(false);
   const [addDocsOpen, setAddDocsOpen] = useState(false);
   const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const [expandedCell, setExpandedCell] = useState<TabularCell | null>(null);
   const [expandedCellCitation, setExpandedCellCitation] = useState<
     { quote: string; page: number } | undefined
@@ -69,12 +69,10 @@ export function TRView({ reviewId, applicationId }: Props) {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const searchParams = useSearchParams();
-  const initialChatParamRef = useRef<string | null>(searchParams.get("chat"));
-  const [chatOpen, setChatOpen] = useState(!!initialChatParamRef.current);
+  const initialChatParam = searchParams.get("chat");
+  const [chatOpen, setChatOpen] = useState(!!initialChatParam);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(
-    initialChatParamRef.current && initialChatParamRef.current !== "new"
-      ? initialChatParamRef.current
-      : null,
+    initialChatParam && initialChatParam !== "new" ? initialChatParam : null,
   );
   const [highlightedCell, setHighlightedCell] = useState<{ colIdx: number; rowIdx: number } | null>(
     null,

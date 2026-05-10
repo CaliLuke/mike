@@ -49,10 +49,7 @@ export function AddApplicationDocsModal({
 
   useEffect(() => {
     if (!open) return;
-    setSearch("");
-    setSelectedIds(new Set());
     let cancelled = false;
-    setLoading(true);
     getApplication(applicationId)
       .then((p) => {
         if (!cancelled) setDocs(p.documents ?? []);
@@ -70,6 +67,16 @@ export function AddApplicationDocsModal({
 
   if (!open) return null;
 
+  function resetLocalState() {
+    setSearch("");
+    setSelectedIds(new Set());
+  }
+
+  function handleClose() {
+    resetLocalState();
+    onClose();
+  }
+
   const q = search.toLowerCase().trim();
   const filtered = q ? docs.filter((d) => d.filename.toLowerCase().includes(q)) : docs;
 
@@ -83,7 +90,8 @@ export function AddApplicationDocsModal({
     }
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
@@ -91,7 +99,7 @@ export function AddApplicationDocsModal({
   function handleConfirm() {
     const selected = docs.filter((d) => selectedIds.has(d.id));
     onSelect(selected);
-    onClose();
+    handleClose();
   }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -130,7 +138,7 @@ export function AddApplicationDocsModal({
             ))}
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
           >
             <X className="h-4 w-4" />
@@ -251,7 +259,7 @@ export function AddApplicationDocsModal({
               <span className="text-xs text-gray-400">{selectedIds.size} selected</span>
             )}
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="rounded-lg px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-100"
             >
               Cancel

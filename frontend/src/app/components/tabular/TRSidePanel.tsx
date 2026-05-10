@@ -8,7 +8,7 @@ import remarkGfm from "remark-gfm";
 import { DocView } from "../shared/DocView";
 import { DocxView } from "../shared/DocxView";
 import type { ColumnConfig, LukeDocument, TabularCell } from "../shared/types";
-import { type ParsedCitation,preprocessCitations } from "./citation-utils";
+import { type ParsedCitation, preprocessCitations } from "./citation-utils";
 import { getPillClass } from "./pillUtils";
 
 function isDocxDocument(d: { file_type?: string | null; filename?: string }): boolean {
@@ -73,16 +73,6 @@ export function TRSidePanel({
       : undefined,
   );
 
-  // Re-sync when the panel opens for a different cell or citation
-  useEffect(() => {
-    setDocCitation(
-      displayDocument && citationQuote
-        ? { quote: citationQuote, page: citationPage ?? 1 }
-        : undefined,
-    );
-    setQuoteExpanded(false);
-  }, [cell.id, displayDocument, citationQuote, citationPage]);
-
   useEffect(() => {
     const el = quoteParagraphRef.current;
     if (!el || quoteExpanded) return;
@@ -95,10 +85,6 @@ export function TRSidePanel({
   const { processed: reasoningText, citations: reasoningCitations } = preprocessCitations(
     cell.content?.reasoning ?? "",
   );
-
-  useEffect(() => {
-    console.log("[TRSidePanel] summary:", cell.content?.summary ?? "");
-  }, [cell.id, cell.content?.summary]);
 
   return (
     <div
@@ -342,22 +328,22 @@ function MarkdownContent({
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
-        p: ({ node, ...props }) =>
+        p: ({ node: _node, ...props }) =>
           inline ? (
             <span {...props} />
           ) : (
             <p className="mb-1.5 leading-relaxed last:mb-0" {...props} />
           ),
-        ul: ({ node, ...props }) => (
+        ul: ({ node: _node, ...props }) => (
           <ul className="mb-1.5 list-disc space-y-0.5 pl-4 last:mb-0" {...props} />
         ),
-        ol: ({ node, ...props }) => (
+        ol: ({ node: _node, ...props }) => (
           <ol className="mb-1.5 list-decimal space-y-0.5 pl-4 last:mb-0" {...props} />
         ),
-        li: ({ node, ...props }) => <li {...props} />,
-        strong: ({ node, ...props }) => <strong className="font-semibold" {...props} />,
-        em: ({ node, ...props }) => <em className="italic" {...props} />,
-        a: ({ node, href, children, ...props }) => (
+        li: ({ node: _node, ...props }) => <li {...props} />,
+        strong: ({ node: _node, ...props }) => <strong className="font-semibold" {...props} />,
+        em: ({ node: _node, ...props }) => <em className="italic" {...props} />,
+        a: ({ node: _node, href, children, ...props }) => (
           <a
             href={href}
             target="_blank"
@@ -368,7 +354,7 @@ function MarkdownContent({
             {children}
           </a>
         ),
-        code: ({ node, children: codeChildren, ...props }) => {
+        code: ({ node: _node, children: codeChildren, ...props }) => {
           const t = String(codeChildren);
           const citMatch = t.match(/^§c(\d+)§$/);
           if (citMatch) {

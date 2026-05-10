@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
-import { X, Loader2 } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { createPortal } from "react-dom";
+
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
-import { useDirectoryData } from "../shared/useDirectoryData";
+
 import { ApplicationPicker } from "../shared/ApplicationPicker";
+import { useDirectoryData } from "../shared/useDirectoryData";
 
 interface Props {
   open: boolean;
@@ -20,12 +22,12 @@ export function SelectAssistantApplicationModal({ open, onClose }: Props) {
   const { saveChat } = useChatHistoryContext();
   const { loading, applications } = useDirectoryData(open);
 
-  useEffect(() => {
-    if (!open) return;
-    setSelectedId(null);
-  }, [open]);
-
   if (!open) return null;
+
+  function handleClose() {
+    setSelectedId(null);
+    onClose();
+  }
 
   async function handleContinue() {
     if (!selectedId) return;
@@ -33,7 +35,7 @@ export function SelectAssistantApplicationModal({ open, onClose }: Props) {
     try {
       const chatId = await saveChat(selectedId);
       if (!chatId) return;
-      onClose();
+      handleClose();
       router.push(`/applications/${selectedId}/assistant/chat/${chatId}`);
     } finally {
       setCreating(false);
@@ -51,7 +53,7 @@ export function SelectAssistantApplicationModal({ open, onClose }: Props) {
             <span>Start Chat in a Application</span>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
           >
             <X className="h-4 w-4" />
@@ -68,7 +70,7 @@ export function SelectAssistantApplicationModal({ open, onClose }: Props) {
         {/* Footer */}
         <div className="flex items-center justify-end gap-2 border-t border-gray-100 px-4 py-3">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="rounded-lg px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-100"
           >
             Cancel

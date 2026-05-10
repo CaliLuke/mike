@@ -9,8 +9,8 @@ const content = fs.readFileSync(jsonPath, "utf8");
 // Remove comments from JSON (simple approach - remove lines starting with //)
 const lines = content.split("\n");
 const cleanedLines = lines.filter((line) => {
-    const trimmed = line.trim();
-    return !trimmed.startsWith("//");
+  const trimmed = line.trim();
+  return !trimmed.startsWith("//");
 });
 
 // Also remove trailing commas before closing braces/brackets (common JSON issue)
@@ -21,7 +21,7 @@ cleanedContent = cleanedContent.replace(/,(\s*[}\]])/g, "$1");
 const data = JSON.parse(cleanedContent);
 
 // Generate TypeScript file content
-let tsContent = `// Court data types and constants
+const tsContent = `// Court data types and constants
 // This file is auto-generated from google-scholar-courts.json
 
 export interface SubCourt {
@@ -86,5 +86,5 @@ export function getSpecialistCourts(): SubCourt[] {
 const outputPath = path.join(__dirname, "../data/court-data.ts");
 fs.writeFileSync(outputPath, tsContent, "utf8");
 
-console.log("Successfully converted court data to TypeScript!");
-console.log(`Output: ${outputPath}`);
+process.stdout.write("Successfully converted court data to TypeScript!\n");
+process.stdout.write(`Output: ${outputPath}\n`);

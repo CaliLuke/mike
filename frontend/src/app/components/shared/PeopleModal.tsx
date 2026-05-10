@@ -71,16 +71,15 @@ export function PeopleModal({
 
   const resourceId = resource?.id ?? null;
   const sharedWith: string[] = Array.isArray(resource?.shared_with)
-    ? (resource!.shared_with as string[])
+    ? (resource.shared_with as string[])
     : [];
 
-  useEffect(() => {
-    if (!open) return;
+  function resetLocalState() {
     setNewEmail("");
     setError(null);
     setBusy(null);
     setRemovingEmail(null);
-  }, [open]);
+  }
 
   // Re-fetch roster whenever the modal opens or membership changes —
   // keyed by the joined shared_with list so add/remove triggers a refresh.
@@ -92,7 +91,6 @@ export function PeopleModal({
   useEffect(() => {
     if (!open || !resourceId) return;
     let cancelled = false;
-    setPeopleLoading(true);
     fetchPeople(resourceId)
       .then((data) => {
         if (cancelled) return;
@@ -110,6 +108,11 @@ export function PeopleModal({
   }, [open, resourceId, sharedKey, fetchPeople]);
 
   if (!open || !resource) return null;
+
+  function handleClose() {
+    resetLocalState();
+    onClose();
+  }
 
   const memberDisplayByEmail = new Map<string, string | null>();
   for (const m of people?.members ?? []) {
@@ -188,7 +191,7 @@ export function PeopleModal({
             ))}
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
           >
             <X className="h-4 w-4" />

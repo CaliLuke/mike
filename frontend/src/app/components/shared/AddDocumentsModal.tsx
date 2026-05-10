@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, Search, Upload, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { DOCUMENT_UPLOAD_ACCEPT } from "@/app/lib/documentTypes";
@@ -49,15 +49,19 @@ export function AddDocumentsModal({
   const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
+  function resetLocalState() {
     setSearch("");
     setSelectedIds(new Set());
     setExtraUploadedDocs([]);
     setDeletedIds(new Set());
-  }, [open]);
+  }
 
   if (!open) return null;
+
+  function handleClose() {
+    resetLocalState();
+    onClose();
+  }
 
   const q = search.toLowerCase().trim();
 
@@ -103,14 +107,18 @@ export function AddDocumentsModal({
       } else {
         onSelect(alreadyHere, applicationId);
       }
-      onClose();
+      handleClose();
       return;
     }
 
-    const applicationIds = new Set(selected.map((d) => d.application_id).filter(Boolean));
-    const singleApplicationId = applicationIds.size === 1 ? [...applicationIds][0]! : undefined;
+    const applicationIds = new Set(
+      selected
+        .map((d) => d.application_id)
+        .filter((id): id is string => typeof id === "string" && id.length > 0),
+    );
+    const [singleApplicationId] = applicationIds;
     onSelect(selected, singleApplicationId);
-    onClose();
+    handleClose();
   }
 
   async function handleDelete(ids: string[]) {
@@ -191,7 +199,7 @@ export function AddDocumentsModal({
             ))}
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
           >
             <X className="h-4 w-4" />
@@ -262,7 +270,7 @@ export function AddDocumentsModal({
               <span className="text-xs text-gray-400">{selectedIds.size} selected</span>
             )}
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="rounded-lg px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-100"
             >
               Cancel

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, type ReactNode,useContext, useEffect, useState } from "react";
+import React, { createContext, type ReactNode, useContext, useEffect, useState } from "react";
 
 import { apiRequest } from "@/app/lib/lukeApi";
 
@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     apiRequest("/user/profile")
       .catch((e) => {
-        console.log(e);
+        console.warn("[AuthContext] profile fetch failed; using local user", e);
       })
       .finally(() => {
         if (cancelled) return;

@@ -1,6 +1,7 @@
 "use client";
 
 import { use } from "react";
+
 import { ApplicationPage } from "@/app/components/applications/ApplicationPage";
 
 interface Props {

@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowDown } from "lucide-react";
-import { useCallback, useEffect,useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useSidebar } from "@/app/contexts/SidebarContext";
 import { invalidateDocxBytes } from "@/app/hooks/useFetchDocxBytes";
@@ -264,10 +264,11 @@ export function ChatView({ messages, isResponseLoading, handleChat, cancel }: Pr
         return next;
       });
       if (args.editId) {
+        const editId = args.editId;
         setReloadingEditIds((prev) => {
-          if (!prev.has(args.editId!)) return prev;
+          if (!prev.has(editId)) return prev;
           const next = new Set(prev);
-          next.delete(args.editId!);
+          next.delete(editId);
           return next;
         });
       }
@@ -387,7 +388,7 @@ export function ChatView({ messages, isResponseLoading, handleChat, cancel }: Pr
         queueMicrotask(() => setMessagesVisible(true));
       }
     }
-  }, [messages]);  
+  }, [messages]);
 
   useEffect(() => {
     if (panelMounted && window.innerWidth < 768) {

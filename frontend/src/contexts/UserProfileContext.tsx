@@ -106,14 +106,33 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated && user) {
-      setLoading(true);
-      loadProfile();
-    } else {
-      setProfile(null);
-      setLoading(false);
-    }
-  }, [isAuthenticated, user, loadProfile]);
+    if (!isAuthenticated || !user) return;
+    let cancelled = false;
+    apiRequest<BackendProfile>("/user/profile")
+      .then((data) => {
+        if (!cancelled) setProfile(mapProfile(data));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setProfile({
+          displayName: "Local User",
+          organisation: null,
+          messageCreditsUsed: 0,
+          creditsResetDate: DEFAULT_RESET_DATE,
+          creditsRemaining: MONTHLY_CREDIT_LIMIT,
+          tier: "Local",
+          tabularModel: "gemma4",
+          claudeApiKey: null,
+          geminiApiKey: null,
+        });
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, user]);
 
   const updateDisplayName = useCallback(async (displayName: string): Promise<boolean> => {
     try {

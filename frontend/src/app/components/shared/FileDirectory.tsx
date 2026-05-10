@@ -3,7 +3,7 @@
 import { Check, ChevronDown, ChevronRight, File, FileText, Folder, Trash2 } from "lucide-react";
 import { useState } from "react";
 
-import type { LukeDocument, LukeApplication } from "./types";
+import type { LukeApplication, LukeDocument } from "./types";
 import { VersionChip } from "./VersionChip";
 
 function formatDate(iso: string | null) {
@@ -75,7 +75,8 @@ export function FileDirectory({
       return;
     }
     const next = new Set(selectedIds);
-    next.has(docId) ? next.delete(docId) : next.add(docId);
+    if (next.has(docId)) next.delete(docId);
+    else next.add(docId);
     onChange(next);
   }
 
@@ -95,7 +96,8 @@ export function FileDirectory({
     if (forceExpanded) return;
     setExpandedApplications((prev) => {
       const next = new Set(prev);
-      next.has(applicationId) ? next.delete(applicationId) : next.add(applicationId);
+      if (next.has(applicationId)) next.delete(applicationId);
+      else next.add(applicationId);
       return next;
     });
   }

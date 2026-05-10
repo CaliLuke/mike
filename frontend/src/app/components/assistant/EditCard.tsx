@@ -19,13 +19,6 @@ function findMatch(
     // Values are numeric strings from our own backend — CSS.escape
     // makes them hex-encoded which works but is harder to debug.
     const byId = container.querySelector(`${tag}[data-w-id="${opts.w_id}"]`) as HTMLElement | null;
-    console.log("[EditCard] findMatch by w_id", {
-      tag,
-      w_id: opts.w_id,
-      found: !!byId,
-      totalTagged: container.querySelectorAll(`${tag}[data-w-id]`).length,
-      totalAny: container.querySelectorAll(tag).length,
-    });
     if (byId) return byId;
   }
   const text = opts.text ?? "";
@@ -36,12 +29,6 @@ function findMatch(
     candidates.find((el) => normalizeText(el.textContent ?? "") === target) ??
     candidates.find((el) => normalizeText(el.textContent ?? "").includes(target)) ??
     null;
-  console.log("[EditCard] findMatch by text", {
-    tag,
-    target,
-    found: !!byText,
-    candidateCount: candidates.length,
-  });
   return byText;
 }
 
@@ -108,13 +95,6 @@ export function applyOptimisticResolution(
   const scrolls = document.querySelectorAll(
     `[data-document-id="${CSS.escape(annotation.document_id)}"]`,
   );
-  console.log("[EditCard] optimistic scrolls found:", scrolls.length, {
-    document_id: annotation.document_id,
-    ins_w_id: annotation.ins_w_id,
-    del_w_id: annotation.del_w_id,
-    inserted_text: annotation.inserted_text?.slice(0, 40),
-    deleted_text: annotation.deleted_text?.slice(0, 40),
-  });
   scrolls.forEach((scroll) => {
     const container = scroll.querySelector(".docx-view-container");
     if (!container) return;

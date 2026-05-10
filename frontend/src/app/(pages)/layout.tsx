@@ -1,7 +1,7 @@
 "use client";
 
 import { Menu } from "lucide-react";
-import { useEffect,useState } from "react";
+import { useEffect, useState } from "react";
 
 import { AppSidebar } from "@/app/components/shared/AppSidebar";
 import { ChatHistoryProvider } from "@/app/contexts/ChatHistoryContext";
@@ -28,7 +28,7 @@ export default function LukeLayout({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     if (typeof window !== "undefined" && window.innerWidth >= 768) {
-      localStorage.setItem("sidebarOpen", isSidebarOpen.toString());
+      localStorage.setItem("sidebarOpen", isSidebarOpenDesktop.toString());
     }
   }, [isSidebarOpenDesktop]);
 
