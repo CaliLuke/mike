@@ -16,11 +16,21 @@ import (
 var (
 	// Specs is the static list of tool specs exported by this agent.
 
-	Specs = []tools.ToolSpec{career_context.SpecEditDocument, career_context.SpecFetchDocuments, career_context.SpecFindInDocument, career_context.SpecGenerateDocx, career_context.SpecListDocuments, career_context.SpecListWorkflows, career_context.SpecReadDocument, career_context.SpecReadTableCells, career_context.SpecReadWorkflow, career_context.SpecReplicateDocument}
+	Specs = []tools.ToolSpec{career_context.SpecCreateApplication, career_context.SpecCreateCompany, career_context.SpecEditDocument, career_context.SpecFetchDocuments, career_context.SpecFetchWebPage, career_context.SpecFindInDocument, career_context.SpecGenerateDocx, career_context.SpecListDocuments, career_context.SpecListWorkflows, career_context.SpecReadDocument, career_context.SpecReadTableCells, career_context.SpecReadWorkflow, career_context.SpecReplicateDocument}
 
 	// metadata is the static list of policy metadata exported by this agent.
 
 	metadata = []policy.ToolMetadata{{
+		Description: "Create a tracked job application attached to a company",
+		ID:          tools.Ident("career_context.create_application"),
+		Tags:        []string{},
+		Title:       "Create Application",
+	}, {
+		Description: "Create a company for attaching applications",
+		ID:          tools.Ident("career_context.create_company"),
+		Tags:        []string{},
+		Title:       "Create Company",
+	}, {
 		Description: "Apply text replacements to an editable DOCX document as a new version",
 		ID:          tools.Ident("career_context.edit_document"),
 		Tags:        []string{},
@@ -30,6 +40,11 @@ var (
 		ID:          tools.Ident("career_context.fetch_documents"),
 		Tags:        []string{},
 		Title:       "Fetch Documents",
+	}, {
+		Description: "Download a public web page and return simplified readable text",
+		ID:          tools.Ident("career_context.fetch_web_page"),
+		Tags:        []string{},
+		Title:       "Fetch Web Page",
 	}, {
 		Description: "Find exact text matches in one local document",
 		ID:          tools.Ident("career_context.find_in_document"),
@@ -74,7 +89,7 @@ var (
 
 	// names is the static list of exported tool identifiers.
 
-	names = []tools.Ident{career_context.EditDocument, career_context.FetchDocuments, career_context.FindInDocument, career_context.GenerateDocx, career_context.ListDocuments, career_context.ListWorkflows, career_context.ReadDocument, career_context.ReadTableCells, career_context.ReadWorkflow, career_context.ReplicateDocument}
+	names = []tools.Ident{career_context.CreateApplication, career_context.CreateCompany, career_context.EditDocument, career_context.FetchDocuments, career_context.FetchWebPage, career_context.FindInDocument, career_context.GenerateDocx, career_context.ListDocuments, career_context.ListWorkflows, career_context.ReadDocument, career_context.ReadTableCells, career_context.ReadWorkflow, career_context.ReplicateDocument}
 )
 
 // Names returns the tool identifiers exported by this agent.
@@ -85,10 +100,16 @@ func Names() []tools.Ident {
 // Spec returns the specification for the named tool if present.
 func Spec(name tools.Ident) (*tools.ToolSpec, bool) {
 	switch name {
+	case tools.Ident("career_context.create_application"):
+		return &career_context.SpecCreateApplication, true
+	case tools.Ident("career_context.create_company"):
+		return &career_context.SpecCreateCompany, true
 	case tools.Ident("career_context.edit_document"):
 		return &career_context.SpecEditDocument, true
 	case tools.Ident("career_context.fetch_documents"):
 		return &career_context.SpecFetchDocuments, true
+	case tools.Ident("career_context.fetch_web_page"):
+		return &career_context.SpecFetchWebPage, true
 	case tools.Ident("career_context.find_in_document"):
 		return &career_context.SpecFindInDocument, true
 	case tools.Ident("career_context.generate_docx"):

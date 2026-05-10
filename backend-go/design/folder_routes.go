@@ -5,55 +5,55 @@ import . "github.com/CaliLuke/loom/dsl"
 var _ = Service("folders", func() {
 	Method("create", func() {
 		Payload(func() {
-			Attribute("projectId", String)
+			Attribute("applicationId", String)
 			Attribute("name", String)
 			Attribute("parent_folder_id", String)
-			Required("projectId", "name")
+			Required("applicationId", "name")
 		})
 		Result(Folder)
 		HTTP(func() {
-			POST("/projects/{projectId}/folders")
+			POST("/applications/{applicationId}/folders")
 			Response(StatusCreated)
 		})
 	})
 
 	Method("update", func() {
 		Payload(func() {
-			Attribute("projectId", String)
+			Attribute("applicationId", String)
 			Attribute("folderId", String)
 			Attribute("name", String)
 			Attribute("parent_folder_id", String)
-			Required("projectId", "folderId")
+			Required("applicationId", "folderId")
 		})
 		Result(Folder)
 		HTTP(func() {
-			PATCH("/projects/{projectId}/folders/{folderId}")
+			PATCH("/applications/{applicationId}/folders/{folderId}")
 			Response(StatusOK)
 		})
 	})
 
 	Method("delete", func() {
 		Payload(func() {
-			Attribute("projectId", String)
+			Attribute("applicationId", String)
 			Attribute("folderId", String)
-			Required("projectId", "folderId")
+			Required("applicationId", "folderId")
 		})
 		HTTP(func() {
-			DELETE("/projects/{projectId}/folders/{folderId}")
+			DELETE("/applications/{applicationId}/folders/{folderId}")
 			Response(StatusNoContent)
 		})
 	})
 
 	Method("move_document", func() {
 		Payload(func() {
-			Attribute("projectId", String)
+			Attribute("applicationId", String)
 			Attribute("documentId", String)
 			Attribute("folder_id", String)
-			Required("projectId", "documentId")
+			Required("applicationId", "documentId")
 		})
 		Result(Document)
 		HTTP(func() {
-			PATCH("/projects/{projectId}/documents/{documentId}/folder")
+			PATCH("/applications/{applicationId}/documents/{documentId}/folder")
 			Response(StatusOK)
 		})
 	})

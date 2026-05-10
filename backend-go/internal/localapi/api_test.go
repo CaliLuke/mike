@@ -9,9 +9,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/CaliLuke/loom-mcp/runtime/agent/model"
+	"github.com/CaliLuke/loom-mcp/runtime/agent/planner"
+
+	careercontext "github.com/CaliLuke/luke/backend-go/gen/chat/toolsets/career_context"
 	"github.com/CaliLuke/luke/backend-go/internal/localdata"
 )
 
@@ -72,21 +77,23 @@ func TestLocalAPIFrontendCompatibilityAliases(t *testing.T) {
 	handler, closeApp := newTestHandler(t)
 	defer closeApp()
 
-	project := postJSONForTest(t, handler, "/projects", map[string]any{"name": "Smoke Project"}, http.StatusCreated)
-	projectID := trimRecord(asString(project["id"]))
+	company := postJSONForTest(t, handler, "/companies", map[string]any{"name": "Smoke Company"}, http.StatusCreated)
+	companyID := trimRecord(asString(company["id"]))
+	application := postJSONForTest(t, handler, "/applications", map[string]any{"name": "Smoke Application", "company_id": companyID}, http.StatusCreated)
+	applicationID := trimRecord(asString(application["id"]))
 
-	uploaded := uploadTestDocumentToPath(t, handler, "/projects/"+projectID+"/documents")
+	uploaded := uploadTestDocumentToPath(t, handler, "/applications/"+applicationID+"/documents")
 	documentID := trimRecord(asString(uploaded["id"]))
-	documents := getJSONArrayForTest(t, handler, "/projects/"+projectID+"/documents", http.StatusOK)
+	documents := getJSONArrayForTest(t, handler, "/applications/"+applicationID+"/documents", http.StatusOK)
 	if len(documents) != 1 || trimRecord(asString(documents[0]["id"])) != documentID {
-		t.Fatalf("project document upload alias did not persist project document: %#v", documents)
+		t.Fatalf("application document upload alias did not persist application document: %#v", documents)
 	}
 
 	standalone := uploadTestDocument(t, handler)
 	standaloneID := trimRecord(asString(standalone["id"]))
-	attached := postJSONForTest(t, handler, "/projects/"+projectID+"/documents/"+standaloneID, nil, http.StatusOK)
-	if trimRecord(asString(attached["project_id"])) != projectID {
-		t.Fatalf("project document attach alias project_id = %q, want %q", asString(attached["project_id"]), projectID)
+	attached := postJSONForTest(t, handler, "/applications/"+applicationID+"/documents/"+standaloneID, nil, http.StatusOK)
+	if trimRecord(asString(attached["application_id"])) != applicationID {
+		t.Fatalf("application document attach alias application_id = %q, want %q", asString(attached["application_id"]), applicationID)
 	}
 
 	createdChat := postJSONForTest(t, handler, "/chat/create", map[string]any{}, http.StatusCreated)
@@ -96,18 +103,18 @@ func TestLocalAPIFrontendCompatibilityAliases(t *testing.T) {
 		t.Fatalf("chat alias detail = %#v, want chat id %q", chatDetail, chatID)
 	}
 
-	projectChat := postJSONForTest(t, handler, "/chat/create", map[string]any{"project_id": projectID}, http.StatusCreated)
-	projectChatID := trimRecord(asString(projectChat["id"]))
-	projectChats := getJSONArrayForTest(t, handler, "/projects/"+projectID+"/chats", http.StatusOK)
-	foundProjectChat := false
-	for _, chat := range projectChats {
-		if trimRecord(asString(chat["id"])) == projectChatID {
-			foundProjectChat = true
+	applicationChat := postJSONForTest(t, handler, "/chat/create", map[string]any{"application_id": applicationID}, http.StatusCreated)
+	applicationChatID := trimRecord(asString(applicationChat["id"]))
+	applicationChats := getJSONArrayForTest(t, handler, "/applications/"+applicationID+"/chats", http.StatusOK)
+	foundApplicationChat := false
+	for _, chat := range applicationChats {
+		if trimRecord(asString(chat["id"])) == applicationChatID {
+			foundApplicationChat = true
 			break
 		}
 	}
-	if !foundProjectChat {
-		t.Fatalf("chat/create project_id alias did not create a project chat: %#v", projectChats)
+	if !foundApplicationChat {
+		t.Fatalf("chat/create application_id alias did not create a application chat: %#v", applicationChats)
 	}
 
 	postJSONForTest(t, handler, "/workflows", map[string]any{"title": "Assistant Flow", "type": "assistant"}, http.StatusCreated)
@@ -128,6 +135,177 @@ func TestLocalAPIFrontendCompatibilityAliases(t *testing.T) {
 	}
 
 	deleteForTest(t, handler, "/user/account", http.StatusOK)
+}
+
+func TestAssistantCompanyAndApplicationToolsPersistRecords(t *testing.T) {
+	app, err := localdata.Open(context.Background(), localdata.Options{
+		DataDir:          t.TempDir(),
+		LocalStorageRoot: t.TempDir(),
+		WorkerID:         "assistant-company-test",
+	})
+	if err != nil {
+		t.Fatalf("open localdata app: %v", err)
+	}
+	defer func() {
+		if closeErr := app.Close(context.Background()); closeErr != nil {
+			t.Fatalf("close localdata app: %v", closeErr)
+		}
+	}()
+
+	payload, err := careercontext.MarshalCreateCompanyPayload(&careercontext.CreateCompanyPayload{
+		Name:    stringPtrAlways("Acme Recruiting"),
+		Website: stringPtrAlways("https://acme.example"),
+	})
+	if err != nil {
+		t.Fatalf("marshal create company payload: %v", err)
+	}
+	var events []map[string]any
+	server := &Server{app: app}
+	send := func(event map[string]any) error {
+		events = append(events, event)
+		return nil
+	}
+	created := executeCreateCompanyToolForTest(t, server, payload, send)
+	assertCompanyToolResultForTest(t, app, created, events)
+
+	applicationPayload, err := careercontext.MarshalCreateApplicationPayload(&careercontext.CreateApplicationPayload{
+		Name:               stringPtrAlways("Senior Product Counsel"),
+		CompanyID:          created.CompanyID,
+		JobDescriptionText: stringPtrAlways("GitHub is hiring a Senior Product Counsel to support product teams."),
+		JobDescriptionURL:  stringPtrAlways("https://example.com/jobs/123"),
+	})
+	if err != nil {
+		t.Fatalf("marshal create application payload: %v", err)
+	}
+	applicationResult, err := server.executeCreateApplication(context.Background(), &planner.ToolRequest{
+		Name:    careercontext.CreateApplication,
+		Payload: applicationPayload,
+	}, send)
+	if err != nil {
+		t.Fatalf("execute create application: %v", err)
+	}
+	createdApplication, ok := applicationResult.Result.(*careercontext.CreateApplicationResult)
+	if !ok {
+		t.Fatalf("tool result type = %T, want *careercontext.CreateApplicationResult", applicationResult.Result)
+	}
+	assertApplicationToolResultForTest(t, app, createdApplication, created, events)
+}
+
+func TestPlannerForcesWebPageFetchForURL(t *testing.T) {
+	p := newLukeOllamaPlanner("ignored", nil)
+	result, err := p.PlanStart(context.Background(), &planner.PlanInput{
+		Messages: []*model.Message{{
+			Role: model.ConversationRoleUser,
+			Parts: []model.Part{model.TextPart{
+				Text: "create an application for this job https://www.github.careers/careers-home/jobs/5140?lang=en-us",
+			}},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("plan start: %v", err)
+	}
+	if len(result.ToolCalls) != 1 {
+		t.Fatalf("tool call count = %d, want 1", len(result.ToolCalls))
+	}
+	if result.ToolCalls[0].Name != careercontext.FetchWebPage {
+		t.Fatalf("tool call name = %q, want %q", result.ToolCalls[0].Name, careercontext.FetchWebPage)
+	}
+	if !strings.Contains(string(result.ToolCalls[0].Payload), "github.careers") {
+		t.Fatalf("tool call payload missing URL: %s", result.ToolCalls[0].Payload)
+	}
+}
+
+func executeCreateCompanyToolForTest(t *testing.T, server *Server, payload []byte, send func(map[string]any) error) *careercontext.CreateCompanyResult {
+	t.Helper()
+	result, err := server.executeCreateCompany(context.Background(), &planner.ToolRequest{
+		Name:    careercontext.CreateCompany,
+		Payload: payload,
+	}, send)
+	if err != nil {
+		t.Fatalf("execute create company: %v", err)
+	}
+	created, ok := result.Result.(*careercontext.CreateCompanyResult)
+	if !ok {
+		t.Fatalf("tool result type = %T, want *careercontext.CreateCompanyResult", result.Result)
+	}
+	return created
+}
+
+func assertCompanyToolResultForTest(t *testing.T, app *localdata.App, created *careercontext.CreateCompanyResult, events []map[string]any) {
+	t.Helper()
+	if created.OK == nil || !*created.OK {
+		t.Fatalf("create company result missing success: %#v", created)
+	}
+	if created.CompanyID == nil || *created.CompanyID == "" {
+		t.Fatalf("create company result missing success/id: %#v", created)
+	}
+	if len(events) != 1 {
+		t.Fatalf("company_created event count mismatch: %#v", events)
+	}
+	if asString(events[0]["type"]) != "company_created" {
+		t.Fatalf("company_created event not emitted: %#v", events)
+	}
+	rows, err := queryRows(context.Background(), app.DB, "SELECT id, name, website FROM "+recordID("companies", *created.CompanyID)+";")
+	if err != nil {
+		t.Fatalf("query created company: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("created company row count mismatch: %#v", rows)
+	}
+	if asString(rows[0]["name"]) != "Acme Recruiting" {
+		t.Fatalf("created company name mismatch: %#v", rows)
+	}
+	if asString(rows[0]["website"]) != "https://acme.example" {
+		t.Fatalf("created company row mismatch: %#v", rows)
+	}
+}
+
+func assertApplicationToolResultForTest(t *testing.T, app *localdata.App, createdApplication *careercontext.CreateApplicationResult, created *careercontext.CreateCompanyResult, events []map[string]any) {
+	t.Helper()
+	if createdApplication.OK == nil || !*createdApplication.OK {
+		t.Fatalf("create application result missing success: %#v", createdApplication)
+	}
+	if createdApplication.ApplicationID == nil || *createdApplication.ApplicationID == "" {
+		t.Fatalf("create application result missing success/id: %#v", createdApplication)
+	}
+	if len(events) != 2 {
+		t.Fatalf("application_created event count mismatch: %#v", events)
+	}
+	if asString(events[1]["type"]) != "application_created" {
+		t.Fatalf("application_created event not emitted: %#v", events)
+	}
+	applicationRows, err := queryRows(context.Background(), app.DB, "SELECT id, company_id, name FROM "+recordID("applications", *createdApplication.ApplicationID)+";")
+	if err != nil {
+		t.Fatalf("query created application: %v", err)
+	}
+	if len(applicationRows) != 1 {
+		t.Fatalf("created application row count mismatch: %#v", applicationRows)
+	}
+	if asString(applicationRows[0]["name"]) != "Senior Product Counsel" {
+		t.Fatalf("created application name mismatch: %#v", applicationRows)
+	}
+	if trimRecord(asString(applicationRows[0]["company_id"])) != *created.CompanyID {
+		t.Fatalf("created application row mismatch: %#v", applicationRows)
+	}
+	if createdApplication.JobDescriptionDocumentID == nil || *createdApplication.JobDescriptionDocumentID == "" {
+		t.Fatalf("create application result missing job description document id: %#v", createdApplication)
+	}
+	documentRows, err := queryRows(context.Background(), app.DB, "SELECT id, application_id, filename, file_type FROM "+recordID("documents", *createdApplication.JobDescriptionDocumentID)+";")
+	if err != nil {
+		t.Fatalf("query job description document: %v", err)
+	}
+	if len(documentRows) != 1 {
+		t.Fatalf("job description document row count mismatch: %#v", documentRows)
+	}
+	if trimRecord(asString(documentRows[0]["application_id"])) != *createdApplication.ApplicationID {
+		t.Fatalf("job description document application mismatch: %#v", documentRows)
+	}
+	if asString(documentRows[0]["file_type"]) != "md" {
+		t.Fatalf("job description document file_type mismatch: %#v", documentRows)
+	}
+	if filepath.Ext(asString(documentRows[0]["filename"])) != ".md" {
+		t.Fatalf("job description document filename mismatch: %#v", documentRows)
+	}
 }
 
 func TestLocalAPIDisplayAndBuiltInWorkflowSeed(t *testing.T) {

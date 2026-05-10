@@ -23,7 +23,6 @@ type Server struct {
 	Create         http.Handler
 	Prompt         http.Handler
 	Get            http.Handler
-	People         http.Handler
 	Update         http.Handler
 	Delete         http.Handler
 	ClearCells     http.Handler
@@ -53,7 +52,6 @@ func New(e *tabular.Endpoints, mux loomhttp.Muxer, decoder func(*http.Request) l
 			{"Create", "POST", "/tabular-review"},
 			{"Prompt", "POST", "/tabular-review/prompt"},
 			{"Get", "GET", "/tabular-review/{reviewId}"},
-			{"People", "GET", "/tabular-review/{reviewId}/people"},
 			{"Update", "PATCH", "/tabular-review/{reviewId}"},
 			{"Delete", "DELETE", "/tabular-review/{reviewId}"},
 			{"ClearCells", "POST", "/tabular-review/{reviewId}/clear-cells"},
@@ -64,7 +62,6 @@ func New(e *tabular.Endpoints, mux loomhttp.Muxer, decoder func(*http.Request) l
 		Create:         NewCreateHandler(e.Create, mux, decoder, encoder, errhandler, formatter),
 		Prompt:         NewPromptHandler(e.Prompt, mux, decoder, encoder, errhandler, formatter),
 		Get:            NewGetHandler(e.Get, mux, decoder, encoder, errhandler, formatter),
-		People:         NewPeopleHandler(e.People, mux, decoder, encoder, errhandler, formatter),
 		Update:         NewUpdateHandler(e.Update, mux, decoder, encoder, errhandler, formatter),
 		Delete:         NewDeleteHandler(e.Delete, mux, decoder, encoder, errhandler, formatter),
 		ClearCells:     NewClearCellsHandler(e.ClearCells, mux, decoder, encoder, errhandler, formatter),
@@ -80,7 +77,6 @@ func (s *Server) Use(m func(http.Handler) http.Handler) {
 	s.Create = m(s.Create)
 	s.Prompt = m(s.Prompt)
 	s.Get = m(s.Get)
-	s.People = m(s.People)
 	s.Update = m(s.Update)
 	s.Delete = m(s.Delete)
 	s.ClearCells = m(s.ClearCells)
@@ -95,7 +91,6 @@ func Mount(mux loomhttp.Muxer, h *Server) {
 	MountCreateHandler(mux, h.Create)
 	MountPromptHandler(mux, h.Prompt)
 	MountGetHandler(mux, h.Get)
-	MountPeopleHandler(mux, h.People)
 	MountUpdateHandler(mux, h.Update)
 	MountDeleteHandler(mux, h.Delete)
 	MountClearCellsHandler(mux, h.ClearCells)
@@ -287,57 +282,6 @@ func NewGetHandler(
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, loom.MethodKey, "get")
-		ctx = context.WithValue(ctx, loom.ServiceKey, "tabular")
-		payload, err := decodeRequest(r)
-		if err != nil {
-			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
-				errhandler(ctx, w, err)
-			}
-			return
-		}
-		res, err := endpoint(ctx, payload)
-		if err != nil {
-			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
-				errhandler(ctx, w, err)
-			}
-			return
-		}
-		if err := encodeResponse(ctx, w, res); err != nil {
-			if errhandler != nil {
-				errhandler(ctx, w, err)
-			}
-		}
-	})
-}
-
-// MountPeopleHandler configures the mux to serve the "tabular" service
-// "people" endpoint.
-func MountPeopleHandler(mux loomhttp.Muxer, h http.Handler) {
-	f, ok := h.(http.HandlerFunc)
-	if !ok {
-		f = func(w http.ResponseWriter, r *http.Request) {
-			h.ServeHTTP(w, r)
-		}
-	}
-	mux.Handle("GET", "/tabular-review/{reviewId}/people", f)
-} // NewPeopleHandler creates a HTTP handler which loads the HTTP request and
-// calls the "tabular" service "people" endpoint.
-func NewPeopleHandler(
-	endpoint loom.Endpoint,
-	mux loomhttp.Muxer,
-	decoder func(*http.Request) loomhttp.Decoder,
-	encoder func(context.Context, http.ResponseWriter) loomhttp.Encoder,
-	errhandler func(context.Context, http.ResponseWriter, error),
-	formatter func(ctx context.Context, err error) loomhttp.Statuser,
-) http.Handler {
-	var (
-		decodeRequest  = DecodePeopleRequest(mux, decoder)
-		encodeResponse = EncodePeopleResponse(encoder)
-		encodeError    = loomhttp.ErrorEncoder(encoder, formatter)
-	)
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
-		ctx = context.WithValue(ctx, loom.MethodKey, "people")
 		ctx = context.WithValue(ctx, loom.ServiceKey, "tabular")
 		payload, err := decodeRequest(r)
 		if err != nil {

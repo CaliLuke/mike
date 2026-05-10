@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRight, Check, File, FileText, FolderOpen, Library, Square, X } from "lucide-react";
-import { forwardRef, useCallback, useImperativeHandle,useRef, useState } from "react";
+import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
 
 import { useSelectedModel } from "@/app/hooks/useSelectedModel";
 import {
@@ -28,9 +28,9 @@ interface Props {
   isLoading: boolean;
   hideAddDocButton?: boolean;
   hideWorkflowButton?: boolean;
-  onProjectsClick?: () => void;
-  projectName?: string;
-  projectCmNumber?: string | null;
+  onApplicationsClick?: () => void;
+  applicationName?: string;
+  applicationCmNumber?: string | null;
 }
 
 export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
@@ -40,9 +40,9 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     isLoading,
     hideAddDocButton,
     hideWorkflowButton,
-    onProjectsClick,
-    projectName,
-    projectCmNumber,
+    onApplicationsClick,
+    applicationName,
+    applicationCmNumber,
   }: Props,
   ref,
 ) {
@@ -72,7 +72,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     },
   }));
 
-  const handleAddDocFromProject = useCallback((doc: LukeDocument) => {
+  const handleAddDocFromApplication = useCallback((doc: LukeDocument) => {
     setAttachedDocs((prev) => {
       if (prev.some((d) => d.id === doc.id)) return prev;
       return [...prev, doc];
@@ -202,20 +202,20 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
             <div className="flex items-center gap-1">
               {!hideAddDocButton && (
                 <AddDocButton
-                  onSelectDoc={handleAddDocFromProject}
+                  onSelectDoc={handleAddDocFromApplication}
                   onBrowseAll={() => setDocSelectorOpen(true)}
                   selectedDocIds={attachedDocs.map((d) => d.id)}
                 />
               )}
-              {onProjectsClick && (
+              {onApplicationsClick && (
                 <button
                   type="button"
-                  onClick={onProjectsClick}
-                  aria-label="Open projects"
+                  onClick={onApplicationsClick}
+                  aria-label="Open applications"
                   className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
                 >
                   <FolderOpen className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Projects</span>
+                  <span className="hidden sm:inline">Applications</span>
                 </button>
               )}
               {!hideWorkflowButton && (
@@ -267,8 +267,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
           setSelectedWorkflow({ id: wf.id, title: wf.title });
           setWorkflowModalOpen(false);
         }}
-        projectName={projectName}
-        projectCmNumber={projectCmNumber}
+        applicationName={applicationName}
+        applicationCmNumber={applicationCmNumber}
       />
       <ApiKeyMissingModal
         open={apiKeyModalProvider !== null}

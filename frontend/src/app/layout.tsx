@@ -1,7 +1,7 @@
 import "./globals.css";
 
 import type { Metadata } from "next";
-import { EB_Garamond,Inter } from "next/font/google";
+import { EB_Garamond, Inter } from "next/font/google";
 
 import { TelemetryBootstrap } from "@/app/components/TelemetryBootstrap";
 import { Providers } from "@/components/providers";
@@ -18,8 +18,8 @@ const ebGaramond = EB_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: "Luke - AI Legal Platform",
-  description: "AI-powered legal document analysis and contract review platform.",
+  title: "Luke - AI Job Search Assistant",
+  description: "AI-powered job search and application assistance platform.",
   icons: {
     icon: [{ url: "/icon.svg", type: "image/svg+xml" }, { url: "/favicon.ico" }],
     apple: "/apple-touch-icon.png",

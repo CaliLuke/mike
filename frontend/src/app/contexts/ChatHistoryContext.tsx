@@ -19,7 +19,7 @@ interface ChatHistoryContextType {
   currentChatId: string | null;
   setCurrentChatId: (chatId: string | null) => void;
   loadChats: () => Promise<void>;
-  saveChat: (projectId?: string) => Promise<string | null>;
+  saveChat: (applicationId?: string) => Promise<string | null>;
   renameChat: (chatId: string, title: string) => Promise<void>;
   newChatMessages: LukeMessage[] | null;
   setNewChatMessages: (messages: LukeMessage[] | null) => void;
@@ -87,13 +87,15 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const saveChat = useCallback(
-    async (projectId?: string): Promise<string | null> => {
+    async (applicationId?: string): Promise<string | null> => {
       try {
-        const { id } = await createChat(projectId ? { project_id: projectId } : undefined);
+        const { id } = await createChat(
+          applicationId ? { application_id: applicationId } : undefined,
+        );
         const now = new Date().toISOString();
         const newChat: LukeChat = {
           id,
-          project_id: projectId ?? null,
+          application_id: applicationId ?? null,
           user_id: user?.id ?? "",
           title: null,
           created_at: now,

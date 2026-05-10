@@ -38,6 +38,6 @@ Environment:
   middleware. The Go backend's local auth path does not require a hosted
   Supabase token.
 - `FIXTURE_DIR`: defaults to this directory's `fixtures` folder.
-- `FIXTURE_projectId`, `FIXTURE_reviewId`, `FIXTURE_documentId`, and
-  `FIXTURE_versionId`: required when replaying parameterized project, tabular,
-  and binary-download fixtures.
+- `FIXTURE_applicationId`, `FIXTURE_reviewId`, `FIXTURE_documentId`, and
+  `FIXTURE_versionId`: required when replaying parameterized application,
+  tabular, and binary-download fixtures.

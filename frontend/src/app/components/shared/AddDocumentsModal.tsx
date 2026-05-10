@@ -1,14 +1,14 @@
 "use client";
 
-import { Loader2,Search, Upload, X } from "lucide-react";
+import { Loader2, Search, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { DOCUMENT_UPLOAD_ACCEPT } from "@/app/lib/documentTypes";
 import {
-  addDocumentToProject,
+  addDocumentToApplication,
   deleteDocument,
-  uploadProjectDocument,
+  uploadApplicationDocument,
   uploadStandaloneDocument,
 } from "@/app/lib/lukeApi";
 import { useAuth } from "@/contexts/AuthContext";
@@ -16,17 +16,17 @@ import { useAuth } from "@/contexts/AuthContext";
 import { FileDirectory } from "./FileDirectory";
 import { OwnerOnlyModal } from "./OwnerOnlyModal";
 import type { LukeDocument } from "./types";
-import { invalidateDirectoryCache,useDirectoryData } from "./useDirectoryData";
+import { invalidateDirectoryCache, useDirectoryData } from "./useDirectoryData";
 
 export { invalidateDirectoryCache };
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  onSelect: (documents: LukeDocument[], projectId?: string) => void;
+  onSelect: (documents: LukeDocument[], applicationId?: string) => void;
   breadcrumb: string[];
   allowMultiple?: boolean;
-  projectId?: string;
+  applicationId?: string;
 }
 
 export function AddDocumentsModal({
@@ -35,9 +35,9 @@ export function AddDocumentsModal({
   onSelect,
   breadcrumb,
   allowMultiple = true,
-  projectId,
+  applicationId,
 }: Props) {
-  const { loading, standaloneDocuments, projects } = useDirectoryData(open);
+  const { loading, standaloneDocuments, applications } = useDirectoryData(open);
   const { user } = useAuth();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [uploading, setUploading] = useState(false);
@@ -70,8 +70,8 @@ export function AddDocumentsModal({
     ? allStandalone.filter((d) => d.filename.toLowerCase().includes(q))
     : allStandalone;
 
-  const filteredProjects = projects
-    .filter((p) => p.id !== projectId)
+  const filteredApplications = applications
+    .filter((p) => p.id !== applicationId)
     .map((p) => ({
       ...p,
       documents: (p.documents || []).filter(
@@ -80,36 +80,36 @@ export function AddDocumentsModal({
     }))
     .filter((p) => !q || p.name.toLowerCase().includes(q) || p.documents.length > 0);
 
-  const allDocs = [...allStandalone, ...projects.flatMap((p) => p.documents || [])];
+  const allDocs = [...allStandalone, ...applications.flatMap((p) => p.documents || [])];
 
   async function handleConfirm() {
     const selected = allDocs.filter((d) => selectedIds.has(d.id));
 
-    if (projectId) {
-      const toAssign = selected.filter((d) => d.project_id !== projectId);
-      const alreadyHere = selected.filter((d) => d.project_id === projectId);
+    if (applicationId) {
+      const toAssign = selected.filter((d) => d.application_id !== applicationId);
+      const alreadyHere = selected.filter((d) => d.application_id === applicationId);
       if (toAssign.length > 0) {
         setUploading(true);
         try {
           const assigned = await Promise.all(
-            toAssign.map((d) => addDocumentToProject(projectId, d.id)),
+            toAssign.map((d) => addDocumentToApplication(applicationId, d.id)),
           );
-          onSelect([...alreadyHere, ...assigned], projectId);
+          onSelect([...alreadyHere, ...assigned], applicationId);
         } catch (err) {
           console.error("Failed to assign documents:", err);
         } finally {
           setUploading(false);
         }
       } else {
-        onSelect(alreadyHere, projectId);
+        onSelect(alreadyHere, applicationId);
       }
       onClose();
       return;
     }
 
-    const projectIds = new Set(selected.map((d) => d.project_id).filter(Boolean));
-    const singleProjectId = projectIds.size === 1 ? [...projectIds][0]! : undefined;
-    onSelect(selected, singleProjectId);
+    const applicationIds = new Set(selected.map((d) => d.application_id).filter(Boolean));
+    const singleApplicationId = applicationIds.size === 1 ? [...applicationIds][0]! : undefined;
+    onSelect(selected, singleApplicationId);
     onClose();
   }
 
@@ -120,7 +120,7 @@ export function AddDocumentsModal({
     for (const d of [
       ...standaloneDocuments,
       ...extraUploadedDocs,
-      ...projects.flatMap((p) => p.documents ?? []),
+      ...applications.flatMap((p) => p.documents ?? []),
     ]) {
       docsById.set(d.id, d);
     }
@@ -163,7 +163,7 @@ export function AddDocumentsModal({
     try {
       const uploaded = await Promise.all(
         files.map((f) =>
-          projectId ? uploadProjectDocument(projectId, f) : uploadStandaloneDocument(f),
+          applicationId ? uploadApplicationDocument(applicationId, f) : uploadStandaloneDocument(f),
         ),
       );
       invalidateDirectoryCache();
@@ -222,7 +222,7 @@ export function AddDocumentsModal({
         <div className="flex-1 overflow-y-auto px-4 pb-2">
           <FileDirectory
             standaloneDocs={filteredStandalone}
-            directoryProjects={filteredProjects}
+            directoryApplications={filteredApplications}
             loading={loading}
             selectedIds={selectedIds}
             onChange={setSelectedIds}

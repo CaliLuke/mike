@@ -159,11 +159,11 @@ func DecodeStreamRequest(mux loomhttp.Muxer, decoder func(*http.Request) loomhtt
 // from a value of type *tabularchat.Chat.
 func marshalTabularchatChatToChatResponse(v *tabularchat.Chat) *ChatResponse {
 	res := &ChatResponse{
-		ID:        v.ID,
-		ProjectID: v.ProjectID,
-		UserID:    v.UserID,
-		Title:     v.Title,
-		CreatedAt: v.CreatedAt,
+		ID:            v.ID,
+		ApplicationID: v.ApplicationID,
+		UserID:        v.UserID,
+		Title:         v.Title,
+		CreatedAt:     v.CreatedAt,
 	}
 
 	return res

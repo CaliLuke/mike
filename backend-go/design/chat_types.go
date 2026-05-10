@@ -4,7 +4,7 @@ import . "github.com/CaliLuke/loom/dsl"
 
 var Chat = Type("Chat", func() {
 	Attribute("id", String)
-	Attribute("project_id", String)
+	Attribute("application_id", String)
 	Attribute("user_id", String)
 	Attribute("title", String)
 	Attribute("created_at", String)

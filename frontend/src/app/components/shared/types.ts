@@ -2,7 +2,7 @@
 
 export interface LukeFolder {
   id: string;
-  project_id: string;
+  application_id: string;
   user_id: string;
   name: string;
   parent_folder_id: string | null;
@@ -10,13 +10,15 @@ export interface LukeFolder {
   updated_at: string;
 }
 
-export interface LukeProject {
+export interface LukeApplication {
   id: string;
   user_id: string;
   is_owner?: boolean;
+  company_id: string;
+  company_name?: string | null;
   name: string;
   cm_number: string | null;
-  shared_with: string[];
+  shared_with?: string[];
   created_at: string;
   updated_at: string;
   documents?: LukeDocument[];
@@ -26,10 +28,20 @@ export interface LukeProject {
   review_count?: number;
 }
 
+export interface LukeCompany {
+  id: string;
+  user_id: string;
+  name: string;
+  website: string | null;
+  created_at: string;
+  updated_at: string;
+  application_count?: number;
+}
+
 export interface LukeDocument {
   id: string;
   user_id?: string;
-  project_id: string | null;
+  application_id: string | null;
   folder_id?: string | null;
   filename: string;
   file_type: string | null; // pdf | docx | doc | md | markdown | txt
@@ -55,7 +67,7 @@ export interface StructureNode {
 
 export interface LukeChat {
   id: string;
-  project_id: string | null;
+  application_id: string | null;
   user_id: string;
   title: string | null;
   created_at: string;
@@ -126,6 +138,15 @@ export type AssistantEvent =
       }[];
       error?: string;
       isStreaming?: boolean;
+    }
+  | { type: "web_page_fetched"; url: string; title?: string }
+  | { type: "company_created"; company_id: string; name: string }
+  | {
+      type: "application_created";
+      application_id: string;
+      company_id: string;
+      name: string;
+      job_description_document_id?: string;
     }
   | { type: "workflow_applied"; workflow_id: string; title: string }
   | {
@@ -235,16 +256,14 @@ export interface ColumnConfig {
 
 export interface TabularReview {
   id: string;
-  project_id: string | null;
+  application_id: string | null;
   user_id: string;
+  is_owner?: boolean;
   title: string | null;
+  shared_with?: string[];
   columns_config: ColumnConfig[] | null;
   workflow_id: string | null;
   practice?: string | null;
-  /** Per-review email list. Used so standalone (project_id null) reviews can be shared directly. */
-  shared_with?: string[];
-  /** Server-set: true when the requesting user is the review's creator. */
-  is_owner?: boolean;
   created_at: string;
   updated_at: string;
   document_count?: number;

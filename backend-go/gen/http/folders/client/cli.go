@@ -16,40 +16,40 @@ import (
 
 // BuildCreatePayload builds the payload for the folders create endpoint from
 // CLI flags.
-func BuildCreatePayload(foldersCreateBody string, foldersCreateProjectID string) (*folders.CreatePayload, error) {
+func BuildCreatePayload(foldersCreateBody string, foldersCreateApplicationID string) (*folders.CreatePayload, error) {
 	var err error
 	var body CreateRequestBody
 	{
 		err = json.Unmarshal([]byte(foldersCreateBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"name\": \"Repudiandae autem incidunt laboriosam inventore rerum adipisci.\",\n      \"parent_folder_id\": \"Quia facere.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"name\": \"Repudiandae quaerat.\",\n      \"parent_folder_id\": \"Quibusdam veritatis asperiores in officia facere recusandae.\"\n   }'")
 		}
 	}
-	var projectID string
+	var applicationID string
 	{
-		projectID = foldersCreateProjectID
+		applicationID = foldersCreateApplicationID
 	}
 	v := &folders.CreatePayload{
 		Name:           body.Name,
 		ParentFolderID: body.ParentFolderID,
 	}
-	v.ProjectID = projectID
+	v.ApplicationID = applicationID
 
 	return v, nil
 } // BuildUpdatePayload builds the payload for the folders update endpoint from
 // CLI flags.
-func BuildUpdatePayload(foldersUpdateBody string, foldersUpdateProjectID string, foldersUpdateFolderID string) (*folders.UpdatePayload, error) {
+func BuildUpdatePayload(foldersUpdateBody string, foldersUpdateApplicationID string, foldersUpdateFolderID string) (*folders.UpdatePayload, error) {
 	var err error
 	var body UpdateRequestBody
 	{
 		err = json.Unmarshal([]byte(foldersUpdateBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"name\": \"Iure quia sequi numquam.\",\n      \"parent_folder_id\": \"Vero ut ea eos deserunt.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"name\": \"Dolor dolorem possimus molestias.\",\n      \"parent_folder_id\": \"Placeat soluta.\"\n   }'")
 		}
 	}
-	var projectID string
+	var applicationID string
 	{
-		projectID = foldersUpdateProjectID
+		applicationID = foldersUpdateApplicationID
 	}
 	var folderID string
 	{
@@ -59,40 +59,40 @@ func BuildUpdatePayload(foldersUpdateBody string, foldersUpdateProjectID string,
 		Name:           body.Name,
 		ParentFolderID: body.ParentFolderID,
 	}
-	v.ProjectID = projectID
+	v.ApplicationID = applicationID
 	v.FolderID = folderID
 
 	return v, nil
 } // BuildDeletePayload builds the payload for the folders delete endpoint from
 // CLI flags.
-func BuildDeletePayload(foldersDeleteProjectID string, foldersDeleteFolderID string) (*folders.DeletePayload, error) {
-	var projectID string
+func BuildDeletePayload(foldersDeleteApplicationID string, foldersDeleteFolderID string) (*folders.DeletePayload, error) {
+	var applicationID string
 	{
-		projectID = foldersDeleteProjectID
+		applicationID = foldersDeleteApplicationID
 	}
 	var folderID string
 	{
 		folderID = foldersDeleteFolderID
 	}
 	v := &folders.DeletePayload{}
-	v.ProjectID = projectID
+	v.ApplicationID = applicationID
 	v.FolderID = folderID
 
 	return v, nil
 } // BuildMoveDocumentPayload builds the payload for the folders move_document
 // endpoint from CLI flags.
-func BuildMoveDocumentPayload(foldersMoveDocumentBody string, foldersMoveDocumentProjectID string, foldersMoveDocumentDocumentID string) (*folders.MoveDocumentPayload, error) {
+func BuildMoveDocumentPayload(foldersMoveDocumentBody string, foldersMoveDocumentApplicationID string, foldersMoveDocumentDocumentID string) (*folders.MoveDocumentPayload, error) {
 	var err error
 	var body MoveDocumentRequestBody
 	{
 		err = json.Unmarshal([]byte(foldersMoveDocumentBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"folder_id\": \"At nostrum quia dolores sit.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"folder_id\": \"Iure aut.\"\n   }'")
 		}
 	}
-	var projectID string
+	var applicationID string
 	{
-		projectID = foldersMoveDocumentProjectID
+		applicationID = foldersMoveDocumentApplicationID
 	}
 	var documentID string
 	{
@@ -101,7 +101,7 @@ func BuildMoveDocumentPayload(foldersMoveDocumentBody string, foldersMoveDocumen
 	v := &folders.MoveDocumentPayload{
 		FolderID: body.FolderID,
 	}
-	v.ProjectID = projectID
+	v.ApplicationID = applicationID
 	v.DocumentID = documentID
 
 	return v, nil

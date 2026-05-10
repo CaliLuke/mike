@@ -39,6 +39,23 @@ func seedBuiltinWorkflows(ctx context.Context, db *persistence.DB) error {
 	return nil
 }
 
+func migrateApplicationsToCompanies(ctx context.Context, db *persistence.DB) error {
+	_, err := db.Query(ctx, `
+		UPSERT companies:migrated_unknown CONTENT {
+			user_id: users:local,
+			name: "Unknown Company",
+			website: NONE,
+			created_at: time::now(),
+			updated_at: time::now()
+		};
+		UPDATE applications SET company_id = companies:migrated_unknown, updated_at = time::now() WHERE company_id = NONE;
+	`)
+	if err != nil {
+		return fmt.Errorf("migrate applications to companies: %w", err)
+	}
+	return nil
+}
+
 type builtinWorkflow struct {
 	id     string
 	title  string
@@ -111,27 +128,37 @@ DEFINE FIELD IF NOT EXISTS created_at ON TABLE user_profiles TYPE datetime;
 DEFINE FIELD IF NOT EXISTS updated_at ON TABLE user_profiles TYPE datetime;
 DEFINE INDEX IF NOT EXISTS user_profiles_user_idx ON TABLE user_profiles FIELDS user_id UNIQUE;
 
-DEFINE TABLE IF NOT EXISTS projects SCHEMAFULL;
-DEFINE FIELD IF NOT EXISTS user_id ON TABLE projects TYPE record<users>;
-DEFINE FIELD IF NOT EXISTS name ON TABLE projects TYPE string;
-DEFINE FIELD IF NOT EXISTS cm_number ON TABLE projects TYPE option<string>;
-DEFINE FIELD IF NOT EXISTS visibility ON TABLE projects TYPE string ASSERT $value INSIDE ["private", "shared"];
-DEFINE FIELD IF NOT EXISTS shared_with ON TABLE projects TYPE array<string>;
-DEFINE FIELD IF NOT EXISTS created_at ON TABLE projects TYPE datetime;
-DEFINE FIELD IF NOT EXISTS updated_at ON TABLE projects TYPE datetime;
-DEFINE INDEX IF NOT EXISTS projects_user_idx ON TABLE projects FIELDS user_id;
+DEFINE TABLE IF NOT EXISTS companies SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS user_id ON TABLE companies TYPE record<users>;
+DEFINE FIELD IF NOT EXISTS name ON TABLE companies TYPE string;
+DEFINE FIELD IF NOT EXISTS website ON TABLE companies TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS created_at ON TABLE companies TYPE datetime;
+DEFINE FIELD IF NOT EXISTS updated_at ON TABLE companies TYPE datetime;
+DEFINE INDEX IF NOT EXISTS companies_user_idx ON TABLE companies FIELDS user_id;
 
-DEFINE TABLE IF NOT EXISTS project_folders SCHEMAFULL;
-DEFINE FIELD IF NOT EXISTS project_id ON TABLE project_folders TYPE record<projects>;
-DEFINE FIELD IF NOT EXISTS user_id ON TABLE project_folders TYPE record<users>;
-DEFINE FIELD IF NOT EXISTS name ON TABLE project_folders TYPE string;
-DEFINE FIELD IF NOT EXISTS parent_folder_id ON TABLE project_folders TYPE option<record<project_folders>>;
-DEFINE FIELD IF NOT EXISTS created_at ON TABLE project_folders TYPE datetime;
-DEFINE FIELD IF NOT EXISTS updated_at ON TABLE project_folders TYPE datetime;
-DEFINE INDEX IF NOT EXISTS project_folders_project_idx ON TABLE project_folders FIELDS project_id;
+DEFINE TABLE IF NOT EXISTS applications SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS user_id ON TABLE applications TYPE record<users>;
+DEFINE FIELD IF NOT EXISTS company_id ON TABLE applications TYPE record<companies>;
+DEFINE FIELD IF NOT EXISTS name ON TABLE applications TYPE string;
+DEFINE FIELD IF NOT EXISTS cm_number ON TABLE applications TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS visibility ON TABLE applications TYPE string ASSERT $value INSIDE ["private", "shared"];
+DEFINE FIELD IF NOT EXISTS shared_with ON TABLE applications TYPE array<string>;
+DEFINE FIELD IF NOT EXISTS created_at ON TABLE applications TYPE datetime;
+DEFINE FIELD IF NOT EXISTS updated_at ON TABLE applications TYPE datetime;
+DEFINE INDEX IF NOT EXISTS applications_user_idx ON TABLE applications FIELDS user_id;
+DEFINE INDEX IF NOT EXISTS applications_company_idx ON TABLE applications FIELDS company_id;
+
+DEFINE TABLE IF NOT EXISTS application_folders SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS application_id ON TABLE application_folders TYPE record<applications>;
+DEFINE FIELD IF NOT EXISTS user_id ON TABLE application_folders TYPE record<users>;
+DEFINE FIELD IF NOT EXISTS name ON TABLE application_folders TYPE string;
+DEFINE FIELD IF NOT EXISTS parent_folder_id ON TABLE application_folders TYPE option<record<application_folders>>;
+DEFINE FIELD IF NOT EXISTS created_at ON TABLE application_folders TYPE datetime;
+DEFINE FIELD IF NOT EXISTS updated_at ON TABLE application_folders TYPE datetime;
+DEFINE INDEX IF NOT EXISTS application_folders_application_idx ON TABLE application_folders FIELDS application_id;
 
 DEFINE TABLE IF NOT EXISTS documents SCHEMAFULL;
-DEFINE FIELD IF NOT EXISTS project_id ON TABLE documents TYPE option<record<projects>>;
+DEFINE FIELD IF NOT EXISTS application_id ON TABLE documents TYPE option<record<applications>>;
 DEFINE FIELD IF NOT EXISTS user_id ON TABLE documents TYPE record<users>;
 DEFINE FIELD IF NOT EXISTS filename ON TABLE documents TYPE string;
 DEFINE FIELD IF NOT EXISTS file_type ON TABLE documents TYPE option<string>;
@@ -139,11 +166,11 @@ DEFINE FIELD IF NOT EXISTS size_bytes ON TABLE documents TYPE int ASSERT $value 
 DEFINE FIELD IF NOT EXISTS page_count ON TABLE documents TYPE option<int>;
 DEFINE FIELD IF NOT EXISTS structure_tree ON TABLE documents TYPE option<object> FLEXIBLE;
 DEFINE FIELD IF NOT EXISTS status ON TABLE documents TYPE string ASSERT $value INSIDE ["pending", "processing", "ready", "error"];
-DEFINE FIELD IF NOT EXISTS folder_id ON TABLE documents TYPE option<record<project_folders>>;
+DEFINE FIELD IF NOT EXISTS folder_id ON TABLE documents TYPE option<record<application_folders>>;
 DEFINE FIELD IF NOT EXISTS current_version_id ON TABLE documents TYPE option<record<document_versions>>;
 DEFINE FIELD IF NOT EXISTS created_at ON TABLE documents TYPE datetime;
 DEFINE FIELD IF NOT EXISTS updated_at ON TABLE documents TYPE datetime;
-DEFINE INDEX IF NOT EXISTS documents_project_folder_idx ON TABLE documents FIELDS project_id, folder_id;
+DEFINE INDEX IF NOT EXISTS documents_application_folder_idx ON TABLE documents FIELDS application_id, folder_id;
 
 DEFINE TABLE IF NOT EXISTS document_versions SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS document_id ON TABLE document_versions TYPE record<documents>;
@@ -203,12 +230,12 @@ DEFINE INDEX IF NOT EXISTS workflow_shares_email_idx ON TABLE workflow_shares FI
 DEFINE INDEX IF NOT EXISTS workflow_shares_workflow_email_idx ON TABLE workflow_shares FIELDS workflow_id, shared_with_email UNIQUE;
 
 DEFINE TABLE IF NOT EXISTS chats SCHEMAFULL;
-DEFINE FIELD IF NOT EXISTS project_id ON TABLE chats TYPE option<record<projects>>;
+DEFINE FIELD IF NOT EXISTS application_id ON TABLE chats TYPE option<record<applications>>;
 DEFINE FIELD IF NOT EXISTS user_id ON TABLE chats TYPE record<users>;
 DEFINE FIELD IF NOT EXISTS title ON TABLE chats TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS created_at ON TABLE chats TYPE datetime;
 DEFINE INDEX IF NOT EXISTS chats_user_idx ON TABLE chats FIELDS user_id;
-DEFINE INDEX IF NOT EXISTS chats_project_idx ON TABLE chats FIELDS project_id;
+DEFINE INDEX IF NOT EXISTS chats_application_idx ON TABLE chats FIELDS application_id;
 
 DEFINE TABLE IF NOT EXISTS chat_messages SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS chat_id ON TABLE chat_messages TYPE record<chats>;
@@ -220,7 +247,7 @@ DEFINE FIELD IF NOT EXISTS created_at ON TABLE chat_messages TYPE datetime;
 DEFINE INDEX IF NOT EXISTS chat_messages_chat_idx ON TABLE chat_messages FIELDS chat_id, created_at;
 
 DEFINE TABLE IF NOT EXISTS tabular_reviews SCHEMAFULL;
-DEFINE FIELD IF NOT EXISTS project_id ON TABLE tabular_reviews TYPE option<record<projects>>;
+DEFINE FIELD IF NOT EXISTS application_id ON TABLE tabular_reviews TYPE option<record<applications>>;
 DEFINE FIELD IF NOT EXISTS user_id ON TABLE tabular_reviews TYPE record<users>;
 DEFINE FIELD IF NOT EXISTS title ON TABLE tabular_reviews TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS columns_config ON TABLE tabular_reviews TYPE any;
@@ -230,7 +257,7 @@ DEFINE FIELD IF NOT EXISTS shared_with ON TABLE tabular_reviews TYPE array<strin
 DEFINE FIELD IF NOT EXISTS created_at ON TABLE tabular_reviews TYPE datetime;
 DEFINE FIELD IF NOT EXISTS updated_at ON TABLE tabular_reviews TYPE datetime;
 DEFINE INDEX IF NOT EXISTS tabular_reviews_user_idx ON TABLE tabular_reviews FIELDS user_id;
-DEFINE INDEX IF NOT EXISTS tabular_reviews_project_idx ON TABLE tabular_reviews FIELDS project_id;
+DEFINE INDEX IF NOT EXISTS tabular_reviews_application_idx ON TABLE tabular_reviews FIELDS application_id;
 
 DEFINE TABLE IF NOT EXISTS tabular_cells SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS review_id ON TABLE tabular_cells TYPE record<tabular_reviews>;
@@ -276,21 +303,25 @@ DEFINE FIELD IF NOT EXISTS created_at ON TABLE workflow_operations TYPE datetime
 DEFINE FIELD IF NOT EXISTS updated_at ON TABLE workflow_operations TYPE datetime;
 DEFINE INDEX IF NOT EXISTS workflow_operations_target_idx ON TABLE workflow_operations FIELDS workflow_name, target_id UNIQUE;
 
-DEFINE EVENT IF NOT EXISTS cascade_project_delete ON TABLE projects WHEN $event = "DELETE" THEN {
-	DELETE document_versions WHERE document_id IN (SELECT VALUE id FROM documents WHERE project_id = $before.id);
-	DELETE document_edits WHERE document_id IN (SELECT VALUE id FROM documents WHERE project_id = $before.id);
-	DELETE tabular_cells WHERE document_id IN (SELECT VALUE id FROM documents WHERE project_id = $before.id);
-	DELETE chat_messages WHERE chat_id IN (SELECT VALUE id FROM chats WHERE project_id = $before.id);
-	DELETE tabular_review_chat_messages WHERE chat_id IN (SELECT VALUE id FROM tabular_review_chats WHERE review_id IN (SELECT VALUE id FROM tabular_reviews WHERE project_id = $before.id));
-	DELETE tabular_review_chats WHERE review_id IN (SELECT VALUE id FROM tabular_reviews WHERE project_id = $before.id);
-	DELETE project_folders WHERE project_id = $before.id;
-	DELETE documents WHERE project_id = $before.id;
-	DELETE chats WHERE project_id = $before.id;
-	DELETE tabular_reviews WHERE project_id = $before.id;
+DEFINE EVENT IF NOT EXISTS cascade_application_delete ON TABLE applications WHEN $event = "DELETE" THEN {
+	DELETE document_versions WHERE document_id IN (SELECT VALUE id FROM documents WHERE application_id = $before.id);
+	DELETE document_edits WHERE document_id IN (SELECT VALUE id FROM documents WHERE application_id = $before.id);
+	DELETE tabular_cells WHERE document_id IN (SELECT VALUE id FROM documents WHERE application_id = $before.id);
+	DELETE chat_messages WHERE chat_id IN (SELECT VALUE id FROM chats WHERE application_id = $before.id);
+	DELETE tabular_review_chat_messages WHERE chat_id IN (SELECT VALUE id FROM tabular_review_chats WHERE review_id IN (SELECT VALUE id FROM tabular_reviews WHERE application_id = $before.id));
+	DELETE tabular_review_chats WHERE review_id IN (SELECT VALUE id FROM tabular_reviews WHERE application_id = $before.id);
+	DELETE application_folders WHERE application_id = $before.id;
+	DELETE documents WHERE application_id = $before.id;
+	DELETE chats WHERE application_id = $before.id;
+	DELETE tabular_reviews WHERE application_id = $before.id;
 };
 
-DEFINE EVENT IF NOT EXISTS cascade_project_folder_delete ON TABLE project_folders WHEN $event = "DELETE" THEN {
-	DELETE project_folders WHERE parent_folder_id = $before.id;
+DEFINE EVENT IF NOT EXISTS cascade_company_delete ON TABLE companies WHEN $event = "DELETE" THEN {
+	DELETE applications WHERE company_id = $before.id;
+};
+
+DEFINE EVENT IF NOT EXISTS cascade_application_folder_delete ON TABLE application_folders WHEN $event = "DELETE" THEN {
+	DELETE application_folders WHERE parent_folder_id = $before.id;
 	UPDATE documents SET folder_id = NONE WHERE folder_id = $before.id;
 };
 

@@ -508,11 +508,11 @@ func unmarshalChatResponseToChatChat(v *ChatResponse) *chat.Chat {
 		return nil
 	}
 	res := &chat.Chat{
-		ID:        *v.ID,
-		ProjectID: v.ProjectID,
-		UserID:    *v.UserID,
-		Title:     v.Title,
-		CreatedAt: *v.CreatedAt,
+		ID:            *v.ID,
+		ApplicationID: v.ApplicationID,
+		UserID:        *v.UserID,
+		Title:         v.Title,
+		CreatedAt:     *v.CreatedAt,
 	}
 
 	return res
@@ -525,11 +525,11 @@ func unmarshalChatResponseBodyToChatChat(v *ChatResponseBody) *chat.Chat {
 		return nil
 	}
 	res := &chat.Chat{
-		ID:        *v.ID,
-		ProjectID: v.ProjectID,
-		UserID:    *v.UserID,
-		Title:     v.Title,
-		CreatedAt: *v.CreatedAt,
+		ID:            *v.ID,
+		ApplicationID: v.ApplicationID,
+		UserID:        *v.UserID,
+		Title:         v.Title,
+		CreatedAt:     *v.CreatedAt,
 	}
 
 	return res

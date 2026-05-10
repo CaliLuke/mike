@@ -8,17 +8,19 @@ import { createPortal } from "react-dom";
 
 import { DOCUMENT_UPLOAD_ACCEPT } from "@/app/lib/documentTypes";
 import {
-  createProject,
-  getProject,
-  listProjects,
+  createApplication,
+  createCompany,
+  getApplication,
+  listApplications,
+  listCompanies,
   listStandaloneDocuments,
   listWorkflows,
-  uploadProjectDocument,
+  uploadApplicationDocument,
   uploadStandaloneDocument,
 } from "@/app/lib/lukeApi";
 
 import { FileDirectory } from "../shared/FileDirectory";
-import type { LukeDocument, LukeProject, LukeWorkflow } from "../shared/types";
+import type { LukeApplication, LukeCompany, LukeDocument, LukeWorkflow } from "../shared/types";
 import { invalidateDirectoryCache } from "../shared/useDirectoryData";
 import { BUILT_IN_WORKFLOWS } from "../workflows/builtinWorkflows";
 
@@ -27,42 +29,45 @@ interface Props {
   onClose: () => void;
   onAdd: (
     title: string,
-    projectId?: string,
+    applicationId?: string,
     documentIds?: string[],
     columnsConfig?: LukeWorkflow["columns_config"],
-    createdProject?: LukeProject,
+    createdApplication?: LukeApplication,
   ) => void | Promise<void>;
-  projects?: LukeProject[];
-  /** When provided, skip the project/directory picker and show only these docs */
-  projectDocs?: LukeDocument[];
-  projectName?: string;
-  projectCmNumber?: string | null;
+  applications?: LukeApplication[];
+  /** When provided, skip the application/directory picker and show only these docs */
+  applicationDocs?: LukeDocument[];
+  applicationName?: string;
+  applicationCmNumber?: string | null;
 }
 
 export function AddNewTRModal({
   open,
   onClose,
   onAdd,
-  projects = [],
-  projectDocs: fixedProjectDocs,
-  projectName,
-  projectCmNumber,
+  applications = [],
+  applicationDocs: fixedApplicationDocs,
+  applicationName,
+  applicationCmNumber,
 }: Props) {
-  const isProjectMode = fixedProjectDocs !== undefined;
+  const isApplicationMode = fixedApplicationDocs !== undefined;
   const [title, setTitle] = useState("");
-  const [underProject, setUnderProject] = useState(false);
-  const [selectedProjectId, setSelectedProjectId] = useState("");
-  const [creatingProjectInline, setCreatingProjectInline] = useState(false);
-  const [newProjectName, setNewProjectName] = useState("");
-  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
+  const [underApplication, setUnderApplication] = useState(false);
+  const [selectedApplicationId, setSelectedApplicationId] = useState("");
+  const [creatingApplicationInline, setCreatingApplicationInline] = useState(false);
+  const [newApplicationName, setNewApplicationName] = useState("");
+  const [companies, setCompanies] = useState<LukeCompany[]>([]);
+  const [newApplicationCompanyId, setNewApplicationCompanyId] = useState("");
+  const [newApplicationCompanyName, setNewApplicationCompanyName] = useState("");
+  const [applicationDropdownOpen, setApplicationDropdownOpen] = useState(false);
 
-  // Project-scoped docs (when underProject is true and no fixedProjectDocs)
-  const [projectDocs, setProjectDocs] = useState<LukeDocument[]>([]);
+  // Application-scoped docs (when underApplication is true and no fixedApplicationDocs)
+  const [applicationDocs, setApplicationDocs] = useState<LukeDocument[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
 
-  // Full directory (when underProject is false)
+  // Full directory (when underApplication is false)
   const [standaloneDocs, setStandaloneDocs] = useState<LukeDocument[]>([]);
-  const [directoryProjects, setDirectoryProjects] = useState<LukeProject[]>([]);
+  const [directoryApplications, setDirectoryApplications] = useState<LukeApplication[]>([]);
   const [loadingDirectory, setLoadingDirectory] = useState(false);
 
   const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
@@ -86,42 +91,46 @@ export function AddNewTRModal({
       .catch(() => setWorkflows(builtinTabular))
       .finally(() => setLoadingWorkflows(false));
 
-    if (isProjectMode) {
-      setSelectedDocIds(new Set((fixedProjectDocs ?? []).map((d) => d.id)));
+    if (isApplicationMode) {
+      setSelectedDocIds(new Set((fixedApplicationDocs ?? []).map((d) => d.id)));
       return;
     }
 
     setLoadingDirectory(true);
-    // /projects only returns counts, not the documents array — fetch
-    // each project in parallel so FileDirectory can render the docs
+    // /applications only returns counts, not the documents array — fetch
+    // each application in parallel so FileDirectory can render the docs
     // when the user expands a folder.
-    Promise.all([listStandaloneDocuments(), listProjects()])
-      .then(async ([docs, projs]) => {
+    Promise.all([listStandaloneDocuments(), listApplications(), listCompanies()])
+      .then(async ([docs, projs, companyRows]) => {
         setStandaloneDocs(
           [...docs].sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? "")),
         );
-        const fullProjects = await Promise.all(projs.map((p) => getProject(p.id)));
-        setDirectoryProjects(fullProjects);
+        setCompanies(companyRows);
+        setNewApplicationCompanyId((current) => current || companyRows[0]?.id || "");
+        const fullApplications = await Promise.all(projs.map((p) => getApplication(p.id)));
+        setDirectoryApplications(fullApplications);
       })
       .catch(() => {
         setStandaloneDocs([]);
-        setDirectoryProjects([]);
+        setDirectoryApplications([]);
       })
       .finally(() => setLoadingDirectory(false));
-  }, [fixedProjectDocs, isProjectMode, open]);
+  }, [fixedApplicationDocs, isApplicationMode, open]);
 
   if (!open) return null;
 
   function handleClose() {
     setTitle("");
-    setUnderProject(false);
-    setSelectedProjectId("");
-    setCreatingProjectInline(false);
-    setNewProjectName("");
-    setProjectDropdownOpen(false);
-    setProjectDocs([]);
+    setUnderApplication(false);
+    setSelectedApplicationId("");
+    setCreatingApplicationInline(false);
+    setNewApplicationName("");
+    setNewApplicationCompanyId("");
+    setNewApplicationCompanyName("");
+    setApplicationDropdownOpen(false);
+    setApplicationDocs([]);
     setStandaloneDocs([]);
-    setDirectoryProjects([]);
+    setDirectoryApplications([]);
     setSelectedDocIds(new Set());
     setSelectedWorkflowId(null);
     setWorkflowDropdownOpen(false);
@@ -131,20 +140,32 @@ export function AddNewTRModal({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || submitting) return;
-    if (underProject && !selectedProjectId && !newProjectName.trim()) return;
+    if (underApplication && !selectedApplicationId && !newApplicationName.trim()) return;
+    if (
+      underApplication &&
+      !selectedApplicationId &&
+      !newApplicationCompanyId &&
+      !newApplicationCompanyName.trim()
+    )
+      return;
     const selectedWorkflow = workflows.find((w) => w.id === selectedWorkflowId);
     setSubmitting(true);
     try {
-      const createdProject =
-        underProject && !selectedProjectId ? await createProject(newProjectName.trim()) : undefined;
-      if (createdProject) invalidateDirectoryCache();
-      const projectId = createdProject?.id ?? selectedProjectId;
+      const createdApplication =
+        underApplication && !selectedApplicationId
+          ? await createApplication(
+              newApplicationName.trim(),
+              newApplicationCompanyId || (await createCompany(newApplicationCompanyName.trim())).id,
+            )
+          : undefined;
+      if (createdApplication) invalidateDirectoryCache();
+      const applicationId = createdApplication?.id ?? selectedApplicationId;
       await onAdd(
         title.trim(),
-        underProject ? projectId : undefined,
+        underApplication ? applicationId : undefined,
         selectedDocIds.size > 0 ? [...selectedDocIds] : undefined,
         selectedWorkflow?.columns_config ?? undefined,
-        createdProject,
+        createdApplication,
       );
       handleClose();
     } finally {
@@ -152,29 +173,31 @@ export function AddNewTRModal({
     }
   }
 
-  async function handleSelectProject(projectId: string) {
-    setSelectedProjectId(projectId);
-    setCreatingProjectInline(false);
-    setNewProjectName("");
-    setProjectDropdownOpen(false);
-    setProjectDocs([]);
+  async function handleSelectApplication(applicationId: string) {
+    setSelectedApplicationId(applicationId);
+    setCreatingApplicationInline(false);
+    setNewApplicationName("");
+    setNewApplicationCompanyName("");
+    setApplicationDropdownOpen(false);
+    setApplicationDocs([]);
     setSelectedDocIds(new Set());
     setLoadingDocs(true);
     try {
-      const proj = await getProject(projectId);
+      const proj = await getApplication(applicationId);
       const docs = (proj.documents ?? []).filter((d) => d.status === "ready");
-      setProjectDocs(docs);
+      setApplicationDocs(docs);
       setSelectedDocIds(new Set(docs.map((d) => d.id)));
     } finally {
       setLoadingDocs(false);
     }
   }
 
-  function handleSelectNewProject() {
-    setCreatingProjectInline(true);
-    setSelectedProjectId("");
-    setProjectDropdownOpen(false);
-    setProjectDocs([]);
+  function handleSelectNewApplication() {
+    setCreatingApplicationInline(true);
+    setSelectedApplicationId("");
+    setNewApplicationCompanyId((current) => current || companies[0]?.id || "");
+    setApplicationDropdownOpen(false);
+    setApplicationDocs([]);
     setSelectedDocIds(new Set());
     setLoadingDocs(false);
   }
@@ -186,13 +209,13 @@ export function AddNewTRModal({
     try {
       const uploaded = await Promise.all(
         files.map((f) =>
-          underProject && selectedProjectId
-            ? uploadProjectDocument(selectedProjectId, f)
+          underApplication && selectedApplicationId
+            ? uploadApplicationDocument(selectedApplicationId, f)
             : uploadStandaloneDocument(f),
         ),
       );
-      if (underProject && selectedProjectId) {
-        setProjectDocs((prev) => [...uploaded, ...prev]);
+      if (underApplication && selectedApplicationId) {
+        setApplicationDocs((prev) => [...uploaded, ...prev]);
       } else {
         setStandaloneDocs((prev) => [...uploaded, ...prev]);
       }
@@ -205,21 +228,26 @@ export function AddNewTRModal({
     }
   }
 
-  const selectedProject = projects.find((p) => p.id === selectedProjectId);
+  const selectedApplication = applications.find((p) => p.id === selectedApplicationId);
   const selectedWorkflow = workflows.find((w) => w.id === selectedWorkflowId);
-  const trimmedNewProjectName = newProjectName.trim();
+  const trimmedNewApplicationName = newApplicationName.trim();
 
   // What to show in the directory depends on mode and toggle state
-  const directoryStandalone = isProjectMode
-    ? (fixedProjectDocs ?? [])
-    : underProject
+  const directoryStandalone = isApplicationMode
+    ? (fixedApplicationDocs ?? [])
+    : underApplication
       ? []
       : standaloneDocs;
-  const directoryFolders = isProjectMode ? [] : underProject ? [] : directoryProjects;
-  const flatProjectDocs: LukeDocument[] = !isProjectMode && underProject ? projectDocs : [];
-  const directoryLoading = isProjectMode ? false : underProject ? loadingDocs : loadingDirectory;
+  const directoryFolders = isApplicationMode ? [] : underApplication ? [] : directoryApplications;
+  const flatApplicationDocs: LukeDocument[] =
+    !isApplicationMode && underApplication ? applicationDocs : [];
+  const directoryLoading = isApplicationMode
+    ? false
+    : underApplication
+      ? loadingDocs
+      : loadingDirectory;
   const showDirectory =
-    isProjectMode || !underProject || !!selectedProjectId || creatingProjectInline;
+    isApplicationMode || !underApplication || !!selectedApplicationId || creatingApplicationInline;
 
   return createPortal(
     <div className="fixed inset-0 z-[101] flex items-center justify-center bg-black/20 backdrop-blur-xs">
@@ -227,13 +255,13 @@ export function AddNewTRModal({
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between px-6 pt-5 pb-2">
           <div className="flex items-center gap-1.5 text-xs text-gray-400">
-            {isProjectMode && projectName ? (
+            {isApplicationMode && applicationName ? (
               <>
-                <span>Projects</span>
+                <span>Applications</span>
                 <span>›</span>
                 <span>
-                  {projectName}
-                  {projectCmNumber ? ` (#${projectCmNumber})` : ""}
+                  {applicationName}
+                  {applicationCmNumber ? ` (#${applicationCmNumber})` : ""}
                 </span>
                 <span>›</span>
                 <span>Tabular Reviews</span>
@@ -329,77 +357,79 @@ export function AddNewTRModal({
               </div>
             </div>
 
-            {/* Create under a project toggle */}
-            {!isProjectMode && (
+            {/* Create under a application toggle */}
+            {!isApplicationMode && (
               <div className="space-y-3">
                 <button
                   type="button"
                   onClick={() => {
-                    const next = !underProject;
-                    setUnderProject(next);
+                    const next = !underApplication;
+                    setUnderApplication(next);
                     if (!next) {
-                      setSelectedProjectId("");
-                      setCreatingProjectInline(false);
-                      setNewProjectName("");
-                      setProjectDropdownOpen(false);
-                      setProjectDocs([]);
+                      setSelectedApplicationId("");
+                      setCreatingApplicationInline(false);
+                      setNewApplicationName("");
+                      setApplicationDropdownOpen(false);
+                      setApplicationDocs([]);
                       setSelectedDocIds(new Set());
                     }
                   }}
                   className="flex w-fit items-center gap-2.5"
                 >
                   <span
-                    className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors duration-200 ${underProject ? "bg-gray-900" : "bg-gray-200"}`}
+                    className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors duration-200 ${underApplication ? "bg-gray-900" : "bg-gray-200"}`}
                   >
                     <span
-                      className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${underProject ? "translate-x-4" : "translate-x-0"}`}
+                      className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${underApplication ? "translate-x-4" : "translate-x-0"}`}
                     />
                   </span>
-                  <span className="text-sm text-gray-600">Create under a project</span>
+                  <span className="text-sm text-gray-600">Create under a application</span>
                 </button>
 
-                {underProject && (
+                {underApplication && (
                   <div className="relative">
                     <button
                       type="button"
-                      onClick={() => setProjectDropdownOpen((o) => !o)}
+                      onClick={() => setApplicationDropdownOpen((o) => !o)}
                       className="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors hover:border-gray-400 focus:outline-none"
                     >
                       <span
                         className={
-                          selectedProject || creatingProjectInline
+                          selectedApplication || creatingApplicationInline
                             ? "text-gray-800"
                             : "text-gray-400"
                         }
                       >
-                        {creatingProjectInline
-                          ? trimmedNewProjectName || "New project…"
-                          : selectedProject
-                            ? selectedProject.name +
-                              (selectedProject.cm_number ? ` (#${selectedProject.cm_number})` : "")
-                            : "Select project…"}
+                        {creatingApplicationInline
+                          ? trimmedNewApplicationName || "New application…"
+                          : selectedApplication
+                            ? selectedApplication.name +
+                              (selectedApplication.cm_number
+                                ? ` (#${selectedApplication.cm_number})`
+                                : "")
+                            : "Select application…"}
                       </span>
                       <ChevronDown className="h-3.5 w-3.5 shrink-0 text-gray-400" />
                     </button>
-                    {projectDropdownOpen && (
+                    {applicationDropdownOpen && (
                       <div className="absolute top-full left-0 z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-gray-100 bg-white shadow-lg">
                         <button
                           type="button"
-                          onClick={handleSelectNewProject}
-                          className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50 ${creatingProjectInline ? "bg-gray-50 text-gray-900" : "text-gray-700"}`}
+                          onClick={handleSelectNewApplication}
+                          className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50 ${creatingApplicationInline ? "bg-gray-50 text-gray-900" : "text-gray-700"}`}
                         >
-                          <span className="truncate">New project</span>
-                          {creatingProjectInline && (
+                          <span className="truncate">New application</span>
+                          {creatingApplicationInline && (
                             <Check className="h-3.5 w-3.5 shrink-0 text-gray-500" />
                           )}
                         </button>
-                        {projects.length > 0 && <div className="border-t border-gray-100" />}
-                        {projects.map((p) => (
+                        {applications.length > 0 && <div className="border-t border-gray-100" />}
+                        {applications.map((p) => (
                           <button
                             key={p.id}
                             type="button"
-                            onClick={() => handleSelectProject(p.id)}
-                            className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50 ${selectedProjectId === p.id ? "bg-gray-50 text-gray-900" : "text-gray-700"}`}
+                            onClick={() => handleSelectApplication(p.id)}
+                            className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50 ${selectedApplicationId === p.id ? "bg-gray-50 text-gray-900" : "text-gray-700"}`}
                           >
                             <span className="truncate">
                               {p.name}
@@ -410,7 +440,7 @@ export function AddNewTRModal({
                                 </span>
                               )}
                             </span>
-                            {selectedProjectId === p.id && (
+                            {selectedApplicationId === p.id && (
                               <Check className="h-3.5 w-3.5 shrink-0 text-gray-500" />
                             )}
                           </button>
@@ -419,14 +449,40 @@ export function AddNewTRModal({
                     )}
                   </div>
                 )}
-                {underProject && creatingProjectInline && (
-                  <input
-                    type="text"
-                    value={newProjectName}
-                    onChange={(e) => setNewProjectName(e.target.value)}
-                    placeholder="Project name"
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
-                  />
+                {underApplication && creatingApplicationInline && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={newApplicationName}
+                      onChange={(e) => setNewApplicationName(e.target.value)}
+                      placeholder="Application name"
+                      className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
+                    />
+                    <select
+                      value={newApplicationCompanyId}
+                      onChange={(e) => {
+                        setNewApplicationCompanyId(e.target.value);
+                        setNewApplicationCompanyName("");
+                      }}
+                      className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-gray-400 focus:outline-none"
+                    >
+                      <option value="">New company</option>
+                      {companies.map((company) => (
+                        <option key={company.id} value={company.id}>
+                          {company.name}
+                        </option>
+                      ))}
+                    </select>
+                    {!newApplicationCompanyId && (
+                      <input
+                        type="text"
+                        value={newApplicationCompanyName}
+                        onChange={(e) => setNewApplicationCompanyName(e.target.value)}
+                        placeholder="Company name"
+                        className="col-span-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
+                      />
+                    )}
+                  </div>
                 )}
               </div>
             )}
@@ -438,22 +494,24 @@ export function AddNewTRModal({
                 <div>
                   <FileDirectory
                     standaloneDocs={
-                      isProjectMode
+                      isApplicationMode
                         ? directoryStandalone
-                        : underProject
-                          ? flatProjectDocs
+                        : underApplication
+                          ? flatApplicationDocs
                           : directoryStandalone
                     }
-                    directoryProjects={isProjectMode ? [] : underProject ? [] : directoryFolders}
+                    directoryApplications={
+                      isApplicationMode ? [] : underApplication ? [] : directoryFolders
+                    }
                     loading={directoryLoading}
                     selectedIds={selectedDocIds}
                     onChange={setSelectedDocIds}
-                    heading={isProjectMode ? "Project Documents" : "Documents"}
+                    heading={isApplicationMode ? "Application Documents" : "Documents"}
                     emptyMessage={
-                      creatingProjectInline
-                        ? "Upload documents after creating the project"
-                        : isProjectMode || underProject
-                          ? "No ready documents in this project"
+                      creatingApplicationInline
+                        ? "Upload documents after creating the application"
+                        : isApplicationMode || underApplication
+                          ? "No ready documents in this application"
                           : "No documents yet"
                     }
                   />
@@ -476,7 +534,7 @@ export function AddNewTRModal({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={uploading || (underProject && !selectedProjectId)}
+                disabled={uploading || (underApplication && !selectedApplicationId)}
                 className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
               >
                 {uploading ? (
@@ -500,7 +558,7 @@ export function AddNewTRModal({
                 disabled={
                   !title.trim() ||
                   submitting ||
-                  (underProject && !selectedProjectId && !trimmedNewProjectName)
+                  (underApplication && !selectedApplicationId && !trimmedNewApplicationName)
                 }
                 className="rounded-lg bg-gray-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-40"
               >

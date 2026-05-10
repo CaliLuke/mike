@@ -15,14 +15,12 @@ var ColumnConfig = Type("ColumnConfig", func() {
 
 var TabularReview = Type("TabularReview", func() {
 	Attribute("id", String)
-	Attribute("project_id", String)
+	Attribute("application_id", String)
 	Attribute("user_id", String)
 	Attribute("title", String)
 	Attribute("columns_config", ArrayOf(ColumnConfig))
 	Attribute("workflow_id", String)
 	Attribute("practice", String)
-	Attribute("shared_with", ArrayOf(String))
-	Attribute("is_owner", Boolean)
 	Attribute("created_at", String)
 	Attribute("updated_at", String)
 	Attribute("document_count", Int)

@@ -6,7 +6,11 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const fixtureDir = path.resolve(here, "..", "fixtures");
 const apiBase = process.env.API_BASE ?? "http://localhost:3001";
 
-const project = await postJSON("/projects", { name: "Fixture Project" });
+const company = await postJSON("/companies", { name: "Fixture Company" });
+const application = await postJSON("/applications", {
+  name: "Fixture Application",
+  company_id: trimRecord(company.id),
+});
 const upload = await postMultipart(
   "/single-documents",
   "file",
@@ -17,12 +21,12 @@ const documentId = trimRecord(upload.id);
 const versionId = trimRecord(upload.current_version_id) || `${documentId}_v1`;
 const review = await postJSON("/tabular-review", {
   title: "Fixture Review",
-  project_id: trimRecord(project.id),
+  application_id: trimRecord(application.id),
   document_ids: [documentId],
   columns_config: [{ index: 0, name: "Summary", prompt: "Summarize" }],
 });
 
-console.log(`export FIXTURE_projectId=${shellQuote(trimRecord(project.id))}`);
+console.log(`export FIXTURE_applicationId=${shellQuote(trimRecord(application.id))}`);
 console.log(`export FIXTURE_documentId=${shellQuote(documentId)}`);
 console.log(`export FIXTURE_versionId=${shellQuote(versionId)}`);
 console.log(`export FIXTURE_reviewId=${shellQuote(trimRecord(review.id))}`);

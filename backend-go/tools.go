@@ -3,6 +3,7 @@
 package tools
 
 import (
+	_ "github.com/air-verse/air"
 	_ "github.com/alitto/pond"
 	_ "github.com/fzipp/gocyclo/cmd/gocyclo"
 	_ "github.com/golangci/golangci-lint/v2/cmd/golangci-lint"

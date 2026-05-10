@@ -34,7 +34,7 @@ func BuildUploadPayload(documentVersionsUploadBody string, documentVersionsUploa
 	{
 		err = json.Unmarshal([]byte(documentVersionsUploadBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"display_name\": \"Ipsum ex suscipit ut et nostrum ipsum.\",\n      \"file\": \"Q3VscGEgcXVpLg==\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"display_name\": \"Doloribus cumque at aliquam.\",\n      \"file\": \"TmlzaSBhdCBldCBwZXJzcGljaWF0aXMgcXVhbSBjb3JydXB0aS4=\"\n   }'")
 		}
 		if body.File == nil {
 			err = loom.MergeErrors(err, loom.MissingFieldError("file", "body"))
@@ -62,7 +62,7 @@ func BuildRenamePayload(documentVersionsRenameBody string, documentVersionsRenam
 	{
 		err = json.Unmarshal([]byte(documentVersionsRenameBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"display_name\": \"Quae tempore qui.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"display_name\": \"Voluptatem cumque rerum.\"\n   }'")
 		}
 	}
 	var documentID string
@@ -88,7 +88,7 @@ func BuildTrackedChangeIdsPayload(documentVersionsTrackedChangeIdsBody string, d
 	{
 		err = json.Unmarshal([]byte(documentVersionsTrackedChangeIdsBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"version_id\": \"Et quos aut eaque voluptas eos fugit.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"version_id\": \"Facere est numquam similique.\"\n   }'")
 		}
 	}
 	var documentID string

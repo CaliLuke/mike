@@ -5,7 +5,7 @@ import . "github.com/CaliLuke/loom/dsl"
 var _ = Service("tabular", func() {
 	Method("list", func() {
 		Payload(func() {
-			Attribute("project_id", String)
+			Attribute("application_id", String)
 		})
 		Result(ArrayOf(TabularReview))
 		HTTP(func() {
@@ -20,7 +20,7 @@ var _ = Service("tabular", func() {
 			Attribute("document_ids", ArrayOf(String))
 			Attribute("columns_config", ArrayOf(ColumnConfig))
 			Attribute("workflow_id", String)
-			Attribute("project_id", String)
+			Attribute("application_id", String)
 			Required("document_ids", "columns_config")
 		})
 		Result(TabularReview)
@@ -57,26 +57,13 @@ var _ = Service("tabular", func() {
 		})
 	})
 
-	Method("people", func() {
-		Payload(func() {
-			Attribute("reviewId", String)
-			Required("reviewId")
-		})
-		Result(ProjectPeople)
-		HTTP(func() {
-			GET("/tabular-review/{reviewId}/people")
-			Response(StatusOK)
-		})
-	})
-
 	Method("update", func() {
 		Payload(func() {
 			Attribute("reviewId", String)
 			Attribute("title", String)
 			Attribute("columns_config", ArrayOf(ColumnConfig))
 			Attribute("document_ids", ArrayOf(String))
-			Attribute("project_id", String)
-			Attribute("shared_with", ArrayOf(String))
+			Attribute("application_id", String)
 			Required("reviewId")
 		})
 		Result(TabularReview)

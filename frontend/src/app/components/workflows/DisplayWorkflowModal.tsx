@@ -12,7 +12,7 @@ import { createTabularReview } from "@/app/lib/lukeApi";
 
 import { FileDirectory } from "../shared/FileDirectory";
 import type { LukeDocument, LukeWorkflow } from "../shared/types";
-import type { LukeProject } from "../shared/types";
+import type { LukeApplication } from "../shared/types";
 import { useDirectoryData } from "../shared/useDirectoryData";
 import { formatIcon, formatLabel } from "../tabular/columnFormat";
 
@@ -40,23 +40,23 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
-// Simple project picker (input + dropdown)
+// Simple application picker (input + dropdown)
 // ---------------------------------------------------------------------------
-function SimpleProjectPicker({
-  projects,
+function SimpleApplicationPicker({
+  applications,
   selectedId,
   onSelect,
 }: {
-  projects: LukeProject[];
+  applications: LukeApplication[];
   selectedId: string | null;
   onSelect: (id: string | null) => void;
 }) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
-  const selected = projects.find((p) => p.id === selectedId);
+  const selected = applications.find((p) => p.id === selectedId);
   const filtered = search
-    ? projects.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()))
-    : projects;
+    ? applications.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()))
+    : applications;
 
   return (
     <div className="relative">
@@ -70,7 +70,7 @@ function SimpleProjectPicker({
         }}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        placeholder="Select a project…"
+        placeholder="Select a application…"
         className="w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700 outline-none placeholder:text-gray-400"
       />
       {selectedId && (
@@ -87,7 +87,7 @@ function SimpleProjectPicker({
       {open && !selectedId && (
         <div className="absolute top-full right-0 left-0 z-10 mt-1 max-h-40 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-sm">
           {filtered.length === 0 ? (
-            <p className="px-3 py-3 text-center text-xs text-gray-400">No projects found</p>
+            <p className="px-3 py-3 text-center text-xs text-gray-400">No applications found</p>
           ) : (
             filtered.map((p) => (
               <button
@@ -235,8 +235,8 @@ export function DisplayWorkflowModal({ workflows, workflow, onClose }: Props) {
   const selectedRowRef = useRef<HTMLButtonElement>(null);
 
   // Configure screen state
-  const [inProject, setInProject] = useState(false);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [inApplication, setInApplication] = useState(false);
+  const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
   const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
   const [docSearch, setDocSearch] = useState("");
   const [assistantPrompt, setAssistantPrompt] = useState("");
@@ -246,7 +246,7 @@ export function DisplayWorkflowModal({ workflows, workflow, onClose }: Props) {
   const { saveChat, setNewChatMessages } = useChatHistoryContext();
   const {
     loading: dirLoading,
-    projects,
+    applications,
     standaloneDocuments,
   } = useDirectoryData(screen === "configure");
 
@@ -269,8 +269,8 @@ export function DisplayWorkflowModal({ workflows, workflow, onClose }: Props) {
   // Reset configure state on back
   useEffect(() => {
     if (screen === "select") {
-      setInProject(false);
-      setSelectedProjectId(null);
+      setInApplication(false);
+      setSelectedApplicationId(null);
       setSelectedDocIds(new Set());
       setDocSearch("");
       setAssistantPrompt("");
@@ -292,12 +292,12 @@ export function DisplayWorkflowModal({ workflows, workflow, onClose }: Props) {
   async function handleStartChat() {
     setSaving(true);
     try {
-      const projectId = inProject ? selectedProjectId! : undefined;
-      const chatId = await saveChat(projectId);
+      const applicationId = inApplication ? selectedApplicationId! : undefined;
+      const chatId = await saveChat(applicationId);
       if (!chatId) return;
       const allDocs: LukeDocument[] = [
         ...standaloneDocuments,
-        ...projects.flatMap((p) => p.documents || []),
+        ...applications.flatMap((p) => p.documents || []),
       ];
       const files = allDocs
         .filter((d) => selectedDocIds.has(d.id))
@@ -314,7 +314,9 @@ export function DisplayWorkflowModal({ workflows, workflow, onClose }: Props) {
       ]);
       handleClose();
       router.push(
-        projectId ? `/projects/${projectId}/assistant/chat/${chatId}` : `/assistant/chat/${chatId}`,
+        applicationId
+          ? `/applications/${applicationId}/assistant/chat/${chatId}`
+          : `/assistant/chat/${chatId}`,
       );
     } finally {
       setSaving(false);
@@ -324,10 +326,10 @@ export function DisplayWorkflowModal({ workflows, workflow, onClose }: Props) {
   async function handleCreateReview() {
     const allDocs: LukeDocument[] = [
       ...standaloneDocuments,
-      ...projects.flatMap((p) => p.documents || []),
+      ...applications.flatMap((p) => p.documents || []),
     ];
     const docIds = allDocs.filter((d) => selectedDocIds.has(d.id)).map((d) => d.id);
-    const projectId = inProject ? selectedProjectId! : undefined;
+    const applicationId = inApplication ? selectedApplicationId! : undefined;
 
     setSaving(true);
     try {
@@ -336,12 +338,12 @@ export function DisplayWorkflowModal({ workflows, workflow, onClose }: Props) {
         document_ids: docIds,
         columns_config: wf.columns_config || [],
         workflow_id: wf.is_system ? undefined : wf.id,
-        project_id: projectId,
+        application_id: applicationId,
       });
       handleClose();
       router.push(
-        projectId
-          ? `/projects/${projectId}/tabular-reviews/${review.id}`
+        applicationId
+          ? `/applications/${applicationId}/tabular-reviews/${review.id}`
           : `/tabular-reviews/${review.id}`,
       );
     } finally {
@@ -353,18 +355,18 @@ export function DisplayWorkflowModal({ workflows, workflow, onClose }: Props) {
   // Tabular doc browser helpers
   // ---------------------------------------------------------------------------
   const q = docSearch.toLowerCase().trim();
-  const selectedProject = projects.find((p) => p.id === selectedProjectId);
-  const projectDocs = selectedProject?.documents ?? [];
+  const selectedApplication = applications.find((p) => p.id === selectedApplicationId);
+  const applicationDocs = selectedApplication?.documents ?? [];
 
-  const filteredProjectDocs = q
-    ? projectDocs.filter((d) => d.filename.toLowerCase().includes(q))
-    : projectDocs;
+  const filteredApplicationDocs = q
+    ? applicationDocs.filter((d) => d.filename.toLowerCase().includes(q))
+    : applicationDocs;
 
   const filteredStandalone = q
     ? standaloneDocuments.filter((d) => d.filename.toLowerCase().includes(q))
     : standaloneDocuments;
 
-  const filteredAllProjects = projects
+  const filteredAllApplications = applications
     .map((p) => ({
       ...p,
       documents: (p.documents || []).filter((d) => !q || d.filename.toLowerCase().includes(q)),
@@ -527,28 +529,28 @@ export function DisplayWorkflowModal({ workflows, workflow, onClose }: Props) {
 
               {/* Toggle row */}
               <div className="flex shrink-0 flex-col gap-2 px-5 py-3">
-                <span className="text-xs font-medium text-gray-700">Create in a project</span>
+                <span className="text-xs font-medium text-gray-700">Create in a application</span>
                 <Toggle
-                  on={inProject}
+                  on={inApplication}
                   onToggle={() => {
-                    setInProject(!inProject);
-                    setSelectedProjectId(null);
+                    setInApplication(!inApplication);
+                    setSelectedApplicationId(null);
                     setSelectedDocIds(new Set());
                     setDocSearch("");
                   }}
                 />
               </div>
 
-              {inProject ? (
+              {inApplication ? (
                 <>
                   <div className="shrink-0 px-5 pt-1 pb-1">
-                    <p className="text-xs font-medium text-gray-700">Select project</p>
+                    <p className="text-xs font-medium text-gray-700">Select application</p>
                   </div>
                   <div className="shrink-0 px-5 pb-2">
-                    <SimpleProjectPicker
-                      projects={projects}
-                      selectedId={selectedProjectId}
-                      onSelect={setSelectedProjectId}
+                    <SimpleApplicationPicker
+                      applications={applications}
+                      selectedId={selectedApplicationId}
+                      onSelect={setSelectedApplicationId}
                     />
                   </div>
                 </>
@@ -584,7 +586,7 @@ export function DisplayWorkflowModal({ workflows, workflow, onClose }: Props) {
                   <div className="flex-1 overflow-y-auto px-4 pb-2">
                     <FileDirectory
                       standaloneDocs={filteredStandalone}
-                      directoryProjects={filteredAllProjects}
+                      directoryApplications={filteredAllApplications}
                       loading={dirLoading}
                       selectedIds={selectedDocIds}
                       onChange={setSelectedDocIds}
@@ -599,11 +601,11 @@ export function DisplayWorkflowModal({ workflows, workflow, onClose }: Props) {
 
             <div className="flex shrink-0 items-center justify-between border-t border-gray-200 px-5 py-3">
               <span className="text-xs text-gray-400">
-                {!inProject && selectedDocIds.size > 0 ? `${selectedDocIds.size} selected` : ""}
+                {!inApplication && selectedDocIds.size > 0 ? `${selectedDocIds.size} selected` : ""}
               </span>
               <button
                 onClick={handleStartChat}
-                disabled={saving || (inProject && !selectedProjectId)}
+                disabled={saving || (inApplication && !selectedApplicationId)}
                 className="rounded-lg bg-gray-900 px-5 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50"
               >
                 {saving ? "Starting…" : "Start Chat"}
@@ -618,30 +620,30 @@ export function DisplayWorkflowModal({ workflows, workflow, onClose }: Props) {
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               {/* Toggle stacked */}
               <div className="flex shrink-0 flex-col gap-2 px-5 pb-3">
-                <span className="text-xs font-medium text-gray-700">Create in a project</span>
+                <span className="text-xs font-medium text-gray-700">Create in a application</span>
                 <Toggle
-                  on={inProject}
+                  on={inApplication}
                   onToggle={() => {
-                    setInProject(!inProject);
-                    setSelectedProjectId(null);
+                    setInApplication(!inApplication);
+                    setSelectedApplicationId(null);
                     setDocSearch("");
                     setSelectedDocIds(new Set());
                   }}
                 />
               </div>
 
-              {/* Project section */}
-              {inProject && (
+              {/* Application section */}
+              {inApplication && (
                 <>
                   <div className="shrink-0 px-5 pt-1 pb-1">
-                    <p className="text-xs font-medium text-gray-700">Select Project</p>
+                    <p className="text-xs font-medium text-gray-700">Select Application</p>
                   </div>
                   <div className="shrink-0 px-5 pb-2">
-                    <SimpleProjectPicker
-                      projects={projects}
-                      selectedId={selectedProjectId}
+                    <SimpleApplicationPicker
+                      applications={applications}
+                      selectedId={selectedApplicationId}
                       onSelect={(id) => {
-                        setSelectedProjectId(id);
+                        setSelectedApplicationId(id);
                         if (!id) setSelectedDocIds(new Set());
                       }}
                     />
@@ -679,18 +681,18 @@ export function DisplayWorkflowModal({ workflows, workflow, onClose }: Props) {
               {/* File browser */}
               <div className="flex-1 overflow-y-auto px-4 pb-2">
                 <FileDirectory
-                  standaloneDocs={inProject ? filteredProjectDocs : filteredStandalone}
-                  directoryProjects={inProject ? [] : filteredAllProjects}
+                  standaloneDocs={inApplication ? filteredApplicationDocs : filteredStandalone}
+                  directoryApplications={inApplication ? [] : filteredAllApplications}
                   loading={dirLoading}
                   selectedIds={selectedDocIds}
                   onChange={setSelectedDocIds}
                   allowMultiple
-                  forceExpanded={!!q || inProject}
+                  forceExpanded={!!q || inApplication}
                   emptyMessage={
                     q
                       ? "No matches found"
-                      : inProject
-                        ? "No documents in this project"
+                      : inApplication
+                        ? "No documents in this application"
                         : "No documents yet"
                   }
                 />
@@ -703,7 +705,9 @@ export function DisplayWorkflowModal({ workflows, workflow, onClose }: Props) {
               </span>
               <button
                 onClick={handleCreateReview}
-                disabled={saving || selectedDocIds.size === 0 || (inProject && !selectedProjectId)}
+                disabled={
+                  saving || selectedDocIds.size === 0 || (inApplication && !selectedApplicationId)
+                }
                 className="rounded-lg bg-gray-900 px-5 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50"
               >
                 {saving ? "Creating…" : "Create Review"}

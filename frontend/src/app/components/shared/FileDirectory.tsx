@@ -3,7 +3,7 @@
 import { Check, ChevronDown, ChevronRight, File, FileText, Folder, Trash2 } from "lucide-react";
 import { useState } from "react";
 
-import type { LukeDocument, LukeProject } from "./types";
+import type { LukeDocument, LukeApplication } from "./types";
 import { VersionChip } from "./VersionChip";
 
 function formatDate(iso: string | null) {
@@ -22,7 +22,7 @@ export function DocFileIcon({ fileType }: { fileType: string | null }) {
 
 interface FileDirectoryProps {
   standaloneDocs: LukeDocument[];
-  directoryProjects: LukeProject[];
+  directoryApplications: LukeApplication[];
   loading: boolean;
   selectedIds: Set<string>;
   onChange: (ids: Set<string>) => void;
@@ -35,7 +35,7 @@ interface FileDirectoryProps {
 
 export function FileDirectory({
   standaloneDocs,
-  directoryProjects,
+  directoryApplications,
   loading,
   selectedIds,
   onChange,
@@ -45,7 +45,7 @@ export function FileDirectory({
   heading = "Documents",
   onDelete,
 }: FileDirectoryProps) {
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  const [expandedApplications, setExpandedApplications] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
 
   const selectedCount = selectedIds.size;
@@ -64,7 +64,7 @@ export function FileDirectory({
     }
   }
 
-  const allDocs = [...standaloneDocs, ...directoryProjects.flatMap((p) => p.documents ?? [])];
+  const allDocs = [...standaloneDocs, ...directoryApplications.flatMap((p) => p.documents ?? [])];
 
   const allStandaloneSelected =
     standaloneDocs.length > 0 && standaloneDocs.every((d) => selectedIds.has(d.id));
@@ -91,11 +91,11 @@ export function FileDirectory({
     }
   }
 
-  function toggleFolder(projectId: string) {
+  function toggleFolder(applicationId: string) {
     if (forceExpanded) return;
-    setExpandedProjects((prev) => {
+    setExpandedApplications((prev) => {
       const next = new Set(prev);
-      next.has(projectId) ? next.delete(projectId) : next.add(projectId);
+      next.has(applicationId) ? next.delete(applicationId) : next.add(applicationId);
       return next;
     });
   }
@@ -122,7 +122,7 @@ export function FileDirectory({
     );
   }
 
-  if (allDocs.length === 0 && directoryProjects.length === 0) {
+  if (allDocs.length === 0 && directoryApplications.length === 0) {
     return <p className="py-8 text-center text-sm text-gray-400">{emptyMessage}</p>;
   }
 
@@ -186,20 +186,20 @@ export function FileDirectory({
           );
         })}
 
-        {standaloneDocs.length > 0 && directoryProjects.length > 0 && (
+        {standaloneDocs.length > 0 && directoryApplications.length > 0 && (
           <div className="border-t border-gray-100 px-2 py-2">
-            <p className="text-xs font-medium text-gray-400">Projects</p>
+            <p className="text-xs font-medium text-gray-400">Applications</p>
           </div>
         )}
 
-        {directoryProjects.map((project) => {
-          const isExpanded = forceExpanded || expandedProjects.has(project.id);
-          const docs = project.documents ?? [];
+        {directoryApplications.map((application) => {
+          const isExpanded = forceExpanded || expandedApplications.has(application.id);
+          const docs = application.documents ?? [];
           return (
-            <div key={project.id}>
+            <div key={application.id}>
               <button
                 type="button"
-                onClick={() => toggleFolder(project.id)}
+                onClick={() => toggleFolder(application.id)}
                 className="flex w-full items-center gap-2 px-2 py-2 text-left text-xs transition-colors hover:bg-gray-50"
               >
                 {isExpanded ? (
@@ -209,9 +209,11 @@ export function FileDirectory({
                 )}
                 <Folder className="h-3.5 w-3.5 shrink-0 text-gray-400" />
                 <span className="flex-1 truncate font-medium text-gray-700">
-                  {project.name}
-                  {project.cm_number && (
-                    <span className="ml-1 font-normal text-gray-400">(#{project.cm_number})</span>
+                  {application.name}
+                  {application.cm_number && (
+                    <span className="ml-1 font-normal text-gray-400">
+                      (#{application.cm_number})
+                    </span>
                   )}
                 </span>
                 <span className="shrink-0 text-xs text-gray-400">{docs.length}</span>

@@ -1,0 +1,44 @@
+{
+  "name": "sse-application-chat",
+  "transport": "sse",
+  "request": {
+    "method": "POST",
+    "path": "/applications/{applicationId}/chat",
+    "body": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "Fixture application hello"
+        }
+      ],
+      "model": "gemma4"
+    }
+  },
+  "response": {
+    "status": 200,
+    "contentTypeIncludes": "text/event-stream",
+    "allowedEventNames": [
+      "message"
+    ],
+    "requiredPayloadTypes": [
+      "chat_id",
+      "content_delta",
+      "citations",
+      "done"
+    ],
+    "payloadSchemas": {
+      "chat_id": {
+        "type": "string"
+      },
+      "content_delta": {
+        "type": "string",
+        "text": "string"
+      },
+      "citations": {
+        "type": "string",
+        "citations": "array"
+      }
+    }
+  },
+  "notes": "Parameterized by applicationId because application creation depends on local fixture state."
+}

@@ -23,7 +23,7 @@ type CreateRequestBody struct {
 // HTTP response body.
 type CreateResponseBody struct {
 	ID             string  `form:"id" json:"id" xml:"id"`
-	ProjectID      string  `form:"project_id" json:"project_id" xml:"project_id"`
+	ApplicationID  string  `form:"application_id" json:"application_id" xml:"application_id"`
 	UserID         string  `form:"user_id" json:"user_id" xml:"user_id"`
 	Name           string  `form:"name" json:"name" xml:"name"`
 	ParentFolderID *string `form:"parent_folder_id,omitempty" json:"parent_folder_id,omitempty" xml:"parent_folder_id,omitempty"`
@@ -42,7 +42,7 @@ type UpdateRequestBody struct {
 // HTTP response body.
 type UpdateResponseBody struct {
 	ID             string  `form:"id" json:"id" xml:"id"`
-	ProjectID      string  `form:"project_id" json:"project_id" xml:"project_id"`
+	ApplicationID  string  `form:"application_id" json:"application_id" xml:"application_id"`
 	UserID         string  `form:"user_id" json:"user_id" xml:"user_id"`
 	Name           string  `form:"name" json:"name" xml:"name"`
 	ParentFolderID *string `form:"parent_folder_id,omitempty" json:"parent_folder_id,omitempty" xml:"parent_folder_id,omitempty"`
@@ -61,7 +61,7 @@ type MoveDocumentRequestBody struct {
 type MoveDocumentResponseBody struct {
 	ID                  string                       `form:"id" json:"id" xml:"id"`
 	UserID              *string                      `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
-	ProjectID           *string                      `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
+	ApplicationID       *string                      `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
 	FolderID            *string                      `form:"folder_id,omitempty" json:"folder_id,omitempty" xml:"folder_id,omitempty"`
 	Filename            string                       `form:"filename" json:"filename" xml:"filename"`
 	FileType            *string                      `form:"file_type,omitempty" json:"file_type,omitempty" xml:"file_type,omitempty"`
@@ -90,7 +90,7 @@ type StructureNodeResponseBody struct {
 func NewCreateResponseBody(res *folders.Folder) *CreateResponseBody {
 	body := &CreateResponseBody{
 		ID:             res.ID,
-		ProjectID:      res.ProjectID,
+		ApplicationID:  res.ApplicationID,
 		UserID:         res.UserID,
 		Name:           res.Name,
 		ParentFolderID: res.ParentFolderID,
@@ -105,7 +105,7 @@ func NewCreateResponseBody(res *folders.Folder) *CreateResponseBody {
 func NewUpdateResponseBody(res *folders.Folder) *UpdateResponseBody {
 	body := &UpdateResponseBody{
 		ID:             res.ID,
-		ProjectID:      res.ProjectID,
+		ApplicationID:  res.ApplicationID,
 		UserID:         res.UserID,
 		Name:           res.Name,
 		ParentFolderID: res.ParentFolderID,
@@ -121,7 +121,7 @@ func NewMoveDocumentResponseBody(res *folders.Document) *MoveDocumentResponseBod
 	body := &MoveDocumentResponseBody{
 		ID:                  res.ID,
 		UserID:              res.UserID,
-		ProjectID:           res.ProjectID,
+		ApplicationID:       res.ApplicationID,
 		FolderID:            res.FolderID,
 		Filename:            res.Filename,
 		FileType:            res.FileType,
@@ -148,32 +148,32 @@ func NewMoveDocumentResponseBody(res *folders.Document) *MoveDocumentResponseBod
 }
 
 // NewCreatePayload builds a folders service create endpoint payload.
-func NewCreatePayload(body *CreateRequestBody, projectID string) *folders.CreatePayload {
+func NewCreatePayload(body *CreateRequestBody, applicationID string) *folders.CreatePayload {
 	v := &folders.CreatePayload{
 		Name:           *body.Name,
 		ParentFolderID: body.ParentFolderID,
 	}
-	v.ProjectID = projectID
+	v.ApplicationID = applicationID
 
 	return v
 }
 
 // NewUpdatePayload builds a folders service update endpoint payload.
-func NewUpdatePayload(body *UpdateRequestBody, projectID string, folderID string) *folders.UpdatePayload {
+func NewUpdatePayload(body *UpdateRequestBody, applicationID string, folderID string) *folders.UpdatePayload {
 	v := &folders.UpdatePayload{
 		Name:           body.Name,
 		ParentFolderID: body.ParentFolderID,
 	}
-	v.ProjectID = projectID
+	v.ApplicationID = applicationID
 	v.FolderID = folderID
 
 	return v
 }
 
 // NewDeletePayload builds a folders service delete endpoint payload.
-func NewDeletePayload(projectID string, folderID string) *folders.DeletePayload {
+func NewDeletePayload(applicationID string, folderID string) *folders.DeletePayload {
 	v := &folders.DeletePayload{}
-	v.ProjectID = projectID
+	v.ApplicationID = applicationID
 	v.FolderID = folderID
 
 	return v
@@ -181,11 +181,11 @@ func NewDeletePayload(projectID string, folderID string) *folders.DeletePayload 
 
 // NewMoveDocumentPayload builds a folders service move_document endpoint
 // payload.
-func NewMoveDocumentPayload(body *MoveDocumentRequestBody, projectID string, documentID string) *folders.MoveDocumentPayload {
+func NewMoveDocumentPayload(body *MoveDocumentRequestBody, applicationID string, documentID string) *folders.MoveDocumentPayload {
 	v := &folders.MoveDocumentPayload{
 		FolderID: body.FolderID,
 	}
-	v.ProjectID = projectID
+	v.ApplicationID = applicationID
 	v.DocumentID = documentID
 
 	return v

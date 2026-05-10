@@ -9,7 +9,7 @@ var AssistantNoArgs = Type("AssistantNoArgs", func() {
 var AssistantDocumentRef = Type("AssistantDocumentRef", func() {
 	Attribute("document_id", String, "Local document identifier")
 	Attribute("filename", String, "Document filename")
-	Attribute("project_id", String, "Owning project identifier, when attached to a project")
+	Attribute("application_id", String, "Owning application identifier, when attached to a application")
 	Attribute("file_type", String, "Stored file type or MIME hint")
 	Attribute("status", String, "Processing status")
 })
@@ -61,6 +61,20 @@ var AssistantDocumentBundle = Type("AssistantDocumentBundle", func() {
 	Attribute("documents", ArrayOf(AssistantDocumentText), "Fetched document contents")
 })
 
+var AssistantFetchWebPageArgs = Type("AssistantFetchWebPageArgs", func() {
+	Attribute("url", String, "Public HTTP or HTTPS URL to download and simplify")
+	Attribute("max_chars", Int, "Optional maximum characters of simplified text to return")
+	Example(map[string]any{"url": "https://www.github.careers/careers-home/jobs/5140?lang=en-us", "max_chars": 40000})
+})
+
+var AssistantWebPageText = Type("AssistantWebPageText", func() {
+	Attribute("url", String, "Final fetched URL after redirects")
+	Attribute("title", String, "Extracted page title")
+	Attribute("text", String, "Simplified readable page text")
+	Attribute("truncated", Boolean, "Whether the simplified text was truncated")
+	Attribute("error", String, "Error message when fetching failed")
+})
+
 var AssistantWorkflowRef = Type("AssistantWorkflowRef", func() {
 	Attribute("workflow_id", String, "Local workflow identifier")
 	Attribute("title", String, "Workflow title")
@@ -70,6 +84,39 @@ var AssistantWorkflowRef = Type("AssistantWorkflowRef", func() {
 
 var AssistantWorkflowList = Type("AssistantWorkflowList", func() {
 	Attribute("workflows", ArrayOf(AssistantWorkflowRef), "Saved workflows")
+})
+
+var AssistantCreateCompanyArgs = Type("AssistantCreateCompanyArgs", func() {
+	Attribute("name", String, "Company name")
+	Attribute("website", String, "Optional company website")
+	Example(map[string]any{"name": "Acme Inc.", "website": "https://example.com"})
+})
+
+var AssistantCreatedCompany = Type("AssistantCreatedCompany", func() {
+	Attribute("ok", Boolean, "Whether the company was created")
+	Attribute("company_id", String, "Local company identifier")
+	Attribute("name", String, "Company name")
+	Attribute("website", String, "Company website")
+	Attribute("error", String, "Error message when creation failed")
+})
+
+var AssistantCreateApplicationArgs = Type("AssistantCreateApplicationArgs", func() {
+	Attribute("name", String, "Application name, usually the role title from the job ad")
+	Attribute("company_id", String, "Local company identifier returned by create_company or a prior company_created event")
+	Attribute("cm_number", String, "Optional Competition Bureau matter number")
+	Attribute("job_description_text", String, "Optional full job description text to save as an application document")
+	Attribute("job_description_url", String, "Optional source URL for the job description")
+	Example(map[string]any{"name": "Senior Product Counsel", "company_id": "company_123", "job_description_url": "https://example.com/jobs/123"})
+})
+
+var AssistantCreatedApplication = Type("AssistantCreatedApplication", func() {
+	Attribute("ok", Boolean, "Whether the application was created")
+	Attribute("application_id", String, "Local application identifier")
+	Attribute("company_id", String, "Attached local company identifier")
+	Attribute("name", String, "Application name")
+	Attribute("cm_number", String, "Competition Bureau matter number")
+	Attribute("job_description_document_id", String, "Created job description document identifier, when job text was provided")
+	Attribute("error", String, "Error message when creation failed")
 })
 
 var AssistantReadWorkflowArgs = Type("AssistantReadWorkflowArgs", func() {

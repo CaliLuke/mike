@@ -267,11 +267,11 @@ func DecodeStreamRequest(mux loomhttp.Muxer, decoder func(*http.Request) loomhtt
 // value of type *chat.Chat.
 func marshalChatChatToChatResponse(v *chat.Chat) *ChatResponse {
 	res := &ChatResponse{
-		ID:        v.ID,
-		ProjectID: v.ProjectID,
-		UserID:    v.UserID,
-		Title:     v.Title,
-		CreatedAt: v.CreatedAt,
+		ID:            v.ID,
+		ApplicationID: v.ApplicationID,
+		UserID:        v.UserID,
+		Title:         v.Title,
+		CreatedAt:     v.CreatedAt,
 	}
 
 	return res
@@ -281,11 +281,11 @@ func marshalChatChatToChatResponse(v *chat.Chat) *ChatResponse {
 // from a value of type *chat.Chat.
 func marshalChatChatToChatResponseBody(v *chat.Chat) *ChatResponseBody {
 	res := &ChatResponseBody{
-		ID:        v.ID,
-		ProjectID: v.ProjectID,
-		UserID:    v.UserID,
-		Title:     v.Title,
-		CreatedAt: v.CreatedAt,
+		ID:            v.ID,
+		ApplicationID: v.ApplicationID,
+		UserID:        v.UserID,
+		Title:         v.Title,
+		CreatedAt:     v.CreatedAt,
 	}
 
 	return res

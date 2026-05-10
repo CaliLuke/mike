@@ -312,7 +312,7 @@ func marshalDocumentsDocumentToDocumentResponse(v *documents.Document) *Document
 	res := &DocumentResponse{
 		ID:                  v.ID,
 		UserID:              v.UserID,
-		ProjectID:           v.ProjectID,
+		ApplicationID:       v.ApplicationID,
 		FolderID:            v.FolderID,
 		Filename:            v.Filename,
 		FileType:            v.FileType,

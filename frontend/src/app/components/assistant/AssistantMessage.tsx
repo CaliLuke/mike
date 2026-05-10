@@ -15,7 +15,7 @@ import { LukeIcon } from "@/components/chat/luke-icon";
 import { PreResponseWrapper } from "../shared/PreResponseWrapper";
 import type { AssistantEvent, LukeCitationAnnotation, LukeEditAnnotation } from "../shared/types";
 import { displayCitationQuote, formatCitationPage } from "../shared/types";
-import { applyOptimisticResolution,EditCard } from "./EditCard";
+import { applyOptimisticResolution, EditCard } from "./EditCard";
 
 /**
  * Card rendered above the per-edit EditCards when a message produced
@@ -698,6 +698,68 @@ function WorkflowAppliedBlock({
   );
 }
 
+function CompanyCreatedBlock({ name, showConnector }: { name: string; showConnector?: boolean }) {
+  return (
+    <div className="relative flex items-start font-serif text-sm text-gray-500">
+      {showConnector && (
+        <div className="absolute top-[13px] bottom-0 left-[2.5px] h-[calc(100%+11px)] w-[1px] bg-gray-300" />
+      )}
+      <div className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-green-400" />
+      <div className="ml-2 min-w-0 flex-1 break-words whitespace-normal">
+        <span className="font-medium">Created Company</span> <span>{name}</span>
+      </div>
+    </div>
+  );
+}
+
+function WebPageFetchedBlock({
+  title,
+  url,
+  showConnector,
+}: {
+  title?: string;
+  url: string;
+  showConnector?: boolean;
+}) {
+  return (
+    <div className="relative flex items-start font-serif text-sm text-gray-500">
+      {showConnector && (
+        <div className="absolute top-[13px] bottom-0 left-[2.5px] h-[calc(100%+11px)] w-[1px] bg-gray-300" />
+      )}
+      <div className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-green-400" />
+      <div className="ml-2 min-w-0 flex-1 break-words whitespace-normal">
+        <span className="font-medium">Fetched Web Page</span> <span>{title || url}</span>
+      </div>
+    </div>
+  );
+}
+
+function ApplicationCreatedBlock({
+  name,
+  savedJobDescription,
+  showConnector,
+}: {
+  name: string;
+  savedJobDescription?: boolean;
+  showConnector?: boolean;
+}) {
+  return (
+    <div className="relative flex items-start font-serif text-sm text-gray-500">
+      {showConnector && (
+        <div className="absolute top-[13px] bottom-0 left-[2.5px] h-[calc(100%+11px)] w-[1px] bg-gray-300" />
+      )}
+      <div className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-green-400" />
+      <div className="ml-2 min-w-0 flex-1 break-words whitespace-normal">
+        <span className="font-medium">Created Application</span>{" "}
+        <span>
+          {name}
+          {savedJobDescription ? " with job description" : ""}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function DocEditedBlock({
   filename,
   showConnector,
@@ -1188,6 +1250,31 @@ export function AssistantMessage({
           title={event.title}
           showConnector={showConnector}
           onClick={onWorkflowClick ? () => onWorkflowClick(event.workflow_id) : undefined}
+        />
+      );
+    }
+    if (event.type === "company_created") {
+      return (
+        <CompanyCreatedBlock key={globalIdx} name={event.name} showConnector={showConnector} />
+      );
+    }
+    if (event.type === "web_page_fetched") {
+      return (
+        <WebPageFetchedBlock
+          key={globalIdx}
+          title={event.title}
+          url={event.url}
+          showConnector={showConnector}
+        />
+      );
+    }
+    if (event.type === "application_created") {
+      return (
+        <ApplicationCreatedBlock
+          key={globalIdx}
+          name={event.name}
+          savedJobDescription={!!event.job_description_document_id}
+          showConnector={showConnector}
         />
       );
     }

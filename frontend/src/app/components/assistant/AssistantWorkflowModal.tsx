@@ -15,8 +15,8 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onSelect: (workflow: LukeWorkflow) => void;
-  projectName?: string;
-  projectCmNumber?: string | null;
+  applicationName?: string;
+  applicationCmNumber?: string | null;
   initialWorkflowId?: string;
 }
 
@@ -24,8 +24,8 @@ export function AssistantWorkflowModal({
   open,
   onClose,
   onSelect,
-  projectName,
-  projectCmNumber,
+  applicationName,
+  applicationCmNumber,
   initialWorkflowId,
 }: Props) {
   const [workflows, setWorkflows] = useState<LukeWorkflow[]>([]);
@@ -99,13 +99,13 @@ export function AssistantWorkflowModal({
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-4 py-4">
           <div className="flex items-center gap-1.5 text-xs text-gray-400">
-            {projectName ? (
+            {applicationName ? (
               <>
-                <span>Projects</span>
+                <span>Applications</span>
                 <span>›</span>
                 <span>
-                  {projectName}
-                  {projectCmNumber ? ` (#${projectCmNumber})` : ""}
+                  {applicationName}
+                  {applicationCmNumber ? ` (#${applicationCmNumber})` : ""}
                 </span>
                 <span>›</span>
                 <span>Assistant</span>

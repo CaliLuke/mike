@@ -4,13 +4,14 @@
 
 import type {
   AssistantEvent,
+  LukeApplication,
   LukeChat,
   LukeChatDetailOut,
   LukeCitationAnnotation,
+  LukeCompany,
   LukeDocument,
   LukeFolder,
   LukeMessage,
-  LukeProject,
   LukeWorkflow,
   TabularReview,
   TabularReviewDetailOut,
@@ -58,22 +59,53 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
 }
 
 // ---------------------------------------------------------------------------
-// Projects
+// Companies
 // ---------------------------------------------------------------------------
 
-export async function listProjects(): Promise<LukeProject[]> {
-  return apiRequest<LukeProject[]>("/projects");
+export async function listCompanies(): Promise<LukeCompany[]> {
+  return apiRequest<LukeCompany[]>("/companies");
 }
 
-export async function createProject(
-  name: string,
-  cm_number?: string,
-  shared_with?: string[],
-): Promise<LukeProject> {
-  return apiRequest<LukeProject>("/projects", {
+export async function createCompany(name: string, website?: string): Promise<LukeCompany> {
+  return apiRequest<LukeCompany>("/companies", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, cm_number, shared_with }),
+    body: JSON.stringify({ name, website }),
+  });
+}
+
+export async function updateCompany(
+  companyId: string,
+  payload: { name?: string; website?: string },
+): Promise<LukeCompany> {
+  return apiRequest<LukeCompany>(`/companies/${companyId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteCompany(companyId: string): Promise<void> {
+  await apiRequest(`/companies/${companyId}`, { method: "DELETE" });
+}
+
+// ---------------------------------------------------------------------------
+// Applications
+// ---------------------------------------------------------------------------
+
+export async function listApplications(): Promise<LukeApplication[]> {
+  return apiRequest<LukeApplication[]>("/applications");
+}
+
+export async function createApplication(
+  name: string,
+  companyId: string,
+  cm_number?: string,
+): Promise<LukeApplication> {
+  return apiRequest<LukeApplication>("/applications", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, company_id: companyId, cm_number }),
   });
 }
 
@@ -81,40 +113,43 @@ export async function deleteAccount(): Promise<void> {
   return apiRequest<void>("/user/account", { method: "DELETE" });
 }
 
-export async function getProject(projectId: string): Promise<LukeProject> {
-  return apiRequest<LukeProject>(`/projects/${projectId}`);
+export async function getApplication(applicationId: string): Promise<LukeApplication> {
+  return apiRequest<LukeApplication>(`/applications/${applicationId}`);
 }
 
-export async function updateProject(
-  projectId: string,
+export async function updateApplication(
+  applicationId: string,
   payload: {
     name?: string;
+    company_id?: string;
     cm_number?: string;
     shared_with?: string[];
   },
-): Promise<LukeProject> {
-  return apiRequest<LukeProject>(`/projects/${projectId}`, {
+): Promise<LukeApplication> {
+  return apiRequest<LukeApplication>(`/applications/${applicationId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 }
 
-export async function deleteProject(projectId: string): Promise<void> {
-  await apiRequest(`/projects/${projectId}`, { method: "DELETE" });
+export async function deleteApplication(applicationId: string): Promise<void> {
+  await apiRequest(`/applications/${applicationId}`, { method: "DELETE" });
 }
 
-export interface ProjectPeople {
+export interface ApplicationPeople {
   owner: {
-    user_id: string;
-    email: string | null;
+    email: string;
     display_name: string | null;
   };
-  members: { email: string; display_name: string | null }[];
+  members: {
+    email: string;
+    display_name: string | null;
+  }[];
 }
 
-export async function getProjectPeople(projectId: string): Promise<ProjectPeople> {
-  return apiRequest<ProjectPeople>(`/projects/${projectId}/people`);
+export async function getApplicationPeople(applicationId: string): Promise<ApplicationPeople> {
+  return apiRequest<ApplicationPeople>(`/applications/${applicationId}/people`);
 }
 
 // ---------------------------------------------------------------------------
@@ -125,12 +160,12 @@ export async function getProjectPeople(projectId: string): Promise<ProjectPeople
 // Folders
 // ---------------------------------------------------------------------------
 
-export async function createProjectFolder(
-  projectId: string,
+export async function createApplicationFolder(
+  applicationId: string,
   name: string,
   parentFolderId?: string | null,
 ): Promise<LukeFolder> {
-  return apiRequest<LukeFolder>(`/projects/${projectId}/folders`, {
+  return apiRequest<LukeFolder>(`/applications/${applicationId}/folders`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -140,30 +175,33 @@ export async function createProjectFolder(
   });
 }
 
-export async function renameProjectFolder(
-  projectId: string,
+export async function renameApplicationFolder(
+  applicationId: string,
   folderId: string,
   name: string,
 ): Promise<LukeFolder> {
-  return apiRequest<LukeFolder>(`/projects/${projectId}/folders/${folderId}`, {
+  return apiRequest<LukeFolder>(`/applications/${applicationId}/folders/${folderId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
   });
 }
 
-export async function deleteProjectFolder(projectId: string, folderId: string): Promise<void> {
-  await apiRequest(`/projects/${projectId}/folders/${folderId}`, {
+export async function deleteApplicationFolder(
+  applicationId: string,
+  folderId: string,
+): Promise<void> {
+  await apiRequest(`/applications/${applicationId}/folders/${folderId}`, {
     method: "DELETE",
   });
 }
 
 export async function moveSubfolderToFolder(
-  projectId: string,
+  applicationId: string,
   folderId: string,
   parentFolderId: string | null,
 ): Promise<LukeFolder> {
-  return apiRequest<LukeFolder>(`/projects/${projectId}/folders/${folderId}`, {
+  return apiRequest<LukeFolder>(`/applications/${applicationId}/folders/${folderId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ parent_folder_id: parentFolderId }),
@@ -171,22 +209,22 @@ export async function moveSubfolderToFolder(
 }
 
 export async function moveDocumentToFolder(
-  projectId: string,
+  applicationId: string,
   documentId: string,
   folderId: string | null,
 ): Promise<LukeDocument> {
-  return apiRequest<LukeDocument>(`/projects/${projectId}/documents/${documentId}/folder`, {
+  return apiRequest<LukeDocument>(`/applications/${applicationId}/documents/${documentId}/folder`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ folder_id: folderId }),
   });
 }
 
-export async function addDocumentToProject(
-  projectId: string,
+export async function addDocumentToApplication(
+  applicationId: string,
   documentId: string,
 ): Promise<LukeDocument> {
-  return apiRequest<LukeDocument>(`/projects/${projectId}/documents/${documentId}`, {
+  return apiRequest<LukeDocument>(`/applications/${applicationId}/documents/${documentId}`, {
     method: "POST",
   });
 }
@@ -234,10 +272,13 @@ export async function renameDocumentVersion(
   });
 }
 
-export async function uploadProjectDocument(projectId: string, file: File): Promise<LukeDocument> {
+export async function uploadApplicationDocument(
+  applicationId: string,
+  file: File,
+): Promise<LukeDocument> {
   const form = new FormData();
   form.append("file", file);
-  const response = await fetch(`${API_BASE}/projects/${projectId}/documents`, {
+  const response = await fetch(`${API_BASE}/applications/${applicationId}/documents`, {
     method: "POST",
     body: form,
   });
@@ -292,7 +333,7 @@ export async function downloadDocumentsZip(documentIds: string[]): Promise<Blob>
 // Chat
 // ---------------------------------------------------------------------------
 
-export async function createChat(payload?: { project_id?: string }): Promise<{ id: string }> {
+export async function createChat(payload?: { application_id?: string }): Promise<{ id: string }> {
   return apiRequest<{ id: string }>("/chat/create", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -304,8 +345,8 @@ export async function listChats(): Promise<LukeChat[]> {
   return apiRequest<LukeChat[]>("/chat");
 }
 
-export async function listProjectChats(projectId: string): Promise<LukeChat[]> {
-  return apiRequest<LukeChat[]>(`/projects/${projectId}/chats`);
+export async function listApplicationChats(applicationId: string): Promise<LukeChat[]> {
+  return apiRequest<LukeChat[]>(`/applications/${applicationId}/chats`);
 }
 
 export async function getChat(chatId: string): Promise<LukeChatDetailOut> {
@@ -365,7 +406,7 @@ export async function streamChat(payload: {
     workflow?: { id: string; title: string };
   }[];
   chat_id?: string;
-  project_id?: string;
+  application_id?: string;
   model?: string;
   signal?: AbortSignal;
 }): Promise<Response> {
@@ -388,8 +429,8 @@ type StreamChatMessage = {
   workflow?: { id: string; title: string };
 };
 
-export async function streamProjectChat(payload: {
-  projectId: string;
+export async function streamApplicationChat(payload: {
+  applicationId: string;
   messages: StreamChatMessage[];
   chat_id?: string;
   model?: string;
@@ -397,8 +438,8 @@ export async function streamProjectChat(payload: {
   attached_documents?: { filename: string; document_id: string }[];
   signal?: AbortSignal;
 }): Promise<Response> {
-  const { projectId, signal, ...body } = payload;
-  return fetch(`${API_BASE}/projects/${projectId}/chat`, {
+  const { applicationId, signal, ...body } = payload;
+  return fetch(`${API_BASE}/applications/${applicationId}/chat`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -413,8 +454,8 @@ export async function streamProjectChat(payload: {
 // Tabular Review
 // ---------------------------------------------------------------------------
 
-export async function listTabularReviews(projectId?: string): Promise<TabularReview[]> {
-  const qs = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+export async function listTabularReviews(applicationId?: string): Promise<TabularReview[]> {
+  const qs = applicationId ? `?application_id=${encodeURIComponent(applicationId)}` : "";
   return apiRequest<TabularReview[]>(`/tabular-review${qs}`);
 }
 
@@ -423,7 +464,7 @@ export async function createTabularReview(payload: {
   document_ids: string[];
   columns_config: { index: number; name: string; prompt: string }[];
   workflow_id?: string;
-  project_id?: string;
+  application_id?: string;
 }): Promise<TabularReview> {
   return apiRequest<TabularReview>("/tabular-review", {
     method: "POST",
@@ -442,8 +483,7 @@ export async function updateTabularReview(
     title?: string;
     columns_config?: { index: number; name: string; prompt: string }[];
     document_ids?: string[];
-    project_id?: string | null;
-    shared_with?: string[];
+    application_id?: string | null;
   },
 ): Promise<TabularReview> {
   return apiRequest<TabularReview>(`/tabular-review/${reviewId}`, {
@@ -451,10 +491,6 @@ export async function updateTabularReview(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-}
-
-export async function getTabularReviewPeople(reviewId: string): Promise<ProjectPeople> {
-  return apiRequest<ProjectPeople>(`/tabular-review/${reviewId}/people`);
 }
 
 export async function generateTabularColumnPrompt(
@@ -480,13 +516,13 @@ export async function uploadReviewDocument(
   reviewId: string,
   file: File,
   options?: {
-    projectId?: string;
+    applicationId?: string;
     documentIds?: string[];
     columnsConfig?: { index: number; name: string; prompt: string }[];
   },
 ): Promise<LukeDocument> {
-  const uploaded = options?.projectId
-    ? await uploadProjectDocument(options.projectId, file)
+  const uploaded = options?.applicationId
+    ? await uploadApplicationDocument(options.applicationId, file)
     : await uploadStandaloneDocument(file);
 
   await updateTabularReview(reviewId, {
@@ -521,7 +557,7 @@ export async function streamTabularChat(
   messages: { role: string; content: string }[],
   chat_id?: string | null,
   signal?: AbortSignal,
-  context?: { reviewTitle?: string | null; projectName?: string | null },
+  context?: { reviewTitle?: string | null; applicationName?: string | null },
 ): Promise<Response> {
   return fetch(`${API_BASE}/tabular-review/${reviewId}/chat`, {
     method: "POST",
@@ -530,7 +566,7 @@ export async function streamTabularChat(
       messages,
       chat_id: chat_id ?? undefined,
       review_title: context?.reviewTitle ?? undefined,
-      project_name: context?.projectName ?? undefined,
+      application_name: context?.applicationName ?? undefined,
     }),
     signal: signal ?? undefined,
   });

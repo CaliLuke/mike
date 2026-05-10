@@ -23,10 +23,10 @@ type MessagesResponseBody []*ServerMessageResponse
 // StreamRequestBody is the type of the "tabular_chat" service "stream"
 // endpoint HTTP request body.
 type StreamRequestBody struct {
-	Messages    []*ChatMessageRequestBody `form:"messages,omitempty" json:"messages,omitempty" xml:"messages,omitempty"`
-	ChatID      *string                   `form:"chat_id,omitempty" json:"chat_id,omitempty" xml:"chat_id,omitempty"`
-	ReviewTitle *string                   `form:"review_title,omitempty" json:"review_title,omitempty" xml:"review_title,omitempty"`
-	ProjectName *string                   `form:"project_name,omitempty" json:"project_name,omitempty" xml:"project_name,omitempty"`
+	Messages        []*ChatMessageRequestBody `form:"messages,omitempty" json:"messages,omitempty" xml:"messages,omitempty"`
+	ChatID          *string                   `form:"chat_id,omitempty" json:"chat_id,omitempty" xml:"chat_id,omitempty"`
+	ReviewTitle     *string                   `form:"review_title,omitempty" json:"review_title,omitempty" xml:"review_title,omitempty"`
+	ApplicationName *string                   `form:"application_name,omitempty" json:"application_name,omitempty" xml:"application_name,omitempty"`
 }
 
 // StreamResponseBody is the type of the "tabular_chat" service "stream"
@@ -44,11 +44,11 @@ type StreamResponseBody struct {
 
 // ChatResponse is used to define fields on response body types.
 type ChatResponse struct {
-	ID        string  `form:"id" json:"id" xml:"id"`
-	ProjectID *string `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
-	UserID    string  `form:"user_id" json:"user_id" xml:"user_id"`
-	Title     *string `form:"title,omitempty" json:"title,omitempty" xml:"title,omitempty"`
-	CreatedAt string  `form:"created_at" json:"created_at" xml:"created_at"`
+	ID            string  `form:"id" json:"id" xml:"id"`
+	ApplicationID *string `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
+	UserID        string  `form:"user_id" json:"user_id" xml:"user_id"`
+	Title         *string `form:"title,omitempty" json:"title,omitempty" xml:"title,omitempty"`
+	CreatedAt     string  `form:"created_at" json:"created_at" xml:"created_at"`
 }
 
 // ServerMessageResponse is used to define fields on response body types.
@@ -364,9 +364,9 @@ func NewMessagesPayload(reviewID string, chatID string) *tabularchat.MessagesPay
 // NewStreamPayload builds a tabular_chat service stream endpoint payload.
 func NewStreamPayload(body *StreamRequestBody, reviewID string) *tabularchat.StreamPayload {
 	v := &tabularchat.StreamPayload{
-		ChatID:      body.ChatID,
-		ReviewTitle: body.ReviewTitle,
-		ProjectName: body.ProjectName,
+		ChatID:          body.ChatID,
+		ReviewTitle:     body.ReviewTitle,
+		ApplicationName: body.ApplicationName,
 	}
 	v.Messages = make([]*tabularchat.ChatMessage, len(body.Messages))
 	for i, val := range body.Messages {

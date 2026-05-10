@@ -27,8 +27,6 @@ type Client struct {
 	PromptDoer loomhttp.Doer
 	// Get Doer is the HTTP client used to make requests to the get endpoint.
 	GetDoer loomhttp.Doer
-	// People Doer is the HTTP client used to make requests to the people endpoint.
-	PeopleDoer loomhttp.Doer
 	// Update Doer is the HTTP client used to make requests to the update endpoint.
 	UpdateDoer loomhttp.Doer
 	// Delete Doer is the HTTP client used to make requests to the delete endpoint.
@@ -52,7 +50,7 @@ type Client struct {
 	decoder func(*http.Response) loomhttp.Decoder
 } // NewClient instantiates HTTP clients for all the tabular service servers.
 func NewClient(scheme string, host string, doer loomhttp.Doer, enc func(*http.Request) loomhttp.Encoder, dec func(*http.Response) loomhttp.Decoder, restoreBody bool) *Client {
-	return &Client{ListDoer: doer, CreateDoer: doer, PromptDoer: doer, GetDoer: doer, PeopleDoer: doer, UpdateDoer: doer, DeleteDoer: doer, ClearCellsDoer: doer, RegenerateCellDoer: doer, GenerateDoer: doer, RestoreResponseBody: restoreBody, scheme: scheme, host: host, decoder: dec, encoder: enc}
+	return &Client{ListDoer: doer, CreateDoer: doer, PromptDoer: doer, GetDoer: doer, UpdateDoer: doer, DeleteDoer: doer, ClearCellsDoer: doer, RegenerateCellDoer: doer, GenerateDoer: doer, RestoreResponseBody: restoreBody, scheme: scheme, host: host, decoder: dec, encoder: enc}
 } // List returns an endpoint that makes HTTP requests to the tabular service
 // list server.
 func (c *Client) List() loom.Endpoint {
@@ -133,23 +131,6 @@ func (c *Client) Get() loom.Endpoint {
 		resp, err := c.GetDoer.Do(req)
 		if err != nil {
 			return nil, loomhttp.ErrRequestError("tabular", "get", err)
-		}
-		return decodeResponse(resp)
-	}
-} // People returns an endpoint that makes HTTP requests to the tabular service
-// people server.
-func (c *Client) People() loom.Endpoint {
-	var (
-		decodeResponse = DecodePeopleResponse(c.decoder, c.RestoreResponseBody)
-	)
-	return func(ctx context.Context, v any) (any, error) {
-		req, err := c.BuildPeopleRequest(ctx, v)
-		if err != nil {
-			return nil, err
-		}
-		resp, err := c.PeopleDoer.Do(req)
-		if err != nil {
-			return nil, loomhttp.ErrRequestError("tabular", "people", err)
 		}
 		return decodeResponse(resp)
 	}

@@ -12,21 +12,21 @@ import (
 )
 
 // CreateFoldersPath returns the URL path to the folders service create HTTP endpoint.
-func CreateFoldersPath(projectID string) string {
-	return fmt.Sprintf("/projects/%v/folders", projectID)
+func CreateFoldersPath(applicationID string) string {
+	return fmt.Sprintf("/applications/%v/folders", applicationID)
 }
 
 // UpdateFoldersPath returns the URL path to the folders service update HTTP endpoint.
-func UpdateFoldersPath(projectID string, folderID string) string {
-	return fmt.Sprintf("/projects/%v/folders/%v", projectID, folderID)
+func UpdateFoldersPath(applicationID string, folderID string) string {
+	return fmt.Sprintf("/applications/%v/folders/%v", applicationID, folderID)
 }
 
 // DeleteFoldersPath returns the URL path to the folders service delete HTTP endpoint.
-func DeleteFoldersPath(projectID string, folderID string) string {
-	return fmt.Sprintf("/projects/%v/folders/%v", projectID, folderID)
+func DeleteFoldersPath(applicationID string, folderID string) string {
+	return fmt.Sprintf("/applications/%v/folders/%v", applicationID, folderID)
 }
 
 // MoveDocumentFoldersPath returns the URL path to the folders service move_document HTTP endpoint.
-func MoveDocumentFoldersPath(projectID string, documentID string) string {
-	return fmt.Sprintf("/projects/%v/documents/%v/folder", projectID, documentID)
+func MoveDocumentFoldersPath(applicationID string, documentID string) string {
+	return fmt.Sprintf("/applications/%v/documents/%v/folder", applicationID, documentID)
 }

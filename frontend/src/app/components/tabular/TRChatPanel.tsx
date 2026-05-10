@@ -53,7 +53,7 @@ interface TRMessage {
 interface Props {
   reviewId: string;
   reviewTitle?: string | null;
-  projectName?: string | null;
+  applicationName?: string | null;
   columns: ColumnConfig[];
   documents: LukeDocument[];
   onCitationClick: (colIdx: number, rowIdx: number) => void;
@@ -528,7 +528,7 @@ function findLastContentIndex(events: AssistantEvent[]): number {
 export function TRChatPanel({
   reviewId,
   reviewTitle,
-  projectName,
+  applicationName,
   columns: _columns,
   documents: _documents,
   onCitationClick,
@@ -917,7 +917,7 @@ export function TRChatPanel({
         allMessages,
         currentChatId,
         controller.signal,
-        { reviewTitle, projectName },
+        { reviewTitle, applicationName },
       );
       if (!response.body) throw new Error("No response body");
 
@@ -1218,7 +1218,7 @@ export function TRChatPanel({
                 behavior: "smooth",
               });
             }}
-            className="scrollbar-none min-w-0 overflow-x-hidden whitespace-nowrap"
+            className="min-w-0 scrollbar-none overflow-x-hidden whitespace-nowrap"
           >
             <span className="text-xs font-medium text-gray-700">
               {currentChatTitle ?? "Assistant"}

@@ -2,15 +2,15 @@
 
 import { useEffect, useState } from "react";
 
-import { getProject, listProjects, listStandaloneDocuments } from "@/app/lib/lukeApi";
+import { getApplication, listApplications, listStandaloneDocuments } from "@/app/lib/lukeApi";
 
-import type { LukeDocument, LukeProject } from "./types";
+import type { LukeDocument, LukeApplication } from "./types";
 
 const CACHE_TTL_MS = 30_000;
 
 interface DirectoryCache {
   standaloneDocuments: LukeDocument[];
-  projects: LukeProject[];
+  applications: LukeApplication[];
   fetchedAt: number;
 }
 
@@ -23,7 +23,7 @@ export function invalidateDirectoryCache() {
 export function useDirectoryData(enabled: boolean) {
   const [loading, setLoading] = useState(true);
   const [standaloneDocuments, setStandaloneDocuments] = useState<LukeDocument[]>([]);
-  const [projects, setProjects] = useState<LukeProject[]>([]);
+  const [applications, setApplications] = useState<LukeApplication[]>([]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -33,34 +33,34 @@ export function useDirectoryData(enabled: boolean) {
       const cached = cache;
       queueMicrotask(() => {
         setStandaloneDocuments(cached.standaloneDocuments);
-        setProjects(cached.projects);
+        setApplications(cached.applications);
         setLoading(false);
       });
       return;
     }
 
     queueMicrotask(() => setLoading(true));
-    Promise.all([listProjects(), listStandaloneDocuments()])
+    Promise.all([listApplications(), listStandaloneDocuments()])
       .then(([ps, ds]) => {
         const sorted = [...ds].sort((a, b) =>
           (b.created_at ?? "").localeCompare(a.created_at ?? ""),
         );
-        return Promise.all(ps.map((p) => getProject(p.id))).then((fullProjects) => {
+        return Promise.all(ps.map((p) => getApplication(p.id))).then((fullApplications) => {
           cache = {
             standaloneDocuments: sorted,
-            projects: fullProjects,
+            applications: fullApplications,
             fetchedAt: Date.now(),
           };
           setStandaloneDocuments(sorted);
-          setProjects(fullProjects);
+          setApplications(fullApplications);
         });
       })
       .catch(() => {
         setStandaloneDocuments([]);
-        setProjects([]);
+        setApplications([]);
       })
       .finally(() => setLoading(false));
   }, [enabled]);
 
-  return { loading, standaloneDocuments, projects };
+  return { loading, standaloneDocuments, applications };
 }

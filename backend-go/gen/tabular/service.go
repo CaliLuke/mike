@@ -21,8 +21,6 @@ type Service interface {
 	Prompt(context.Context, *PromptPayload) (res *PromptResponse, err error)
 	// Get implements get.
 	Get(context.Context, *GetPayload) (res *TabularReviewDetail, err error)
-	// People implements people.
-	People(context.Context, *PeoplePayload) (res *ProjectPeople, err error)
 	// Update implements update.
 	Update(context.Context, *UpdatePayload) (res *TabularReview, err error)
 	// Delete implements delete.
@@ -49,7 +47,7 @@ const ServiceName = "tabular"
 // MethodNames lists the service method names as defined in the design. These
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
-var MethodNames = [10]string{"list", "create", "prompt", "get", "people", "update", "delete", "clear_cells", "regenerate_cell", "generate"}
+var MethodNames = [9]string{"list", "create", "prompt", "get", "update", "delete", "clear_cells", "regenerate_cell", "generate"}
 
 // GenerateServerStream allows streaming instances of *SSEEvent to the client.
 type GenerateServerStream interface {
@@ -67,6 +65,57 @@ type GenerateClientStream interface {
 	Recv() (*SSEEvent, error)
 	// RecvWithContext reads instances of "SSEEvent" from the stream with context.
 	RecvWithContext(context.Context) (*SSEEvent, error)
+}
+
+type AssistantCreateApplicationArgs struct {
+	// Application name, usually the role title from the job ad
+	Name *string `json:"name,omitempty"`
+	// Local company identifier returned by create_company or a prior
+	// company_created event
+	CompanyID *string `json:"company_id,omitempty"`
+	// Optional Competition Bureau matter number
+	CmNumber *string `json:"cm_number,omitempty"`
+	// Optional full job description text to save as an application document
+	JobDescriptionText *string `json:"job_description_text,omitempty"`
+	// Optional source URL for the job description
+	JobDescriptionURL *string `json:"job_description_url,omitempty"`
+}
+
+type AssistantCreateCompanyArgs struct {
+	// Company name
+	Name *string `json:"name,omitempty"`
+	// Optional company website
+	Website *string `json:"website,omitempty"`
+}
+
+type AssistantCreatedApplication struct {
+	// Whether the application was created
+	OK *bool `json:"ok,omitempty"`
+	// Local application identifier
+	ApplicationID *string `json:"application_id,omitempty"`
+	// Attached local company identifier
+	CompanyID *string `json:"company_id,omitempty"`
+	// Application name
+	Name *string `json:"name,omitempty"`
+	// Competition Bureau matter number
+	CmNumber *string `json:"cm_number,omitempty"`
+	// Created job description document identifier, when job text was provided
+	JobDescriptionDocumentID *string `json:"job_description_document_id,omitempty"`
+	// Error message when creation failed
+	Error *string `json:"error,omitempty"`
+}
+
+type AssistantCreatedCompany struct {
+	// Whether the company was created
+	OK *bool `json:"ok,omitempty"`
+	// Local company identifier
+	CompanyID *string `json:"company_id,omitempty"`
+	// Company name
+	Name *string `json:"name,omitempty"`
+	// Company website
+	Website *string `json:"website,omitempty"`
+	// Error message when creation failed
+	Error *string `json:"error,omitempty"`
 }
 
 type AssistantDocumentBundle struct {
@@ -132,8 +181,8 @@ type AssistantDocumentRef struct {
 	DocumentID *string `json:"document_id,omitempty"`
 	// Document filename
 	Filename *string `json:"filename,omitempty"`
-	// Owning project identifier, when attached to a project
-	ProjectID *string `json:"project_id,omitempty"`
+	// Owning application identifier, when attached to a application
+	ApplicationID *string `json:"application_id,omitempty"`
 	// Stored file type or MIME hint
 	FileType *string `json:"file_type,omitempty"`
 	// Processing status
@@ -246,6 +295,13 @@ type AssistantFetchDocumentsArgs struct {
 	DocumentIds []string `json:"document_ids,omitempty"`
 }
 
+type AssistantFetchWebPageArgs struct {
+	// Public HTTP or HTTPS URL to download and simplify
+	URL *string `json:"url,omitempty"`
+	// Optional maximum characters of simplified text to return
+	MaxChars *int `json:"max_chars,omitempty"`
+}
+
 type AssistantFindDocumentArgs struct {
 	// Local document identifier to search
 	DocumentID *string `json:"document_id,omitempty"`
@@ -334,6 +390,19 @@ type AssistantTableCellsText struct {
 	Text *string `json:"text,omitempty"`
 }
 
+type AssistantWebPageText struct {
+	// Final fetched URL after redirects
+	URL *string `json:"url,omitempty"`
+	// Extracted page title
+	Title *string `json:"title,omitempty"`
+	// Simplified readable page text
+	Text *string `json:"text,omitempty"`
+	// Whether the simplified text was truncated
+	Truncated *bool `json:"truncated,omitempty"`
+	// Error message when fetching failed
+	Error *string `json:"error,omitempty"`
+}
+
 type AssistantWorkflowList struct {
 	// Saved workflows
 	Workflows []*AssistantWorkflowRef `json:"workflows,omitempty"`
@@ -398,7 +467,7 @@ type CreatePayload struct {
 	DocumentIds   []string        `json:"document_ids"`
 	ColumnsConfig []*ColumnConfig `json:"columns_config"`
 	WorkflowID    *string         `json:"workflow_id,omitempty"`
-	ProjectID     *string         `json:"project_id,omitempty"`
+	ApplicationID *string         `json:"application_id,omitempty"`
 }
 
 // DeletePayload is the payload type of the tabular service delete method.
@@ -409,7 +478,7 @@ type DeletePayload struct {
 type Document struct {
 	ID                  string           `json:"id"`
 	UserID              *string          `json:"user_id,omitempty"`
-	ProjectID           *string          `json:"project_id,omitempty"`
+	ApplicationID       *string          `json:"application_id,omitempty"`
 	FolderID            *string          `json:"folder_id,omitempty"`
 	Filename            string           `json:"filename"`
 	FileType            *string          `json:"file_type,omitempty"`
@@ -454,29 +523,7 @@ type GetPayload struct {
 
 // ListPayload is the payload type of the tabular service list method.
 type ListPayload struct {
-	ProjectID *string `json:"project_id,omitempty"`
-}
-
-// PeoplePayload is the payload type of the tabular service people method.
-type PeoplePayload struct {
-	ReviewID string `json:"reviewId"`
-}
-
-type ProjectMember struct {
-	Email       string  `json:"email"`
-	DisplayName *string `json:"display_name,omitempty"`
-}
-
-type ProjectOwner struct {
-	UserID      string  `json:"user_id"`
-	Email       *string `json:"email,omitempty"`
-	DisplayName *string `json:"display_name,omitempty"`
-}
-
-// ProjectPeople is the result type of the tabular service people method.
-type ProjectPeople struct {
-	Owner   *ProjectOwner    `json:"owner"`
-	Members []*ProjectMember `json:"members"`
+	ApplicationID *string `json:"application_id,omitempty"`
 }
 
 // PromptPayload is the payload type of the tabular service prompt method.
@@ -542,14 +589,12 @@ type TabularCellContent struct {
 // TabularReview is the result type of the tabular service create method.
 type TabularReview struct {
 	ID            string          `json:"id"`
-	ProjectID     *string         `json:"project_id,omitempty"`
+	ApplicationID *string         `json:"application_id,omitempty"`
 	UserID        string          `json:"user_id"`
 	Title         *string         `json:"title,omitempty"`
 	ColumnsConfig []*ColumnConfig `json:"columns_config,omitempty"`
 	WorkflowID    *string         `json:"workflow_id,omitempty"`
 	Practice      *string         `json:"practice,omitempty"`
-	SharedWith    []string        `json:"shared_with,omitempty"`
-	IsOwner       *bool           `json:"is_owner,omitempty"`
 	CreatedAt     string          `json:"created_at"`
 	UpdatedAt     string          `json:"updated_at"`
 	DocumentCount *int            `json:"document_count,omitempty"`
@@ -568,6 +613,5 @@ type UpdatePayload struct {
 	Title         *string         `json:"title,omitempty"`
 	ColumnsConfig []*ColumnConfig `json:"columns_config,omitempty"`
 	DocumentIds   []string        `json:"document_ids,omitempty"`
-	ProjectID     *string         `json:"project_id,omitempty"`
-	SharedWith    []string        `json:"shared_with,omitempty"`
+	ApplicationID *string         `json:"application_id,omitempty"`
 }

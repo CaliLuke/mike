@@ -15,7 +15,7 @@ import (
 // CreateRequestBody is the type of the "chat" service "create" endpoint HTTP
 // request body.
 type CreateRequestBody struct {
-	ProjectID *string `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
+	ApplicationID *string `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
 }
 
 // CreateResponseBody is the type of the "chat" service "create" endpoint HTTP
@@ -40,11 +40,11 @@ type RenameRequestBody struct {
 // RenameResponseBody is the type of the "chat" service "rename" endpoint HTTP
 // response body.
 type RenameResponseBody struct {
-	ID        *string `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
-	ProjectID *string `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
-	UserID    *string `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
-	Title     *string `form:"title,omitempty" json:"title,omitempty" xml:"title,omitempty"`
-	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	ID            *string `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
+	ApplicationID *string `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
+	UserID        *string `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
+	Title         *string `form:"title,omitempty" json:"title,omitempty" xml:"title,omitempty"`
+	CreatedAt     *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 }
 
 // GenerateTitleRequestBody is the type of the "chat" service "generate_title"
@@ -62,10 +62,10 @@ type GenerateTitleResponseBody struct {
 // StreamRequestBody is the type of the "chat" service "stream" endpoint HTTP
 // request body.
 type StreamRequestBody struct {
-	Messages  []*ChatMessageRequestBody `form:"messages" json:"messages" xml:"messages"`
-	ChatID    *string                   `form:"chat_id,omitempty" json:"chat_id,omitempty" xml:"chat_id,omitempty"`
-	ProjectID *string                   `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
-	Model     *string                   `form:"model,omitempty" json:"model,omitempty" xml:"model,omitempty"`
+	Messages      []*ChatMessageRequestBody `form:"messages" json:"messages" xml:"messages"`
+	ChatID        *string                   `form:"chat_id,omitempty" json:"chat_id,omitempty" xml:"chat_id,omitempty"`
+	ApplicationID *string                   `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
+	Model         *string                   `form:"model,omitempty" json:"model,omitempty" xml:"model,omitempty"`
 }
 
 // StreamResponseBody is the type of the "chat" service "stream" endpoint HTTP
@@ -83,20 +83,20 @@ type StreamResponseBody struct {
 
 // ChatResponse is used to define fields on response body types.
 type ChatResponse struct {
-	ID        *string `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
-	ProjectID *string `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
-	UserID    *string `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
-	Title     *string `form:"title,omitempty" json:"title,omitempty" xml:"title,omitempty"`
-	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	ID            *string `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
+	ApplicationID *string `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
+	UserID        *string `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
+	Title         *string `form:"title,omitempty" json:"title,omitempty" xml:"title,omitempty"`
+	CreatedAt     *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 }
 
 // ChatResponseBody is used to define fields on response body types.
 type ChatResponseBody struct {
-	ID        *string `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
-	ProjectID *string `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
-	UserID    *string `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
-	Title     *string `form:"title,omitempty" json:"title,omitempty" xml:"title,omitempty"`
-	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	ID            *string `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
+	ApplicationID *string `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
+	UserID        *string `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
+	Title         *string `form:"title,omitempty" json:"title,omitempty" xml:"title,omitempty"`
+	CreatedAt     *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 }
 
 // ServerMessageResponseBody is used to define fields on response body types.
@@ -278,7 +278,7 @@ type TabularCellContentResponseBody struct {
 // "create" endpoint of the "chat" service.
 func NewCreateRequestBody(p *chat.CreatePayload) *CreateRequestBody {
 	body := &CreateRequestBody{
-		ProjectID: p.ProjectID,
+		ApplicationID: p.ApplicationID,
 	}
 	return body
 }
@@ -305,9 +305,9 @@ func NewGenerateTitleRequestBody(p *chat.GenerateTitlePayload) *GenerateTitleReq
 // "stream" endpoint of the "chat" service.
 func NewStreamRequestBody(p *chat.StreamPayload) *StreamRequestBody {
 	body := &StreamRequestBody{
-		ChatID:    p.ChatID,
-		ProjectID: p.ProjectID,
-		Model:     p.Model,
+		ChatID:        p.ChatID,
+		ApplicationID: p.ApplicationID,
+		Model:         p.Model,
 	}
 	if p.Messages != nil {
 		body.Messages = make([]*ChatMessageRequestBody, len(p.Messages))
@@ -370,11 +370,11 @@ func NewGetChatDetailOK(body *GetResponseBody) *chat.ChatDetail {
 // "OK" response.
 func NewRenameChatOK(body *RenameResponseBody) *chat.Chat {
 	v := &chat.Chat{
-		ID:        *body.ID,
-		ProjectID: body.ProjectID,
-		UserID:    *body.UserID,
-		Title:     body.Title,
-		CreatedAt: *body.CreatedAt,
+		ID:            *body.ID,
+		ApplicationID: body.ApplicationID,
+		UserID:        *body.UserID,
+		Title:         body.Title,
+		CreatedAt:     *body.CreatedAt,
 	}
 
 	return v

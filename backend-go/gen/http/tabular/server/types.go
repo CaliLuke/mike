@@ -15,7 +15,7 @@ import (
 // ListRequestBody is the type of the "tabular" service "list" endpoint HTTP
 // request body.
 type ListRequestBody struct {
-	ProjectID *string `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
+	ApplicationID *string `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
 }
 
 // ListResponseBody is the type of the "tabular" service "list" endpoint HTTP
@@ -29,21 +29,19 @@ type CreateRequestBody struct {
 	DocumentIds   []string                   `form:"document_ids,omitempty" json:"document_ids,omitempty" xml:"document_ids,omitempty"`
 	ColumnsConfig []*ColumnConfigRequestBody `form:"columns_config,omitempty" json:"columns_config,omitempty" xml:"columns_config,omitempty"`
 	WorkflowID    *string                    `form:"workflow_id,omitempty" json:"workflow_id,omitempty" xml:"workflow_id,omitempty"`
-	ProjectID     *string                    `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
+	ApplicationID *string                    `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
 }
 
 // CreateResponseBody is the type of the "tabular" service "create" endpoint
 // HTTP response body.
 type CreateResponseBody struct {
 	ID            string                      `form:"id" json:"id" xml:"id"`
-	ProjectID     *string                     `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
+	ApplicationID *string                     `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
 	UserID        string                      `form:"user_id" json:"user_id" xml:"user_id"`
 	Title         *string                     `form:"title,omitempty" json:"title,omitempty" xml:"title,omitempty"`
 	ColumnsConfig []*ColumnConfigResponseBody `form:"columns_config,omitempty" json:"columns_config,omitempty" xml:"columns_config,omitempty"`
 	WorkflowID    *string                     `form:"workflow_id,omitempty" json:"workflow_id,omitempty" xml:"workflow_id,omitempty"`
 	Practice      *string                     `form:"practice,omitempty" json:"practice,omitempty" xml:"practice,omitempty"`
-	SharedWith    []string                    `form:"shared_with,omitempty" json:"shared_with,omitempty" xml:"shared_with,omitempty"`
-	IsOwner       *bool                       `form:"is_owner,omitempty" json:"is_owner,omitempty" xml:"is_owner,omitempty"`
 	CreatedAt     string                      `form:"created_at" json:"created_at" xml:"created_at"`
 	UpdatedAt     string                      `form:"updated_at" json:"updated_at" xml:"updated_at"`
 	DocumentCount *int                        `form:"document_count,omitempty" json:"document_count,omitempty" xml:"document_count,omitempty"`
@@ -73,35 +71,25 @@ type GetResponseBody struct {
 	Documents []*DocumentResponseBody    `form:"documents" json:"documents" xml:"documents"`
 }
 
-// PeopleResponseBody is the type of the "tabular" service "people" endpoint
-// HTTP response body.
-type PeopleResponseBody struct {
-	Owner   *ProjectOwnerResponseBody    `form:"owner" json:"owner" xml:"owner"`
-	Members []*ProjectMemberResponseBody `form:"members" json:"members" xml:"members"`
-}
-
 // UpdateRequestBody is the type of the "tabular" service "update" endpoint
 // HTTP request body.
 type UpdateRequestBody struct {
 	Title         *string                    `form:"title,omitempty" json:"title,omitempty" xml:"title,omitempty"`
 	ColumnsConfig []*ColumnConfigRequestBody `form:"columns_config,omitempty" json:"columns_config,omitempty" xml:"columns_config,omitempty"`
 	DocumentIds   []string                   `form:"document_ids,omitempty" json:"document_ids,omitempty" xml:"document_ids,omitempty"`
-	ProjectID     *string                    `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
-	SharedWith    []string                   `form:"shared_with,omitempty" json:"shared_with,omitempty" xml:"shared_with,omitempty"`
+	ApplicationID *string                    `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
 }
 
 // UpdateResponseBody is the type of the "tabular" service "update" endpoint
 // HTTP response body.
 type UpdateResponseBody struct {
 	ID            string                      `form:"id" json:"id" xml:"id"`
-	ProjectID     *string                     `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
+	ApplicationID *string                     `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
 	UserID        string                      `form:"user_id" json:"user_id" xml:"user_id"`
 	Title         *string                     `form:"title,omitempty" json:"title,omitempty" xml:"title,omitempty"`
 	ColumnsConfig []*ColumnConfigResponseBody `form:"columns_config,omitempty" json:"columns_config,omitempty" xml:"columns_config,omitempty"`
 	WorkflowID    *string                     `form:"workflow_id,omitempty" json:"workflow_id,omitempty" xml:"workflow_id,omitempty"`
 	Practice      *string                     `form:"practice,omitempty" json:"practice,omitempty" xml:"practice,omitempty"`
-	SharedWith    []string                    `form:"shared_with,omitempty" json:"shared_with,omitempty" xml:"shared_with,omitempty"`
-	IsOwner       *bool                       `form:"is_owner,omitempty" json:"is_owner,omitempty" xml:"is_owner,omitempty"`
 	CreatedAt     string                      `form:"created_at" json:"created_at" xml:"created_at"`
 	UpdatedAt     string                      `form:"updated_at" json:"updated_at" xml:"updated_at"`
 	DocumentCount *int                        `form:"document_count,omitempty" json:"document_count,omitempty" xml:"document_count,omitempty"`
@@ -144,14 +132,12 @@ type GenerateResponseBody struct {
 // TabularReviewResponse is used to define fields on response body types.
 type TabularReviewResponse struct {
 	ID            string                  `form:"id" json:"id" xml:"id"`
-	ProjectID     *string                 `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
+	ApplicationID *string                 `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
 	UserID        string                  `form:"user_id" json:"user_id" xml:"user_id"`
 	Title         *string                 `form:"title,omitempty" json:"title,omitempty" xml:"title,omitempty"`
 	ColumnsConfig []*ColumnConfigResponse `form:"columns_config,omitempty" json:"columns_config,omitempty" xml:"columns_config,omitempty"`
 	WorkflowID    *string                 `form:"workflow_id,omitempty" json:"workflow_id,omitempty" xml:"workflow_id,omitempty"`
 	Practice      *string                 `form:"practice,omitempty" json:"practice,omitempty" xml:"practice,omitempty"`
-	SharedWith    []string                `form:"shared_with,omitempty" json:"shared_with,omitempty" xml:"shared_with,omitempty"`
-	IsOwner       *bool                   `form:"is_owner,omitempty" json:"is_owner,omitempty" xml:"is_owner,omitempty"`
 	CreatedAt     string                  `form:"created_at" json:"created_at" xml:"created_at"`
 	UpdatedAt     string                  `form:"updated_at" json:"updated_at" xml:"updated_at"`
 	DocumentCount *int                    `form:"document_count,omitempty" json:"document_count,omitempty" xml:"document_count,omitempty"`
@@ -178,14 +164,12 @@ type ColumnConfigResponseBody struct {
 // TabularReviewResponseBody is used to define fields on response body types.
 type TabularReviewResponseBody struct {
 	ID            string                      `form:"id" json:"id" xml:"id"`
-	ProjectID     *string                     `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
+	ApplicationID *string                     `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
 	UserID        string                      `form:"user_id" json:"user_id" xml:"user_id"`
 	Title         *string                     `form:"title,omitempty" json:"title,omitempty" xml:"title,omitempty"`
 	ColumnsConfig []*ColumnConfigResponseBody `form:"columns_config,omitempty" json:"columns_config,omitempty" xml:"columns_config,omitempty"`
 	WorkflowID    *string                     `form:"workflow_id,omitempty" json:"workflow_id,omitempty" xml:"workflow_id,omitempty"`
 	Practice      *string                     `form:"practice,omitempty" json:"practice,omitempty" xml:"practice,omitempty"`
-	SharedWith    []string                    `form:"shared_with,omitempty" json:"shared_with,omitempty" xml:"shared_with,omitempty"`
-	IsOwner       *bool                       `form:"is_owner,omitempty" json:"is_owner,omitempty" xml:"is_owner,omitempty"`
 	CreatedAt     string                      `form:"created_at" json:"created_at" xml:"created_at"`
 	UpdatedAt     string                      `form:"updated_at" json:"updated_at" xml:"updated_at"`
 	DocumentCount *int                        `form:"document_count,omitempty" json:"document_count,omitempty" xml:"document_count,omitempty"`
@@ -214,7 +198,7 @@ type TabularCellContentResponseBody struct {
 type DocumentResponseBody struct {
 	ID                  string                       `form:"id" json:"id" xml:"id"`
 	UserID              *string                      `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
-	ProjectID           *string                      `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
+	ApplicationID       *string                      `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
 	FolderID            *string                      `form:"folder_id,omitempty" json:"folder_id,omitempty" xml:"folder_id,omitempty"`
 	Filename            string                       `form:"filename" json:"filename" xml:"filename"`
 	FileType            *string                      `form:"file_type,omitempty" json:"file_type,omitempty" xml:"file_type,omitempty"`
@@ -236,19 +220,6 @@ type StructureNodeResponseBody struct {
 	Level      int                          `form:"level" json:"level" xml:"level"`
 	PageNumber *int                         `form:"page_number,omitempty" json:"page_number,omitempty" xml:"page_number,omitempty"`
 	Children   []*StructureNodeResponseBody `form:"children" json:"children" xml:"children"`
-}
-
-// ProjectOwnerResponseBody is used to define fields on response body types.
-type ProjectOwnerResponseBody struct {
-	UserID      string  `form:"user_id" json:"user_id" xml:"user_id"`
-	Email       *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
-	DisplayName *string `form:"display_name,omitempty" json:"display_name,omitempty" xml:"display_name,omitempty"`
-}
-
-// ProjectMemberResponseBody is used to define fields on response body types.
-type ProjectMemberResponseBody struct {
-	Email       string  `form:"email" json:"email" xml:"email"`
-	DisplayName *string `form:"display_name,omitempty" json:"display_name,omitempty" xml:"display_name,omitempty"`
 }
 
 // AssistantEventResponseBody is used to define fields on response body types.
@@ -332,12 +303,11 @@ func NewListResponseBody(res []*tabular.TabularReview) ListResponseBody {
 func NewCreateResponseBody(res *tabular.TabularReview) *CreateResponseBody {
 	body := &CreateResponseBody{
 		ID:            res.ID,
-		ProjectID:     res.ProjectID,
+		ApplicationID: res.ApplicationID,
 		UserID:        res.UserID,
 		Title:         res.Title,
 		WorkflowID:    res.WorkflowID,
 		Practice:      res.Practice,
-		IsOwner:       res.IsOwner,
 		CreatedAt:     res.CreatedAt,
 		UpdatedAt:     res.UpdatedAt,
 		DocumentCount: res.DocumentCount,
@@ -350,12 +320,6 @@ func NewCreateResponseBody(res *tabular.TabularReview) *CreateResponseBody {
 				continue
 			}
 			body.ColumnsConfig[i] = marshalTabularColumnConfigToColumnConfigResponseBody(val)
-		}
-	}
-	if res.SharedWith != nil {
-		body.SharedWith = make([]string, len(res.SharedWith))
-		for i, val := range res.SharedWith {
-			body.SharedWith[i] = val
 		}
 	}
 	return body
@@ -405,39 +369,16 @@ func NewGetResponseBody(res *tabular.TabularReviewDetail) *GetResponseBody {
 	return body
 }
 
-// NewPeopleResponseBody builds the HTTP response body from the result of the
-// "people" endpoint of the "tabular" service.
-func NewPeopleResponseBody(res *tabular.ProjectPeople) *PeopleResponseBody {
-	body := &PeopleResponseBody{}
-	if res.Owner != nil {
-		body.Owner = marshalTabularProjectOwnerToProjectOwnerResponseBody(res.Owner)
-	}
-	if res.Members != nil {
-		body.Members = make([]*ProjectMemberResponseBody, len(res.Members))
-		for i, val := range res.Members {
-			if val == nil {
-				body.Members[i] = nil
-				continue
-			}
-			body.Members[i] = marshalTabularProjectMemberToProjectMemberResponseBody(val)
-		}
-	} else {
-		body.Members = []*ProjectMemberResponseBody{}
-	}
-	return body
-}
-
 // NewUpdateResponseBody builds the HTTP response body from the result of the
 // "update" endpoint of the "tabular" service.
 func NewUpdateResponseBody(res *tabular.TabularReview) *UpdateResponseBody {
 	body := &UpdateResponseBody{
 		ID:            res.ID,
-		ProjectID:     res.ProjectID,
+		ApplicationID: res.ApplicationID,
 		UserID:        res.UserID,
 		Title:         res.Title,
 		WorkflowID:    res.WorkflowID,
 		Practice:      res.Practice,
-		IsOwner:       res.IsOwner,
 		CreatedAt:     res.CreatedAt,
 		UpdatedAt:     res.UpdatedAt,
 		DocumentCount: res.DocumentCount,
@@ -450,12 +391,6 @@ func NewUpdateResponseBody(res *tabular.TabularReview) *UpdateResponseBody {
 				continue
 			}
 			body.ColumnsConfig[i] = marshalTabularColumnConfigToColumnConfigResponseBody(val)
-		}
-	}
-	if res.SharedWith != nil {
-		body.SharedWith = make([]string, len(res.SharedWith))
-		for i, val := range res.SharedWith {
-			body.SharedWith[i] = val
 		}
 	}
 	return body
@@ -504,7 +439,7 @@ func NewGenerateResponseBody(res *tabular.SSEEvent) *GenerateResponseBody {
 // NewListPayload builds a tabular service list endpoint payload.
 func NewListPayload(body *ListRequestBody) *tabular.ListPayload {
 	v := &tabular.ListPayload{
-		ProjectID: body.ProjectID,
+		ApplicationID: body.ApplicationID,
 	}
 
 	return v
@@ -513,9 +448,9 @@ func NewListPayload(body *ListRequestBody) *tabular.ListPayload {
 // NewCreatePayload builds a tabular service create endpoint payload.
 func NewCreatePayload(body *CreateRequestBody) *tabular.CreatePayload {
 	v := &tabular.CreatePayload{
-		Title:      body.Title,
-		WorkflowID: body.WorkflowID,
-		ProjectID:  body.ProjectID,
+		Title:         body.Title,
+		WorkflowID:    body.WorkflowID,
+		ApplicationID: body.ApplicationID,
 	}
 	v.DocumentIds = make([]string, len(body.DocumentIds))
 	for i, val := range body.DocumentIds {
@@ -558,19 +493,11 @@ func NewGetPayload(reviewID string) *tabular.GetPayload {
 	return v
 }
 
-// NewPeoplePayload builds a tabular service people endpoint payload.
-func NewPeoplePayload(reviewID string) *tabular.PeoplePayload {
-	v := &tabular.PeoplePayload{}
-	v.ReviewID = reviewID
-
-	return v
-}
-
 // NewUpdatePayload builds a tabular service update endpoint payload.
 func NewUpdatePayload(body *UpdateRequestBody, reviewID string) *tabular.UpdatePayload {
 	v := &tabular.UpdatePayload{
-		Title:     body.Title,
-		ProjectID: body.ProjectID,
+		Title:         body.Title,
+		ApplicationID: body.ApplicationID,
 	}
 	if body.ColumnsConfig != nil {
 		v.ColumnsConfig = make([]*tabular.ColumnConfig, len(body.ColumnsConfig))
@@ -586,12 +513,6 @@ func NewUpdatePayload(body *UpdateRequestBody, reviewID string) *tabular.UpdateP
 		v.DocumentIds = make([]string, len(body.DocumentIds))
 		for i, val := range body.DocumentIds {
 			v.DocumentIds[i] = val
-		}
-	}
-	if body.SharedWith != nil {
-		v.SharedWith = make([]string, len(body.SharedWith))
-		for i, val := range body.SharedWith {
-			v.SharedWith[i] = val
 		}
 	}
 	v.ReviewID = reviewID

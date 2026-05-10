@@ -43,10 +43,10 @@ type MountPoint struct {
 func New(e *folders.Endpoints, mux loomhttp.Muxer, decoder func(*http.Request) loomhttp.Decoder, encoder func(ctx context.Context, w http.ResponseWriter) loomhttp.Encoder, errhandler func(ctx context.Context, w http.ResponseWriter, err error), formatter func(ctx context.Context, err error) loomhttp.Statuser) *Server {
 	return &Server{
 		Mounts: []*MountPoint{
-			{"Create", "POST", "/projects/{projectId}/folders"},
-			{"Update", "PATCH", "/projects/{projectId}/folders/{folderId}"},
-			{"Delete", "DELETE", "/projects/{projectId}/folders/{folderId}"},
-			{"MoveDocument", "PATCH", "/projects/{projectId}/documents/{documentId}/folder"},
+			{"Create", "POST", "/applications/{applicationId}/folders"},
+			{"Update", "PATCH", "/applications/{applicationId}/folders/{folderId}"},
+			{"Delete", "DELETE", "/applications/{applicationId}/folders/{folderId}"},
+			{"MoveDocument", "PATCH", "/applications/{applicationId}/documents/{documentId}/folder"},
 		},
 		Create:       NewCreateHandler(e.Create, mux, decoder, encoder, errhandler, formatter),
 		Update:       NewUpdateHandler(e.Update, mux, decoder, encoder, errhandler, formatter),
@@ -85,7 +85,7 @@ func MountCreateHandler(mux loomhttp.Muxer, h http.Handler) {
 			h.ServeHTTP(w, r)
 		}
 	}
-	mux.Handle("POST", "/projects/{projectId}/folders", f)
+	mux.Handle("POST", "/applications/{applicationId}/folders", f)
 } // NewCreateHandler creates a HTTP handler which loads the HTTP request and
 // calls the "folders" service "create" endpoint.
 func NewCreateHandler(
@@ -136,7 +136,7 @@ func MountUpdateHandler(mux loomhttp.Muxer, h http.Handler) {
 			h.ServeHTTP(w, r)
 		}
 	}
-	mux.Handle("PATCH", "/projects/{projectId}/folders/{folderId}", f)
+	mux.Handle("PATCH", "/applications/{applicationId}/folders/{folderId}", f)
 } // NewUpdateHandler creates a HTTP handler which loads the HTTP request and
 // calls the "folders" service "update" endpoint.
 func NewUpdateHandler(
@@ -187,7 +187,7 @@ func MountDeleteHandler(mux loomhttp.Muxer, h http.Handler) {
 			h.ServeHTTP(w, r)
 		}
 	}
-	mux.Handle("DELETE", "/projects/{projectId}/folders/{folderId}", f)
+	mux.Handle("DELETE", "/applications/{applicationId}/folders/{folderId}", f)
 } // NewDeleteHandler creates a HTTP handler which loads the HTTP request and
 // calls the "folders" service "delete" endpoint.
 func NewDeleteHandler(
@@ -238,7 +238,7 @@ func MountMoveDocumentHandler(mux loomhttp.Muxer, h http.Handler) {
 			h.ServeHTTP(w, r)
 		}
 	}
-	mux.Handle("PATCH", "/projects/{projectId}/documents/{documentId}/folder", f)
+	mux.Handle("PATCH", "/applications/{applicationId}/documents/{documentId}/folder", f)
 } // NewMoveDocumentHandler creates a HTTP handler which loads the HTTP request
 // and calls the "folders" service "move_document" endpoint.
 func NewMoveDocumentHandler(

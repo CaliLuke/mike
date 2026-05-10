@@ -40,22 +40,27 @@ func New(app *localdata.App, tel *telemetry.Telemetry) http.Handler {
 	mux.HandleFunc("DELETE /user/account", server.deleteAccount)
 	mux.HandleFunc("DELETE /users", server.deleteAccount)
 	mux.HandleFunc("DELETE /users/account", server.deleteAccount)
-	mux.HandleFunc("GET /projects", server.projects)
-	mux.HandleFunc("POST /projects", server.projects)
-	mux.HandleFunc("GET /projects/{projectId}", server.project)
-	mux.HandleFunc("PATCH /projects/{projectId}", server.project)
-	mux.HandleFunc("DELETE /projects/{projectId}", server.project)
-	mux.HandleFunc("GET /projects/{projectId}/documents", server.projectDocuments)
-	mux.HandleFunc("POST /projects/{projectId}/documents", server.uploadProjectDocument)
-	mux.HandleFunc("POST /projects/{projectId}/documents/{documentId}", server.attachProjectDocument)
-	mux.HandleFunc("POST /projects/{projectId}/upload", server.uploadProjectDocument)
-	mux.HandleFunc("GET /projects/{projectId}/people", server.projectPeople)
-	mux.HandleFunc("GET /projects/{projectId}/chats", server.projectChats)
-	mux.HandleFunc("POST /projects/{projectId}/chat", server.projectChatStream)
-	mux.HandleFunc("POST /projects/{projectId}/folders", server.createFolder)
-	mux.HandleFunc("PATCH /projects/{projectId}/folders/{folderId}", server.updateFolder)
-	mux.HandleFunc("DELETE /projects/{projectId}/folders/{folderId}", server.deleteFolder)
-	mux.HandleFunc("PATCH /projects/{projectId}/documents/{documentId}/folder", server.moveDocument)
+	mux.HandleFunc("GET /companies", server.companies)
+	mux.HandleFunc("POST /companies", server.companies)
+	mux.HandleFunc("GET /companies/{companyId}", server.company)
+	mux.HandleFunc("PATCH /companies/{companyId}", server.company)
+	mux.HandleFunc("DELETE /companies/{companyId}", server.company)
+	mux.HandleFunc("GET /applications", server.applications)
+	mux.HandleFunc("POST /applications", server.applications)
+	mux.HandleFunc("GET /applications/{applicationId}", server.application)
+	mux.HandleFunc("PATCH /applications/{applicationId}", server.application)
+	mux.HandleFunc("DELETE /applications/{applicationId}", server.application)
+	mux.HandleFunc("GET /applications/{applicationId}/documents", server.applicationDocuments)
+	mux.HandleFunc("POST /applications/{applicationId}/documents", server.uploadApplicationDocument)
+	mux.HandleFunc("POST /applications/{applicationId}/documents/{documentId}", server.attachApplicationDocument)
+	mux.HandleFunc("POST /applications/{applicationId}/upload", server.uploadApplicationDocument)
+	mux.HandleFunc("GET /applications/{applicationId}/people", server.applicationPeople)
+	mux.HandleFunc("GET /applications/{applicationId}/chats", server.applicationChats)
+	mux.HandleFunc("POST /applications/{applicationId}/chat", server.applicationChatStream)
+	mux.HandleFunc("POST /applications/{applicationId}/folders", server.createFolder)
+	mux.HandleFunc("PATCH /applications/{applicationId}/folders/{folderId}", server.updateFolder)
+	mux.HandleFunc("DELETE /applications/{applicationId}/folders/{folderId}", server.deleteFolder)
+	mux.HandleFunc("PATCH /applications/{applicationId}/documents/{documentId}/folder", server.moveDocument)
 	mux.HandleFunc("GET /single-documents", server.documents)
 	mux.HandleFunc("POST /single-documents", server.documents)
 	mux.HandleFunc("DELETE /single-documents/{documentId}", server.document)
@@ -92,7 +97,7 @@ func New(app *localdata.App, tel *telemetry.Telemetry) http.Handler {
 	mux.HandleFunc("PATCH /workflows/{workflowId}", server.workflow)
 	mux.HandleFunc("DELETE /workflows/{workflowId}", server.workflow)
 	mux.HandleFunc("GET /workflows/{workflowId}/shares", server.workflowShares)
-	mux.HandleFunc("POST /workflows/{workflowId}/shares", server.workflowShares)
+	mux.HandleFunc("POST /workflows/{workflowId}/share", server.shareWorkflow)
 	mux.HandleFunc("DELETE /workflows/{workflowId}/shares/{shareId}", server.deleteWorkflowShare)
 	mux.HandleFunc("GET /tabular-review", server.tabularReviews)
 	mux.HandleFunc("POST /tabular-review", server.tabularReviews)
@@ -100,7 +105,6 @@ func New(app *localdata.App, tel *telemetry.Telemetry) http.Handler {
 	mux.HandleFunc("GET /tabular-review/{reviewId}", server.tabularReview)
 	mux.HandleFunc("PATCH /tabular-review/{reviewId}", server.tabularReview)
 	mux.HandleFunc("DELETE /tabular-review/{reviewId}", server.tabularReview)
-	mux.HandleFunc("GET /tabular-review/{reviewId}/people", server.tabularPeople)
 	mux.HandleFunc("POST /tabular-review/{reviewId}/generate", server.tabularGenerate)
 	mux.HandleFunc("POST /tabular-review/{reviewId}/regenerate-cell", server.regenerateCell)
 	mux.HandleFunc("POST /tabular-review/{reviewId}/clear-cells", server.clearCells)
@@ -150,10 +154,10 @@ func (s *Server) deleteAccount(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-func (s *Server) projects(w http.ResponseWriter, r *http.Request) {
+func (s *Server) companies(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		rows, err := queryRows(r.Context(), s.app.DB, projectListQuery)
+		rows, err := queryRows(r.Context(), s.app.DB, companyListQuery)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
@@ -161,18 +165,18 @@ func (s *Server) projects(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, rows)
 	case http.MethodPost:
 		var req struct {
-			Name       string   `json:"name"`
-			CmNumber   *string  `json:"cm_number"`
-			SharedWith []string `json:"shared_with"`
+			Name    string  `json:"name"`
+			Website *string `json:"website"`
 		}
 		if err := decodeJSON(r, &req); err != nil {
 			writeError(w, http.StatusBadRequest, err)
 			return
 		}
-		if req.Name == "" {
-			req.Name = "Untitled Project"
+		if strings.TrimSpace(req.Name) == "" {
+			writeError(w, http.StatusBadRequest, fmt.Errorf("company name is required"))
+			return
 		}
-		row, err := s.createProject(r.Context(), req.Name, req.CmNumber, req.SharedWith)
+		row, err := s.createCompany(r.Context(), strings.TrimSpace(req.Name), req.Website)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
@@ -183,15 +187,43 @@ func (s *Server) projects(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) project(w http.ResponseWriter, r *http.Request) {
-	projectID := r.PathValue("projectId")
+func (s *Server) company(w http.ResponseWriter, r *http.Request) {
+	companyID := r.PathValue("companyId")
 	switch r.Method {
 	case http.MethodGet:
-		row, err := s.getProject(r.Context(), projectID)
+		row, err := s.getCompany(r.Context(), companyID)
 		writeOne(w, row, err)
 	case http.MethodPatch:
 		var req struct {
-			Name       *string  `json:"name"`
+			Name    *string `json:"name"`
+			Website *string `json:"website"`
+		}
+		if err := decodeJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		row, err := s.updateCompany(r.Context(), companyID, req.Name, req.Website)
+		writeOne(w, row, err)
+	case http.MethodDelete:
+		s.writeNoContentQuery(w, r, "DELETE "+recordID("companies", companyID)+";")
+	default:
+		writeError(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed"))
+	}
+}
+
+func (s *Server) applications(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		rows, err := queryRows(r.Context(), s.app.DB, applicationListQuery)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, rows)
+	case http.MethodPost:
+		var req struct {
+			Name       string   `json:"name"`
+			CompanyID  string   `json:"company_id"`
 			CmNumber   *string  `json:"cm_number"`
 			SharedWith []string `json:"shared_with"`
 		}
@@ -199,10 +231,45 @@ func (s *Server) project(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, err)
 			return
 		}
-		row, err := s.updateProject(r.Context(), projectID, req.Name, req.CmNumber, req.SharedWith)
+		if req.Name == "" {
+			req.Name = "Untitled Application"
+		}
+		if req.CompanyID == "" {
+			writeError(w, http.StatusBadRequest, fmt.Errorf("company_id is required"))
+			return
+		}
+		row, err := s.createApplication(r.Context(), req.Name, req.CompanyID, req.CmNumber, req.SharedWith)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, row)
+	default:
+		writeError(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed"))
+	}
+}
+
+func (s *Server) application(w http.ResponseWriter, r *http.Request) {
+	applicationID := r.PathValue("applicationId")
+	switch r.Method {
+	case http.MethodGet:
+		row, err := s.getApplication(r.Context(), applicationID)
+		writeOne(w, row, err)
+	case http.MethodPatch:
+		var req struct {
+			Name       *string  `json:"name"`
+			CompanyID  *string  `json:"company_id"`
+			CmNumber   *string  `json:"cm_number"`
+			SharedWith []string `json:"shared_with"`
+		}
+		if err := decodeJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		row, err := s.updateApplication(r.Context(), applicationID, req.Name, req.CompanyID, req.CmNumber, req.SharedWith)
 		writeOne(w, row, err)
 	case http.MethodDelete:
-		if err := localdata.DeleteProject(r.Context(), s.app.DB, projectID); err != nil {
+		if err := localdata.DeleteApplication(r.Context(), s.app.DB, applicationID); err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
@@ -212,18 +279,18 @@ func (s *Server) project(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) projectDocuments(w http.ResponseWriter, r *http.Request) {
-	s.writeQueryRows(w, r, documentListQuery("project_id = "+recordID("projects", r.PathValue("projectId"))))
+func (s *Server) applicationDocuments(w http.ResponseWriter, r *http.Request) {
+	s.writeQueryRows(w, r, documentListQuery("application_id = "+recordID("applications", r.PathValue("applicationId"))))
 }
 
-func (s *Server) attachProjectDocument(w http.ResponseWriter, r *http.Request) {
-	row, err := s.assignDocument(r.Context(), r.PathValue("documentId"), r.PathValue("projectId"), nil)
+func (s *Server) attachApplicationDocument(w http.ResponseWriter, r *http.Request) {
+	row, err := s.assignDocument(r.Context(), r.PathValue("documentId"), r.PathValue("applicationId"), nil)
 	writeOne(w, row, err)
 }
 
-func (s *Server) uploadProjectDocument(w http.ResponseWriter, r *http.Request) {
-	projectID := r.PathValue("projectId")
-	doc, err := s.uploadFromRequest(r, &projectID)
+func (s *Server) uploadApplicationDocument(w http.ResponseWriter, r *http.Request) {
+	applicationID := r.PathValue("applicationId")
+	doc, err := s.uploadFromRequest(r, &applicationID)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err)
 		return
@@ -231,12 +298,12 @@ func (s *Server) uploadProjectDocument(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, doc)
 }
 
-func (s *Server) projectPeople(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) applicationPeople(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, s.peopleResponse())
 }
 
-func (s *Server) projectChats(w http.ResponseWriter, r *http.Request) {
-	s.writeQueryRows(w, r, chatListQuery("project_id = "+recordID("projects", r.PathValue("projectId"))))
+func (s *Server) applicationChats(w http.ResponseWriter, r *http.Request) {
+	s.writeQueryRows(w, r, chatListQuery("application_id = "+recordID("applications", r.PathValue("applicationId"))))
 }
 
 func (s *Server) createFolder(w http.ResponseWriter, r *http.Request) {
@@ -251,7 +318,7 @@ func (s *Server) createFolder(w http.ResponseWriter, r *http.Request) {
 	if req.Name == "" {
 		req.Name = "Untitled Folder"
 	}
-	row, err := s.upsertFolder(r.Context(), "", r.PathValue("projectId"), req.Name, req.ParentFolderID)
+	row, err := s.upsertFolder(r.Context(), "", r.PathValue("applicationId"), req.Name, req.ParentFolderID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -273,7 +340,7 @@ func (s *Server) updateFolder(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deleteFolder(w http.ResponseWriter, r *http.Request) {
-	s.writeNoContentQuery(w, r, "DELETE "+recordID("project_folders", r.PathValue("folderId"))+";")
+	s.writeNoContentQuery(w, r, "DELETE "+recordID("application_folders", r.PathValue("folderId"))+";")
 }
 
 func (s *Server) moveDocument(w http.ResponseWriter, r *http.Request) {
@@ -284,7 +351,7 @@ func (s *Server) moveDocument(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	row, err := s.assignDocument(r.Context(), r.PathValue("documentId"), r.PathValue("projectId"), req.FolderID)
+	row, err := s.assignDocument(r.Context(), r.PathValue("documentId"), r.PathValue("applicationId"), req.FolderID)
 	writeOne(w, row, err)
 }
 
@@ -437,7 +504,7 @@ func (s *Server) rejectEdit(w http.ResponseWriter, r *http.Request) {
 func (s *Server) chats(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		rows, err := queryRows(r.Context(), s.app.DB, chatListQuery("project_id = NONE"))
+		rows, err := queryRows(r.Context(), s.app.DB, chatListQuery("application_id = NONE"))
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
@@ -445,10 +512,10 @@ func (s *Server) chats(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, rows)
 	case http.MethodPost:
 		var req struct {
-			ProjectID *string `json:"project_id"`
+			ApplicationID *string `json:"application_id"`
 		}
 		_ = decodeJSON(r, &req)
-		row, err := s.createChat(r.Context(), req.ProjectID)
+		row, err := s.createChat(r.Context(), req.ApplicationID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
@@ -496,9 +563,9 @@ func (s *Server) globalChatStream(w http.ResponseWriter, r *http.Request) {
 	s.chatStream(w, r, nil)
 }
 
-func (s *Server) projectChatStream(w http.ResponseWriter, r *http.Request) {
-	projectID := r.PathValue("projectId")
-	s.chatStream(w, r, &projectID)
+func (s *Server) applicationChatStream(w http.ResponseWriter, r *http.Request) {
+	applicationID := r.PathValue("applicationId")
+	s.chatStream(w, r, &applicationID)
 }
 
 func (s *Server) generateChatTitle(w http.ResponseWriter, r *http.Request) {
@@ -593,19 +660,45 @@ func (s *Server) unhideWorkflow(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) workflowShares(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPost {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-	writeJSON(w, http.StatusOK, []any{})
+	s.writeQueryRows(w, r, "SELECT id, shared_with_email, allow_edit, created_at FROM workflow_shares WHERE workflow_id = "+recordID("workflows", r.PathValue("workflowId"))+" ORDER BY created_at;")
 }
 
-func (s *Server) deleteWorkflowShare(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) shareWorkflow(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Emails    []string `json:"emails"`
+		AllowEdit bool     `json:"allow_edit"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	for _, email := range req.Emails {
+		email = strings.TrimSpace(strings.ToLower(email))
+		if email == "" {
+			continue
+		}
+		if _, err := s.app.DB.Query(r.Context(), fmt.Sprintf(`
+			UPSERT %s CONTENT {
+				workflow_id: %s,
+				shared_by_user_id: users:local,
+				shared_with_email: %s,
+				allow_edit: %t,
+				created_at: time::now()
+			};
+		`, recordID("workflow_shares", r.PathValue("workflowId")+"_"+email), recordID("workflows", r.PathValue("workflowId")), surrealString(email), req.AllowEdit)); err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (s *Server) deleteWorkflowShare(w http.ResponseWriter, r *http.Request) {
+	s.writeNoContentQuery(w, r, "DELETE "+recordID("workflow_shares", r.PathValue("shareId"))+";")
+}
+
 func (s *Server) tabularReviews(w http.ResponseWriter, r *http.Request) {
-	s.writeListOrCreate(w, r, "SELECT id, project_id, user_id, title, columns_config, workflow_id, practice, shared_with, true AS is_owner, created_at, updated_at, 0 AS document_count FROM tabular_reviews ORDER BY updated_at DESC;", func() (map[string]any, error) {
+	s.writeListOrCreate(w, r, "SELECT id, application_id, user_id, title, columns_config, workflow_id, practice, created_at, updated_at, 0 AS document_count FROM tabular_reviews ORDER BY updated_at DESC;", func() (map[string]any, error) {
 		return decodeAndCreate(r, s.upsertTabularReview, "")
 	})
 }
@@ -633,10 +726,6 @@ func (s *Server) tabularReview(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeError(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed"))
 	}
-}
-
-func (s *Server) tabularPeople(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, s.peopleResponse())
 }
 
 func (s *Server) tabularPrompt(w http.ResponseWriter, r *http.Request) {
@@ -746,7 +835,7 @@ func (s *Server) clearCells(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) tabularChats(w http.ResponseWriter, r *http.Request) {
-	s.writeQueryRows(w, r, "SELECT id, review_id AS project_id, user_id, title, created_at FROM tabular_review_chats WHERE review_id = "+recordID("tabular_reviews", r.PathValue("reviewId"))+" ORDER BY updated_at DESC;")
+	s.writeQueryRows(w, r, "SELECT id, review_id AS application_id, user_id, title, created_at FROM tabular_review_chats WHERE review_id = "+recordID("tabular_reviews", r.PathValue("reviewId"))+" ORDER BY updated_at DESC;")
 }
 
 func (s *Server) deleteTabularChat(w http.ResponseWriter, r *http.Request) {
@@ -853,7 +942,7 @@ func (s *Server) loadProfile(ctx context.Context) (map[string]any, error) {
 	return profile, nil
 }
 
-func (s *Server) uploadFromRequest(r *http.Request, projectID *string) (map[string]any, error) {
+func (s *Server) uploadFromRequest(r *http.Request, applicationID *string) (map[string]any, error) {
 	file, header, err := r.FormFile("file")
 	if err != nil {
 		return nil, err
@@ -880,14 +969,14 @@ func (s *Server) uploadFromRequest(r *http.Request, projectID *string) (map[stri
 		"version_number": 1,
 		"content_base64": encodeBase64(data),
 	}
-	if projectID != nil {
-		payload["project_id"] = *projectID
+	if applicationID != nil {
+		payload["application_id"] = *applicationID
 	}
 	if err := s.runDocumentWorkflow(localdata.WithUserContext(r.Context(), s.app.User), s.app.Workflows.Upload, docID, payload); err != nil {
 		return nil, err
 	}
-	if projectID != nil {
-		if _, err := s.app.DB.Query(r.Context(), "UPDATE "+recordID("documents", docID)+" SET project_id = "+recordID("projects", *projectID)+", updated_at = time::now();"); err != nil {
+	if applicationID != nil {
+		if _, err := s.app.DB.Query(r.Context(), "UPDATE "+recordID("documents", docID)+" SET application_id = "+recordID("applications", *applicationID)+", updated_at = time::now();"); err != nil {
 			return nil, err
 		}
 	}
@@ -1002,7 +1091,7 @@ func (s *Server) zipDocumentBytes(ctx context.Context, documentIDs []string) ([]
 	return buf.Bytes(), nil
 }
 
-func (s *Server) chatStream(w http.ResponseWriter, r *http.Request, projectID *string) {
+func (s *Server) chatStream(w http.ResponseWriter, r *http.Request, applicationID *string) {
 	var req struct {
 		ChatID            *string              `json:"chat_id"`
 		Model             *string              `json:"model"`
@@ -1016,7 +1105,7 @@ func (s *Server) chatStream(w http.ResponseWriter, r *http.Request, projectID *s
 		chatID = *req.ChatID
 	}
 	if chatID == "" {
-		row, err := s.createChat(r.Context(), projectID)
+		row, err := s.createChat(r.Context(), applicationID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
@@ -1024,7 +1113,7 @@ func (s *Server) chatStream(w http.ResponseWriter, r *http.Request, projectID *s
 		chatID = trimRecord(asString(row["id"]))
 	}
 	streamSSE(w, func(send func(map[string]any) error) error {
-		_, err := s.persistAndStreamAssistantChat(r.Context(), chatID, req.Model, projectID, nil, req.Messages, req.DisplayedDoc, req.AttachedDocuments, send)
+		_, err := s.persistAndStreamAssistantChat(r.Context(), chatID, req.Model, applicationID, nil, req.Messages, req.DisplayedDoc, req.AttachedDocuments, send)
 		return err
 	})
 }

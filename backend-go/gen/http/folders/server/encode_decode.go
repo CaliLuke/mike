@@ -56,12 +56,12 @@ func DecodeCreateRequest(mux loomhttp.Muxer, decoder func(*http.Request) loomhtt
 		}
 
 		var (
-			projectID string
+			applicationID string
 
 			params = mux.Vars(r)
 		)
-		projectID = params["projectId"]
-		payload = NewCreatePayload(&body, projectID)
+		applicationID = params["applicationId"]
+		payload = NewCreatePayload(&body, applicationID)
 
 		return payload, nil
 	}
@@ -101,14 +101,14 @@ func DecodeUpdateRequest(mux loomhttp.Muxer, decoder func(*http.Request) loomhtt
 		}
 
 		var (
-			projectID string
-			folderID  string
+			applicationID string
+			folderID      string
 
 			params = mux.Vars(r)
 		)
-		projectID = params["projectId"]
+		applicationID = params["applicationId"]
 		folderID = params["folderId"]
-		payload = NewUpdatePayload(&body, projectID, folderID)
+		payload = NewUpdatePayload(&body, applicationID, folderID)
 
 		return payload, nil
 	}
@@ -129,14 +129,14 @@ func DecodeDeleteRequest(mux loomhttp.Muxer, decoder func(*http.Request) loomhtt
 	return func(r *http.Request) (*folders.DeletePayload, error) {
 		var payload *folders.DeletePayload
 		var (
-			projectID string
-			folderID  string
+			applicationID string
+			folderID      string
 
 			params = mux.Vars(r)
 		)
-		projectID = params["projectId"]
+		applicationID = params["applicationId"]
 		folderID = params["folderId"]
-		payload = NewDeletePayload(projectID, folderID)
+		payload = NewDeletePayload(applicationID, folderID)
 
 		return payload, nil
 	}
@@ -176,14 +176,14 @@ func DecodeMoveDocumentRequest(mux loomhttp.Muxer, decoder func(*http.Request) l
 		}
 
 		var (
-			projectID  string
-			documentID string
+			applicationID string
+			documentID    string
 
 			params = mux.Vars(r)
 		)
-		projectID = params["projectId"]
+		applicationID = params["applicationId"]
 		documentID = params["documentId"]
-		payload = NewMoveDocumentPayload(&body, projectID, documentID)
+		payload = NewMoveDocumentPayload(&body, applicationID, documentID)
 
 		return payload, nil
 	}

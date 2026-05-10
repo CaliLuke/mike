@@ -10,6 +10,7 @@ BRIDGE_TARGET_STAMP="$BRIDGE_DIR/target/release/.luke-macosx-deployment-target"
 DATA_ROOT="${LUKE_DEV_ROOT:-$ROOT_DIR/.tmp/luke-local}"
 BRIDGE_BUILD_LOCK="$ROOT_DIR/.tmp/luke-rust-bridge-build.lock"
 BACKEND_BIN="$DATA_ROOT/bin/luke-backend"
+BACKEND_AIR_BIN="$ROOT_DIR/.tmp/air/luke-backend"
 OLLAMA_HOST_URL="${OLLAMA_BASE_URL:-http://127.0.0.1:11434}"
 OLLAMA_MODEL="${LUKE_OLLAMA_MODEL:-gemma4}"
 
@@ -123,6 +124,48 @@ build_bridge_if_needed() {
   fi
 }
 
+go_bin_path() {
+  local name="$1"
+  local gobin
+  gobin="$(go env GOBIN 2>/dev/null || true)"
+  if [[ -z "$gobin" ]]; then
+    gobin="$(go env GOPATH)/bin"
+  fi
+  printf "%s/%s\n" "$gobin" "$name"
+}
+
+resolve_air() {
+  if command -v air >/dev/null 2>&1; then
+    command -v air
+    return 0
+  fi
+
+  local air_bin
+  air_bin="$(go_bin_path air)"
+  if [[ -x "$air_bin" ]]; then
+    printf "%s\n" "$air_bin"
+    return 0
+  fi
+
+  echo "Installing backend dev tools, including Air..."
+  (
+    cd "$BACKEND_DIR"
+    make tools
+  )
+
+  if command -v air >/dev/null 2>&1; then
+    command -v air
+    return 0
+  fi
+  if [[ -x "$air_bin" ]]; then
+    printf "%s\n" "$air_bin"
+    return 0
+  fi
+
+  echo "Air was not found after installing tools. Add $(dirname "$air_bin") to PATH or install Air manually." >&2
+  return 1
+}
+
 BACKEND_PORT="${LUKE_BACKEND_PORT:-$(pick_port 3001)}"
 FRONTEND_PORT="${LUKE_FRONTEND_PORT:-$(pick_port 3000 "$BACKEND_PORT")}"
 API_BASE="http://127.0.0.1:$BACKEND_PORT"
@@ -153,28 +196,21 @@ if [[ "${LUKE_SKIP_OLLAMA:-0}" != "1" ]]; then
 fi
 
 mkdir -p "$DATA_ROOT/bin" "$DATA_ROOT/data" "$DATA_ROOT/storage"
+mkdir -p "$(dirname "$BACKEND_AIR_BIN")"
 
-echo "Building Luke backend..."
+echo "Starting Luke backend on $API_BASE"
+AIR_BIN="$(resolve_air)"
 (
   cd "$BACKEND_DIR"
   if [[ -n "$MACOS_DEPLOYMENT_TARGET" ]]; then
-    MACOSX_DEPLOYMENT_TARGET="$MACOS_DEPLOYMENT_TARGET" \
-    CGO_LDFLAGS="-L$BRIDGE_DIR/target/release" \
-    go build -o "$BACKEND_BIN" ./cmd/luke-backend
-  else
-    CGO_LDFLAGS="-L$BRIDGE_DIR/target/release" go build -o "$BACKEND_BIN" ./cmd/luke-backend
+    export MACOSX_DEPLOYMENT_TARGET="$MACOS_DEPLOYMENT_TARGET"
   fi
-)
-
-echo "Starting Luke backend on $API_BASE"
-(
-  cd "$BACKEND_DIR"
-  CGO_LDFLAGS="-L$BRIDGE_DIR/target/release" \
+  export CGO_LDFLAGS="-L$BRIDGE_DIR/target/release"
   LUKE_DATA_DIR="$DATA_ROOT/data" \
   LOCAL_STORAGE_ROOT="$DATA_ROOT/storage" \
   OLLAMA_BASE_URL="$OLLAMA_HOST_URL" \
   LUKE_BACKEND_ADDR="127.0.0.1:$BACKEND_PORT" \
-  "$BACKEND_BIN"
+  "$AIR_BIN" -c .air.toml
 ) &
 BACKEND_PID="$!"
 
@@ -189,7 +225,7 @@ echo "Starting Luke frontend on $APP_URL"
 ) &
 FRONTEND_PID="$!"
 
-wait_for_url "$APP_URL/projects" "frontend"
+wait_for_url "$APP_URL/assistant" "frontend"
 
 echo "Luke is running: $APP_URL"
 if [[ "${LUKE_OPEN_BROWSER:-1}" != "0" ]] && command -v open >/dev/null 2>&1; then

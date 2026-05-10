@@ -16,6 +16,26 @@ import (
 )
 
 var (
+	// CreateApplicationPayloadCodec serializes values of type *CreateApplicationPayload to canonical JSON.
+	CreateApplicationPayloadCodec = tools.JSONCodec[*CreateApplicationPayload]{
+		ToJSON:   MarshalCreateApplicationPayload,
+		FromJSON: UnmarshalCreateApplicationPayload,
+	}
+	// CreateApplicationResultCodec serializes values of type *CreateApplicationResult to canonical JSON.
+	CreateApplicationResultCodec = tools.JSONCodec[*CreateApplicationResult]{
+		ToJSON:   MarshalCreateApplicationResult,
+		FromJSON: UnmarshalCreateApplicationResult,
+	}
+	// CreateCompanyPayloadCodec serializes values of type *CreateCompanyPayload to canonical JSON.
+	CreateCompanyPayloadCodec = tools.JSONCodec[*CreateCompanyPayload]{
+		ToJSON:   MarshalCreateCompanyPayload,
+		FromJSON: UnmarshalCreateCompanyPayload,
+	}
+	// CreateCompanyResultCodec serializes values of type *CreateCompanyResult to canonical JSON.
+	CreateCompanyResultCodec = tools.JSONCodec[*CreateCompanyResult]{
+		ToJSON:   MarshalCreateCompanyResult,
+		FromJSON: UnmarshalCreateCompanyResult,
+	}
 	// EditDocumentPayloadCodec serializes values of type *EditDocumentPayload to canonical JSON.
 	EditDocumentPayloadCodec = tools.JSONCodec[*EditDocumentPayload]{
 		ToJSON:   MarshalEditDocumentPayload,
@@ -35,6 +55,16 @@ var (
 	FetchDocumentsResultCodec = tools.JSONCodec[*FetchDocumentsResult]{
 		ToJSON:   MarshalFetchDocumentsResult,
 		FromJSON: UnmarshalFetchDocumentsResult,
+	}
+	// FetchWebPagePayloadCodec serializes values of type *FetchWebPagePayload to canonical JSON.
+	FetchWebPagePayloadCodec = tools.JSONCodec[*FetchWebPagePayload]{
+		ToJSON:   MarshalFetchWebPagePayload,
+		FromJSON: UnmarshalFetchWebPagePayload,
+	}
+	// FetchWebPageResultCodec serializes values of type *FetchWebPageResult to canonical JSON.
+	FetchWebPageResultCodec = tools.JSONCodec[*FetchWebPageResult]{
+		ToJSON:   MarshalFetchWebPageResult,
+		FromJSON: UnmarshalFetchWebPageResult,
 	}
 	// FindInDocumentPayloadCodec serializes values of type *FindInDocumentPayload to canonical JSON.
 	FindInDocumentPayloadCodec = tools.JSONCodec[*FindInDocumentPayload]{
@@ -116,6 +146,58 @@ var (
 		ToJSON:   MarshalReplicateDocumentResult,
 		FromJSON: UnmarshalReplicateDocumentResult,
 	}
+	// createApplicationPayloadCodec provides an untyped codec for *CreateApplicationPayload.
+	createApplicationPayloadCodec = tools.JSONCodec[any]{
+		ToJSON: func(v any) ([]byte, error) {
+			// Prefer typed marshal when the value matches the expected type.
+			if typed, ok := v.(*CreateApplicationPayload); ok {
+				return MarshalCreateApplicationPayload(typed)
+			}
+			return nil, fmt.Errorf("invalid value type for *CreateApplicationPayload: %T", v)
+		},
+		FromJSON: func(data []byte) (any, error) {
+			return UnmarshalCreateApplicationPayload(data)
+		},
+	}
+	// createApplicationResultCodec provides an untyped codec for *CreateApplicationResult.
+	createApplicationResultCodec = tools.JSONCodec[any]{
+		ToJSON: func(v any) ([]byte, error) {
+			// Prefer typed marshal when the value matches the expected type.
+			if typed, ok := v.(*CreateApplicationResult); ok {
+				return MarshalCreateApplicationResult(typed)
+			}
+			return nil, fmt.Errorf("invalid value type for *CreateApplicationResult: %T", v)
+		},
+		FromJSON: func(data []byte) (any, error) {
+			return UnmarshalCreateApplicationResult(data)
+		},
+	}
+	// createCompanyPayloadCodec provides an untyped codec for *CreateCompanyPayload.
+	createCompanyPayloadCodec = tools.JSONCodec[any]{
+		ToJSON: func(v any) ([]byte, error) {
+			// Prefer typed marshal when the value matches the expected type.
+			if typed, ok := v.(*CreateCompanyPayload); ok {
+				return MarshalCreateCompanyPayload(typed)
+			}
+			return nil, fmt.Errorf("invalid value type for *CreateCompanyPayload: %T", v)
+		},
+		FromJSON: func(data []byte) (any, error) {
+			return UnmarshalCreateCompanyPayload(data)
+		},
+	}
+	// createCompanyResultCodec provides an untyped codec for *CreateCompanyResult.
+	createCompanyResultCodec = tools.JSONCodec[any]{
+		ToJSON: func(v any) ([]byte, error) {
+			// Prefer typed marshal when the value matches the expected type.
+			if typed, ok := v.(*CreateCompanyResult); ok {
+				return MarshalCreateCompanyResult(typed)
+			}
+			return nil, fmt.Errorf("invalid value type for *CreateCompanyResult: %T", v)
+		},
+		FromJSON: func(data []byte) (any, error) {
+			return UnmarshalCreateCompanyResult(data)
+		},
+	}
 	// editDocumentPayloadCodec provides an untyped codec for *EditDocumentPayload.
 	editDocumentPayloadCodec = tools.JSONCodec[any]{
 		ToJSON: func(v any) ([]byte, error) {
@@ -166,6 +248,32 @@ var (
 		},
 		FromJSON: func(data []byte) (any, error) {
 			return UnmarshalFetchDocumentsResult(data)
+		},
+	}
+	// fetchWebPagePayloadCodec provides an untyped codec for *FetchWebPagePayload.
+	fetchWebPagePayloadCodec = tools.JSONCodec[any]{
+		ToJSON: func(v any) ([]byte, error) {
+			// Prefer typed marshal when the value matches the expected type.
+			if typed, ok := v.(*FetchWebPagePayload); ok {
+				return MarshalFetchWebPagePayload(typed)
+			}
+			return nil, fmt.Errorf("invalid value type for *FetchWebPagePayload: %T", v)
+		},
+		FromJSON: func(data []byte) (any, error) {
+			return UnmarshalFetchWebPagePayload(data)
+		},
+	}
+	// fetchWebPageResultCodec provides an untyped codec for *FetchWebPageResult.
+	fetchWebPageResultCodec = tools.JSONCodec[any]{
+		ToJSON: func(v any) ([]byte, error) {
+			// Prefer typed marshal when the value matches the expected type.
+			if typed, ok := v.(*FetchWebPageResult); ok {
+				return MarshalFetchWebPageResult(typed)
+			}
+			return nil, fmt.Errorf("invalid value type for *FetchWebPageResult: %T", v)
+		},
+		FromJSON: func(data []byte) (any, error) {
+			return UnmarshalFetchWebPageResult(data)
 		},
 	}
 	// findInDocumentPayloadCodec provides an untyped codec for *FindInDocumentPayload.
@@ -377,6 +485,33 @@ var (
 		},
 	}
 )
+var CreateApplicationPayloadFieldDescs = map[string]string{
+	"cm_number":            "Optional Competition Bureau matter number",
+	"company_id":           "Local company identifier returned by create_company or a prior company_created event",
+	"job_description_text": "Optional full job description text to save as an application document",
+	"job_description_url":  "Optional source URL for the job description",
+	"name":                 "Application name, usually the role title from the job ad",
+}
+var CreateApplicationResultFieldDescs = map[string]string{
+	"application_id":              "Local application identifier",
+	"cm_number":                   "Competition Bureau matter number",
+	"company_id":                  "Attached local company identifier",
+	"error":                       "Error message when creation failed",
+	"job_description_document_id": "Created job description document identifier, when job text was provided",
+	"name":                        "Application name",
+	"ok":                          "Whether the application was created",
+}
+var CreateCompanyPayloadFieldDescs = map[string]string{
+	"name":    "Company name",
+	"website": "Optional company website",
+}
+var CreateCompanyResultFieldDescs = map[string]string{
+	"company_id": "Local company identifier",
+	"error":      "Error message when creation failed",
+	"name":       "Company name",
+	"ok":         "Whether the company was created",
+	"website":    "Company website",
+}
 var EditDocumentPayloadFieldDescs = map[string]string{
 	"document_id":          "Local document identifier to edit",
 	"edits":                "Text replacement edits",
@@ -417,6 +552,17 @@ var FetchDocumentsResultFieldDescs = map[string]string{
 	"documents.filename":    "Document filename",
 	"documents.text":        "Plain text extracted from the current document version",
 }
+var FetchWebPagePayloadFieldDescs = map[string]string{
+	"max_chars": "Optional maximum characters of simplified text to return",
+	"url":       "Public HTTP or HTTPS URL to download and simplify",
+}
+var FetchWebPageResultFieldDescs = map[string]string{
+	"error":     "Error message when fetching failed",
+	"text":      "Simplified readable page text",
+	"title":     "Extracted page title",
+	"truncated": "Whether the simplified text was truncated",
+	"url":       "Final fetched URL after redirects",
+}
 var FindInDocumentPayloadFieldDescs = map[string]string{
 	"context_chars": "Characters of context to include around each match",
 	"document_id":   "Local document identifier to search",
@@ -456,12 +602,12 @@ var GenerateDocxResultFieldDescs = map[string]string{
 	"version_number": "Current version number",
 }
 var ListDocumentsResultFieldDescs = map[string]string{
-	"documents":             "Documents available to the current chat",
-	"documents.document_id": "Local document identifier",
-	"documents.file_type":   "Stored file type or MIME hint",
-	"documents.filename":    "Document filename",
-	"documents.project_id":  "Owning project identifier, when attached to a project",
-	"documents.status":      "Processing status",
+	"documents":                "Documents available to the current chat",
+	"documents.application_id": "Owning application identifier, when attached to a application",
+	"documents.document_id":    "Local document identifier",
+	"documents.file_type":      "Stored file type or MIME hint",
+	"documents.filename":       "Document filename",
+	"documents.status":         "Processing status",
 }
 var ListWorkflowsResultFieldDescs = map[string]string{
 	"workflows":             "Saved workflows",
@@ -548,10 +694,16 @@ func (e ValidationError) Descriptions() map[string]string {
 // PayloadCodec returns the generic codec for the named tool payload.
 func PayloadCodec(name string) (*tools.JSONCodec[any], bool) {
 	switch name {
+	case "career_context.create_application":
+		return &createApplicationPayloadCodec, true
+	case "career_context.create_company":
+		return &createCompanyPayloadCodec, true
 	case "career_context.edit_document":
 		return &editDocumentPayloadCodec, true
 	case "career_context.fetch_documents":
 		return &fetchDocumentsPayloadCodec, true
+	case "career_context.fetch_web_page":
+		return &fetchWebPagePayloadCodec, true
 	case "career_context.find_in_document":
 		return &findInDocumentPayloadCodec, true
 	case "career_context.generate_docx":
@@ -576,10 +728,16 @@ func PayloadCodec(name string) (*tools.JSONCodec[any], bool) {
 // ResultCodec returns the generic codec for the named tool result.
 func ResultCodec(name string) (*tools.JSONCodec[any], bool) {
 	switch name {
+	case "career_context.create_application":
+		return &createApplicationResultCodec, true
+	case "career_context.create_company":
+		return &createCompanyResultCodec, true
 	case "career_context.edit_document":
 		return &editDocumentResultCodec, true
 	case "career_context.fetch_documents":
 		return &fetchDocumentsResultCodec, true
+	case "career_context.fetch_web_page":
+		return &fetchWebPageResultCodec, true
 	case "career_context.find_in_document":
 		return &findInDocumentResultCodec, true
 	case "career_context.generate_docx":
@@ -599,6 +757,164 @@ func ResultCodec(name string) (*tools.JSONCodec[any], bool) {
 	default:
 		return nil, false
 	}
+}
+
+// MarshalCreateApplicationPayload serializes *CreateApplicationPayload into JSON.
+func MarshalCreateApplicationPayload(v *CreateApplicationPayload) ([]byte, error) {
+	if v == nil {
+		return nil, fmt.Errorf("createApplicationPayload is nil")
+	}
+	in := v
+	_ = in
+	var out *toolhttp.CreateApplicationPayloadTransport
+	out = &toolhttp.CreateApplicationPayloadTransport{
+		Name:               in.Name,
+		CompanyID:          in.CompanyID,
+		CmNumber:           in.CmNumber,
+		JobDescriptionText: in.JobDescriptionText,
+		JobDescriptionURL:  in.JobDescriptionURL,
+	}
+	return json.Marshal(out)
+}
+
+// UnmarshalCreateApplicationPayload deserializes JSON into *CreateApplicationPayload.
+func UnmarshalCreateApplicationPayload(data []byte) (*CreateApplicationPayload, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("createApplicationPayload JSON is empty")
+	}
+	var tv toolhttp.CreateApplicationPayloadTransport
+	if err := json.Unmarshal(data, &tv); err != nil {
+		return nil, fmt.Errorf("decode createApplicationPayload: %w", err)
+	}
+	in := &tv
+	_ = in
+	var out *CreateApplicationPayload
+	out = &CreateApplicationPayload{
+		Name:               in.Name,
+		CompanyID:          in.CompanyID,
+		CmNumber:           in.CmNumber,
+		JobDescriptionText: in.JobDescriptionText,
+		JobDescriptionURL:  in.JobDescriptionURL,
+	}
+	return out, nil
+}
+
+// MarshalCreateApplicationResult serializes *CreateApplicationResult into JSON.
+func MarshalCreateApplicationResult(v *CreateApplicationResult) ([]byte, error) {
+	if v == nil {
+		return nil, fmt.Errorf("createApplicationResult is nil")
+	}
+	in := v
+	_ = in
+	var out *toolhttp.CreateApplicationResultTransport
+	out = &toolhttp.CreateApplicationResultTransport{
+		OK:                       in.OK,
+		ApplicationID:            in.ApplicationID,
+		CompanyID:                in.CompanyID,
+		Name:                     in.Name,
+		CmNumber:                 in.CmNumber,
+		JobDescriptionDocumentID: in.JobDescriptionDocumentID,
+		Error:                    in.Error,
+	}
+	return json.Marshal(out)
+}
+
+// UnmarshalCreateApplicationResult deserializes JSON into *CreateApplicationResult.
+func UnmarshalCreateApplicationResult(data []byte) (*CreateApplicationResult, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("createApplicationResult JSON is empty")
+	}
+	var tv toolhttp.CreateApplicationResultTransport
+	if err := json.Unmarshal(data, &tv); err != nil {
+		return nil, fmt.Errorf("decode createApplicationResult: %w", err)
+	}
+	in := &tv
+	_ = in
+	var out *CreateApplicationResult
+	out = &CreateApplicationResult{
+		OK:                       in.OK,
+		ApplicationID:            in.ApplicationID,
+		CompanyID:                in.CompanyID,
+		Name:                     in.Name,
+		CmNumber:                 in.CmNumber,
+		JobDescriptionDocumentID: in.JobDescriptionDocumentID,
+		Error:                    in.Error,
+	}
+	return out, nil
+}
+
+// MarshalCreateCompanyPayload serializes *CreateCompanyPayload into JSON.
+func MarshalCreateCompanyPayload(v *CreateCompanyPayload) ([]byte, error) {
+	if v == nil {
+		return nil, fmt.Errorf("createCompanyPayload is nil")
+	}
+	in := v
+	_ = in
+	var out *toolhttp.CreateCompanyPayloadTransport
+	out = &toolhttp.CreateCompanyPayloadTransport{
+		Name:    in.Name,
+		Website: in.Website,
+	}
+	return json.Marshal(out)
+}
+
+// UnmarshalCreateCompanyPayload deserializes JSON into *CreateCompanyPayload.
+func UnmarshalCreateCompanyPayload(data []byte) (*CreateCompanyPayload, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("createCompanyPayload JSON is empty")
+	}
+	var tv toolhttp.CreateCompanyPayloadTransport
+	if err := json.Unmarshal(data, &tv); err != nil {
+		return nil, fmt.Errorf("decode createCompanyPayload: %w", err)
+	}
+	in := &tv
+	_ = in
+	var out *CreateCompanyPayload
+	out = &CreateCompanyPayload{
+		Name:    in.Name,
+		Website: in.Website,
+	}
+	return out, nil
+}
+
+// MarshalCreateCompanyResult serializes *CreateCompanyResult into JSON.
+func MarshalCreateCompanyResult(v *CreateCompanyResult) ([]byte, error) {
+	if v == nil {
+		return nil, fmt.Errorf("createCompanyResult is nil")
+	}
+	in := v
+	_ = in
+	var out *toolhttp.CreateCompanyResultTransport
+	out = &toolhttp.CreateCompanyResultTransport{
+		OK:        in.OK,
+		CompanyID: in.CompanyID,
+		Name:      in.Name,
+		Website:   in.Website,
+		Error:     in.Error,
+	}
+	return json.Marshal(out)
+}
+
+// UnmarshalCreateCompanyResult deserializes JSON into *CreateCompanyResult.
+func UnmarshalCreateCompanyResult(data []byte) (*CreateCompanyResult, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("createCompanyResult JSON is empty")
+	}
+	var tv toolhttp.CreateCompanyResultTransport
+	if err := json.Unmarshal(data, &tv); err != nil {
+		return nil, fmt.Errorf("decode createCompanyResult: %w", err)
+	}
+	in := &tv
+	_ = in
+	var out *CreateCompanyResult
+	out = &CreateCompanyResult{
+		OK:        in.OK,
+		CompanyID: in.CompanyID,
+		Name:      in.Name,
+		Website:   in.Website,
+		Error:     in.Error,
+	}
+	return out, nil
 }
 
 // MarshalEditDocumentPayload serializes *EditDocumentPayload into JSON.
@@ -801,6 +1117,80 @@ func UnmarshalFetchDocumentsResult(data []byte) (*FetchDocumentsResult, error) {
 			}
 			out.Documents[i] = decodeToolhttpAssistantDocumentTextTransportToAssistantDocumentText(val)
 		}
+	}
+	return out, nil
+}
+
+// MarshalFetchWebPagePayload serializes *FetchWebPagePayload into JSON.
+func MarshalFetchWebPagePayload(v *FetchWebPagePayload) ([]byte, error) {
+	if v == nil {
+		return nil, fmt.Errorf("fetchWebPagePayload is nil")
+	}
+	in := v
+	_ = in
+	var out *toolhttp.FetchWebPagePayloadTransport
+	out = &toolhttp.FetchWebPagePayloadTransport{
+		URL:      in.URL,
+		MaxChars: in.MaxChars,
+	}
+	return json.Marshal(out)
+}
+
+// UnmarshalFetchWebPagePayload deserializes JSON into *FetchWebPagePayload.
+func UnmarshalFetchWebPagePayload(data []byte) (*FetchWebPagePayload, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("fetchWebPagePayload JSON is empty")
+	}
+	var tv toolhttp.FetchWebPagePayloadTransport
+	if err := json.Unmarshal(data, &tv); err != nil {
+		return nil, fmt.Errorf("decode fetchWebPagePayload: %w", err)
+	}
+	in := &tv
+	_ = in
+	var out *FetchWebPagePayload
+	out = &FetchWebPagePayload{
+		URL:      in.URL,
+		MaxChars: in.MaxChars,
+	}
+	return out, nil
+}
+
+// MarshalFetchWebPageResult serializes *FetchWebPageResult into JSON.
+func MarshalFetchWebPageResult(v *FetchWebPageResult) ([]byte, error) {
+	if v == nil {
+		return nil, fmt.Errorf("fetchWebPageResult is nil")
+	}
+	in := v
+	_ = in
+	var out *toolhttp.FetchWebPageResultTransport
+	out = &toolhttp.FetchWebPageResultTransport{
+		URL:       in.URL,
+		Title:     in.Title,
+		Text:      in.Text,
+		Truncated: in.Truncated,
+		Error:     in.Error,
+	}
+	return json.Marshal(out)
+}
+
+// UnmarshalFetchWebPageResult deserializes JSON into *FetchWebPageResult.
+func UnmarshalFetchWebPageResult(data []byte) (*FetchWebPageResult, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("fetchWebPageResult JSON is empty")
+	}
+	var tv toolhttp.FetchWebPageResultTransport
+	if err := json.Unmarshal(data, &tv); err != nil {
+		return nil, fmt.Errorf("decode fetchWebPageResult: %w", err)
+	}
+	in := &tv
+	_ = in
+	var out *FetchWebPageResult
+	out = &FetchWebPageResult{
+		URL:       in.URL,
+		Title:     in.Title,
+		Text:      in.Text,
+		Truncated: in.Truncated,
+		Error:     in.Error,
 	}
 	return out, nil
 }
@@ -1693,11 +2083,11 @@ func decodeToolhttpAssistantDocumentRefTransportToAssistantDocumentRef(v *toolht
 		return nil
 	}
 	res := &AssistantDocumentRef{
-		DocumentID: v.DocumentID,
-		Filename:   v.Filename,
-		ProjectID:  v.ProjectID,
-		FileType:   v.FileType,
-		Status:     v.Status,
+		DocumentID:    v.DocumentID,
+		Filename:      v.Filename,
+		ApplicationID: v.ApplicationID,
+		FileType:      v.FileType,
+		Status:        v.Status,
 	}
 
 	return res
@@ -1707,11 +2097,11 @@ func encodeAssistantDocumentRefToToolhttpAssistantDocumentRefTransport(v *Assist
 		return nil
 	}
 	res := &toolhttp.AssistantDocumentRefTransport{
-		DocumentID: v.DocumentID,
-		Filename:   v.Filename,
-		ProjectID:  v.ProjectID,
-		FileType:   v.FileType,
-		Status:     v.Status,
+		DocumentID:    v.DocumentID,
+		Filename:      v.Filename,
+		ApplicationID: v.ApplicationID,
+		FileType:      v.FileType,
+		Status:        v.Status,
 	}
 
 	return res

@@ -8,25 +8,25 @@ import { HeaderSearchBtn } from "@/app/components/shared/HeaderSearchBtn";
 import { OwnerOnlyModal } from "@/app/components/shared/OwnerOnlyModal";
 import { RowActions } from "@/app/components/shared/RowActions";
 import { ToolbarTabs } from "@/app/components/shared/ToolbarTabs";
-import type { LukeProject,TabularReview } from "@/app/components/shared/types";
+import type { LukeApplication, TabularReview } from "@/app/components/shared/types";
 import { AddNewTRModal } from "@/app/components/tabular/AddNewTRModal";
 import {
   createTabularReview,
   deleteTabularReview,
-  listProjects,
+  listApplications,
   listTabularReviews,
   updateTabularReview,
 } from "@/app/lib/lukeApi";
 import { useAuth } from "@/contexts/AuthContext";
 
-type Tab = "all" | "in-project" | "standalone";
+type Tab = "all" | "in-application" | "standalone";
 
 const CHECK_W = "w-8 shrink-0";
 const NAME_COL_W = "w-[300px] shrink-0";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "all", label: "All Reviews" },
-  { id: "in-project", label: "In Project" },
+  { id: "in-application", label: "In Application" },
   { id: "standalone", label: "Standalone" },
 ];
 
@@ -40,14 +40,14 @@ function formatDate(iso: string) {
 
 export default function TabularReviewsPage() {
   const [reviews, setReviews] = useState<TabularReview[]>([]);
-  const [projects, setProjects] = useState<LukeProject[]>([]);
+  const [applications, setApplications] = useState<LukeApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newTROpen, setNewTROpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("all");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
-  const [projectFilter, setProjectFilter] = useState<string | null>(null);
+  const [applicationFilter, setApplicationFilter] = useState<string | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -59,17 +59,17 @@ export default function TabularReviewsPage() {
   const { user } = useAuth();
 
   useEffect(() => {
-    Promise.all([listTabularReviews().catch(() => []), listProjects().catch(() => [])])
+    Promise.all([listTabularReviews().catch(() => []), listApplications().catch(() => [])])
       .then(([r, p]) => {
         setReviews(r);
-        setProjects(p);
+        setApplications(p);
       })
       .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
     setSelectedIds([]);
-  }, [activeTab, projectFilter]);
+  }, [activeTab, applicationFilter]);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -92,11 +92,11 @@ export default function TabularReviewsPage() {
   const q = search.toLowerCase();
   const filtered = reviews
     .filter((r) => {
-      if (activeTab === "in-project") return !!r.project_id;
-      if (activeTab === "standalone") return !r.project_id;
+      if (activeTab === "in-application") return !!r.application_id;
+      if (activeTab === "standalone") return !r.application_id;
       return true;
     })
-    .filter((r) => !projectFilter || r.project_id === projectFilter)
+    .filter((r) => !applicationFilter || r.application_id === applicationFilter)
     .filter((r) => !q || (r.title ?? "").toLowerCase().includes(q));
 
   const allSelected = filtered.length > 0 && filtered.every((r) => selectedIds.includes(r.id));
@@ -111,14 +111,14 @@ export default function TabularReviewsPage() {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
-  const selectedProject = projects.find((p) => p.id === projectFilter);
+  const selectedApplication = applications.find((p) => p.id === applicationFilter);
 
   const handleNewReview = async (
     title: string,
-    projectId?: string,
+    applicationId?: string,
     documentIds?: string[],
     columnsConfig?: import("@/app/components/shared/types").ColumnConfig[] | null,
-    createdProject?: LukeProject,
+    createdApplication?: LukeApplication,
   ) => {
     setCreating(true);
     try {
@@ -126,14 +126,14 @@ export default function TabularReviewsPage() {
         title,
         document_ids: documentIds ?? [],
         columns_config: columnsConfig ?? [],
-        ...(projectId && { project_id: projectId }),
+        ...(applicationId && { application_id: applicationId }),
       });
-      if (createdProject) {
-        setProjects((prev) => [createdProject, ...prev]);
+      if (createdApplication) {
+        setApplications((prev) => [createdApplication, ...prev]);
       }
       router.push(
-        projectId
-          ? `/projects/${projectId}/tabular-reviews/${review.id}`
+        applicationId
+          ? `/applications/${applicationId}/tabular-reviews/${review.id}`
           : `/tabular-reviews/${review.id}`,
       );
     } finally {
@@ -176,41 +176,45 @@ export default function TabularReviewsPage() {
     }
   }
 
-  const projectFilterButton = (
+  const applicationFilterButton = (
     <div className="relative" ref={filterRef}>
       <button
         onClick={() => setFilterOpen((o) => !o)}
         className={`flex items-center gap-1 text-xs font-medium transition-colors ${
-          projectFilter ? "text-gray-700 hover:text-gray-900" : "text-gray-500 hover:text-gray-700"
+          applicationFilter
+            ? "text-gray-700 hover:text-gray-900"
+            : "text-gray-500 hover:text-gray-700"
         }`}
       >
-        {selectedProject ? selectedProject.name : "Filter by project"}
+        {selectedApplication ? selectedApplication.name : "Filter by application"}
         <ChevronDown className="h-3 w-3" />
       </button>
       {filterOpen && (
         <div className="absolute top-full right-0 z-20 mt-1.5 w-52 overflow-hidden rounded-xl border border-gray-100 bg-white shadow-lg">
           <button
             onClick={() => {
-              setProjectFilter(null);
+              setApplicationFilter(null);
               setFilterOpen(false);
             }}
             className="flex w-full items-center justify-between px-3 py-2 text-xs text-gray-600 transition-colors hover:bg-gray-50"
           >
-            All Projects
-            {!projectFilter && <Check className="h-3.5 w-3.5 text-gray-400" />}
+            All Applications
+            {!applicationFilter && <Check className="h-3.5 w-3.5 text-gray-400" />}
           </button>
-          {projects.length > 0 && <div className="border-t border-gray-100" />}
-          {projects.map((p) => (
+          {applications.length > 0 && <div className="border-t border-gray-100" />}
+          {applications.map((p) => (
             <button
               key={p.id}
               onClick={() => {
-                setProjectFilter(p.id);
+                setApplicationFilter(p.id);
                 setFilterOpen(false);
               }}
               className="flex w-full items-center justify-between px-3 py-2 text-xs text-gray-600 transition-colors hover:bg-gray-50"
             >
               <span className="truncate pr-2">{p.name}</span>
-              {projectFilter === p.id && <Check className="h-3.5 w-3.5 shrink-0 text-gray-400" />}
+              {applicationFilter === p.id && (
+                <Check className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+              )}
             </button>
           ))}
         </div>
@@ -241,7 +245,7 @@ export default function TabularReviewsPage() {
           )}
         </div>
       )}
-      {projectFilterButton}
+      {applicationFilterButton}
     </div>
   );
 
@@ -291,7 +295,7 @@ export default function TabularReviewsPage() {
             <div className={`sticky left-8 z-[60] ${NAME_COL_W} bg-white pl-2 text-left`}>Name</div>
             <div className="ml-auto w-24 shrink-0">Columns</div>
             <div className="w-24 shrink-0">Documents</div>
-            <div className="w-40 shrink-0">Project</div>
+            <div className="w-40 shrink-0">Application</div>
             <div className="w-32 shrink-0">Created</div>
             <div className="w-8 shrink-0" />
           </div>
@@ -322,7 +326,7 @@ export default function TabularReviewsPage() {
             </div>
           ) : filtered.length === 0 ? (
             <div className="mx-auto flex w-full max-w-xs flex-col items-start py-24">
-              {activeTab === "all" && !projectFilter ? (
+              {activeTab === "all" && !applicationFilter ? (
                 <>
                   <Table2 className="mb-4 h-8 w-8 text-gray-300" />
                   <p className="font-serif text-2xl font-medium text-gray-900">Tabular Reviews</p>
@@ -344,7 +348,7 @@ export default function TabularReviewsPage() {
           ) : (
             <div>
               {filtered.map((review) => {
-                const project = projects.find((p) => p.id === review.project_id);
+                const application = applications.find((p) => p.id === review.application_id);
                 const rowBg = selectedIds.includes(review.id) ? "bg-gray-50" : "bg-white";
                 return (
                   <div
@@ -352,8 +356,8 @@ export default function TabularReviewsPage() {
                     onClick={() => {
                       if (renamingId === review.id) return;
                       router.push(
-                        review.project_id
-                          ? `/projects/${review.project_id}/tabular-reviews/${review.id}`
+                        review.application_id
+                          ? `/applications/${review.application_id}/tabular-reviews/${review.id}`
                           : `/tabular-reviews/${review.id}`,
                       );
                     }}
@@ -399,7 +403,7 @@ export default function TabularReviewsPage() {
                       {review.document_count ?? 0}
                     </div>
                     <div className="w-40 shrink-0 truncate pr-2 text-sm text-gray-500">
-                      {project ? project.name : <span className="text-gray-300">—</span>}
+                      {application ? application.name : <span className="text-gray-300">—</span>}
                     </div>
                     <div className="w-32 shrink-0 truncate text-sm text-gray-500">
                       {review.created_at ? (
@@ -443,7 +447,7 @@ export default function TabularReviewsPage() {
         open={newTROpen}
         onClose={() => setNewTROpen(false)}
         onAdd={handleNewReview}
-        projects={projects}
+        applications={applications}
       />
 
       <OwnerOnlyModal

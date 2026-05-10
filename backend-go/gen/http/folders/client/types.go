@@ -23,7 +23,7 @@ type CreateRequestBody struct {
 // HTTP response body.
 type CreateResponseBody struct {
 	ID             *string `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
-	ProjectID      *string `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
+	ApplicationID  *string `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
 	UserID         *string `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
 	Name           *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
 	ParentFolderID *string `form:"parent_folder_id,omitempty" json:"parent_folder_id,omitempty" xml:"parent_folder_id,omitempty"`
@@ -42,7 +42,7 @@ type UpdateRequestBody struct {
 // HTTP response body.
 type UpdateResponseBody struct {
 	ID             *string `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
-	ProjectID      *string `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
+	ApplicationID  *string `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
 	UserID         *string `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
 	Name           *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
 	ParentFolderID *string `form:"parent_folder_id,omitempty" json:"parent_folder_id,omitempty" xml:"parent_folder_id,omitempty"`
@@ -61,7 +61,7 @@ type MoveDocumentRequestBody struct {
 type MoveDocumentResponseBody struct {
 	ID                  *string                      `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
 	UserID              *string                      `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
-	ProjectID           *string                      `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
+	ApplicationID       *string                      `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
 	FolderID            *string                      `form:"folder_id,omitempty" json:"folder_id,omitempty" xml:"folder_id,omitempty"`
 	Filename            *string                      `form:"filename,omitempty" json:"filename,omitempty" xml:"filename,omitempty"`
 	FileType            *string                      `form:"file_type,omitempty" json:"file_type,omitempty" xml:"file_type,omitempty"`
@@ -119,7 +119,7 @@ func NewMoveDocumentRequestBody(p *folders.MoveDocumentPayload) *MoveDocumentReq
 func NewCreateFolderCreated(body *CreateResponseBody) *folders.Folder {
 	v := &folders.Folder{
 		ID:             *body.ID,
-		ProjectID:      *body.ProjectID,
+		ApplicationID:  *body.ApplicationID,
 		UserID:         *body.UserID,
 		Name:           *body.Name,
 		ParentFolderID: body.ParentFolderID,
@@ -135,7 +135,7 @@ func NewCreateFolderCreated(body *CreateResponseBody) *folders.Folder {
 func NewUpdateFolderOK(body *UpdateResponseBody) *folders.Folder {
 	v := &folders.Folder{
 		ID:             *body.ID,
-		ProjectID:      *body.ProjectID,
+		ApplicationID:  *body.ApplicationID,
 		UserID:         *body.UserID,
 		Name:           *body.Name,
 		ParentFolderID: body.ParentFolderID,
@@ -152,7 +152,7 @@ func NewMoveDocumentDocumentOK(body *MoveDocumentResponseBody) *folders.Document
 	v := &folders.Document{
 		ID:                  *body.ID,
 		UserID:              body.UserID,
-		ProjectID:           body.ProjectID,
+		ApplicationID:       body.ApplicationID,
 		FolderID:            body.FolderID,
 		Filename:            *body.Filename,
 		FileType:            body.FileType,
@@ -184,8 +184,8 @@ func ValidateCreateResponseBody(body *CreateResponseBody) (err error) {
 	if body.ID == nil {
 		err = loom.MergeErrors(err, loom.MissingFieldError("id", "body"))
 	}
-	if body.ProjectID == nil {
-		err = loom.MergeErrors(err, loom.MissingFieldError("project_id", "body"))
+	if body.ApplicationID == nil {
+		err = loom.MergeErrors(err, loom.MissingFieldError("application_id", "body"))
 	}
 	if body.UserID == nil {
 		err = loom.MergeErrors(err, loom.MissingFieldError("user_id", "body"))
@@ -207,8 +207,8 @@ func ValidateUpdateResponseBody(body *UpdateResponseBody) (err error) {
 	if body.ID == nil {
 		err = loom.MergeErrors(err, loom.MissingFieldError("id", "body"))
 	}
-	if body.ProjectID == nil {
-		err = loom.MergeErrors(err, loom.MissingFieldError("project_id", "body"))
+	if body.ApplicationID == nil {
+		err = loom.MergeErrors(err, loom.MissingFieldError("application_id", "body"))
 	}
 	if body.UserID == nil {
 		err = loom.MergeErrors(err, loom.MissingFieldError("user_id", "body"))

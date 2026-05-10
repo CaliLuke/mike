@@ -305,11 +305,11 @@ func unmarshalChatResponseToTabularchatChat(v *ChatResponse) *tabularchat.Chat {
 		return nil
 	}
 	res := &tabularchat.Chat{
-		ID:        *v.ID,
-		ProjectID: v.ProjectID,
-		UserID:    *v.UserID,
-		Title:     v.Title,
-		CreatedAt: *v.CreatedAt,
+		ID:            *v.ID,
+		ApplicationID: v.ApplicationID,
+		UserID:        *v.UserID,
+		Title:         v.Title,
+		CreatedAt:     *v.CreatedAt,
 	}
 
 	return res

@@ -529,7 +529,7 @@ func unmarshalDocumentResponseToDocumentsDocument(v *DocumentResponse) *document
 	res := &documents.Document{
 		ID:                  *v.ID,
 		UserID:              v.UserID,
-		ProjectID:           v.ProjectID,
+		ApplicationID:       v.ApplicationID,
 		FolderID:            v.FolderID,
 		Filename:            *v.Filename,
 		FileType:            v.FileType,

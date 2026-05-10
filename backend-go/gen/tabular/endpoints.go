@@ -19,7 +19,6 @@ type Endpoints struct {
 	Create         loom.Endpoint
 	Prompt         loom.Endpoint
 	Get            loom.Endpoint
-	People         loom.Endpoint
 	Update         loom.Endpoint
 	Delete         loom.Endpoint
 	ClearCells     loom.Endpoint
@@ -43,7 +42,6 @@ func NewEndpoints(s Service) *Endpoints {
 		Create:         NewCreateEndpoint(s),
 		Prompt:         NewPromptEndpoint(s),
 		Get:            NewGetEndpoint(s),
-		People:         NewPeopleEndpoint(s),
 		Update:         NewUpdateEndpoint(s),
 		Delete:         NewDeleteEndpoint(s),
 		ClearCells:     NewClearCellsEndpoint(s),
@@ -58,7 +56,6 @@ func (e *Endpoints) Use(m func(loom.Endpoint) loom.Endpoint) {
 	e.Create = m(e.Create)
 	e.Prompt = m(e.Prompt)
 	e.Get = m(e.Get)
-	e.People = m(e.People)
 	e.Update = m(e.Update)
 	e.Delete = m(e.Delete)
 	e.ClearCells = m(e.ClearCells)
@@ -99,15 +96,6 @@ func NewGetEndpoint(s Service) loom.Endpoint {
 	return func(ctx context.Context, req any) (any, error) {
 		p := req.(*GetPayload)
 		return s.Get(ctx, p)
-	}
-}
-
-// NewPeopleEndpoint returns an endpoint function that calls the method
-// "people" of service "tabular".
-func NewPeopleEndpoint(s Service) loom.Endpoint {
-	return func(ctx context.Context, req any) (any, error) {
-		p := req.(*PeoplePayload)
-		return s.People(ctx, p)
 	}
 }
 

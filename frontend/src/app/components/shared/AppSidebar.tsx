@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Building2,
   ChevronDown,
   ChevronsUpDown,
   FolderOpen,
@@ -11,12 +12,12 @@ import {
   User,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname,useRouter } from "next/navigation";
-import { useEffect,useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import { SidebarChatItem } from "@/app/components/shared/SidebarChatItem";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
-import { listProjects } from "@/app/lib/lukeApi";
+import { listApplications } from "@/app/lib/lukeApi";
 import { getTracer } from "@/app/lib/telemetry";
 import { LukeIcon } from "@/components/chat/luke-icon";
 import { useAuth } from "@/contexts/AuthContext";
@@ -24,7 +25,8 @@ import { useUserProfile } from "@/contexts/UserProfileContext";
 
 const NAV_ITEMS = [
   { href: "/assistant", label: "Assistant", icon: MessageSquare },
-  { href: "/projects", label: "Projects", icon: FolderOpen },
+  { href: "/companies", label: "Companies", icon: Building2 },
+  { href: "/applications", label: "Applications", icon: FolderOpen },
   { href: "/tabular-reviews", label: "Tabular Review", icon: Table2 },
   { href: "/workflows", label: "Workflows", icon: Library },
 ];
@@ -43,15 +45,15 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
   const [shouldAnimate, setShouldAnimate] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
-  const [projectNames, setProjectNames] = useState<Record<string, string>>({});
+  const [applicationNames, setApplicationNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!user) return;
-    listProjects()
-      .then((projects) => {
+    listApplications()
+      .then((applications) => {
         const map: Record<string, string> = {};
-        for (const p of projects) map[p.id] = p.name;
-        setProjectNames(map);
+        for (const p of applications) map[p.id] = p.name;
+        setApplicationNames(map);
       })
       .catch(() => {});
   }, [user]);
@@ -75,9 +77,9 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
       return;
     }
 
-    const projectChatMatch = pathname.match(/^\/projects\/[^/]+\/assistant\/chat\/([^/]+)/);
-    if (projectChatMatch) {
-      setCurrentChatId(projectChatMatch[1]);
+    const applicationChatMatch = pathname.match(/^\/applications\/[^/]+\/assistant\/chat\/([^/]+)/);
+    if (applicationChatMatch) {
+      setCurrentChatId(applicationChatMatch[1]);
       return;
     }
 
@@ -219,12 +221,14 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                     key={chat.id}
                     chat={chat}
                     isActive={currentChatId === chat.id}
-                    projectName={chat.project_id ? projectNames[chat.project_id] : undefined}
+                    applicationName={
+                      chat.application_id ? applicationNames[chat.application_id] : undefined
+                    }
                     onSelect={() => {
                       setCurrentChatId(chat.id);
                       router.push(
-                        chat.project_id
-                          ? `/projects/${chat.project_id}/assistant/chat/${chat.id}`
+                        chat.application_id
+                          ? `/applications/${chat.application_id}/assistant/chat/${chat.id}`
                           : `/assistant/chat/${chat.id}`,
                       );
                     }}

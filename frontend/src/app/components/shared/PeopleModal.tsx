@@ -1,13 +1,13 @@
 "use client";
 
-import { Loader2, Plus,User, UserPlus, X } from "lucide-react";
+import { Loader2, Plus, User, UserPlus, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
-import type { ProjectPeople } from "@/app/lib/lukeApi";
+import type { ApplicationPeople } from "@/app/lib/lukeApi";
 
 /**
- * Any resource the modal can manage members for — projects today, tabular
+ * Any resource the modal can manage members for — applications today, tabular
  * reviews now, anything else with a `shared_with` email list later.
  */
 export interface SharedResource {
@@ -18,15 +18,15 @@ export interface SharedResource {
 interface Props {
   open: boolean;
   onClose: () => void;
-  /** The thing being shared (project, review, …). */
+  /** The thing being shared (application, review, …). */
   resource: SharedResource | null;
   /**
    * Resolve the owner + members roster for the given resource. Different
-   * resource types hit different endpoints (`/projects/:id/people`,
+   * resource types hit different endpoints (`/applications/:id/people`,
    * `/tabular-review/:id/people`, …) so the caller passes the appropriate
    * fetcher.
    */
-  fetchPeople: (id: string) => Promise<ProjectPeople>;
+  fetchPeople: (id: string) => Promise<ApplicationPeople>;
   /** Currently signed-in user's email — gets the "You" tag if it matches. */
   currentUserEmail?: string | null;
   breadcrumb: string[];
@@ -46,7 +46,7 @@ type RosterRow = {
 };
 
 /**
- * Roster of every Luke member with access to the project, with controls to
+ * Roster of every Luke member with access to the application, with controls to
  * add/remove members. Mirrors AddDocumentsModal's frame.
  */
 export function PeopleModal({
@@ -66,7 +66,7 @@ export function PeopleModal({
   // Server-resolved roster: owner email/display_name + members'
   // display_names. We keep `resource.shared_with` as the source of truth
   // for membership and just merge display_names from this fetch.
-  const [people, setPeople] = useState<ProjectPeople | null>(null);
+  const [people, setPeople] = useState<ApplicationPeople | null>(null);
   const [peopleLoading, setPeopleLoading] = useState(false);
 
   const resourceId = resource?.id ?? null;

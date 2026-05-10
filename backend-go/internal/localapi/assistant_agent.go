@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -25,7 +26,7 @@ import (
 
 const maxToolDocumentChars = 120_000
 
-func (s *Server) persistAndStreamAssistantChat(ctx context.Context, chatID string, modelName *string, projectID *string, tabularReviewID *string, messages []chatRequestMessage, displayedDoc *chatRequestFile, attachedDocuments []chatRequestFile, send func(map[string]any) error) (string, error) {
+func (s *Server) persistAndStreamAssistantChat(ctx context.Context, chatID string, modelName *string, applicationID *string, tabularReviewID *string, messages []chatRequestMessage, displayedDoc *chatRequestFile, attachedDocuments []chatRequestFile, send func(map[string]any) error) (string, error) {
 	var lastUser string
 	var lastUserFiles []chatRequestFile
 	var toolAnnotations []map[string]any
@@ -45,7 +46,7 @@ func (s *Server) persistAndStreamAssistantChat(ctx context.Context, chatID strin
 		return "", err
 	}
 
-	text, err := s.runAssistantAgent(ctx, chatID, modelOrDefault(modelName), projectID, tabularReviewID, messages, displayedDoc, attachedDocuments, sendWithAnnotations)
+	text, err := s.runAssistantAgent(ctx, chatID, modelOrDefault(modelName), applicationID, tabularReviewID, messages, displayedDoc, attachedDocuments, sendWithAnnotations)
 	if err != nil {
 		return "", err
 	}
@@ -114,7 +115,7 @@ func (s *Server) persistAndStreamAssistantTabularChat(ctx context.Context, revie
 	return visibleText, nil
 }
 
-func (s *Server) runAssistantAgent(ctx context.Context, chatID, modelName string, projectID *string, tabularReviewID *string, messages []chatRequestMessage, displayedDoc *chatRequestFile, attachedDocuments []chatRequestFile, send func(map[string]any) error) (string, error) {
+func (s *Server) runAssistantAgent(ctx context.Context, chatID, modelName string, applicationID *string, tabularReviewID *string, messages []chatRequestMessage, displayedDoc *chatRequestFile, attachedDocuments []chatRequestFile, send func(map[string]any) error) (string, error) {
 	if os.Getenv(mockProviderEnvVar) == "1" {
 		return "Mock provider response.\n\n<CITATIONS>[]</CITATIONS>", nil
 	}
@@ -126,12 +127,12 @@ func (s *Server) runAssistantAgent(ctx context.Context, chatID, modelName string
 	if err := assistantagent.RegisterAssistantAgent(ctx, rt, assistantagent.AssistantAgentConfig{Planner: planner}); err != nil {
 		return "", err
 	}
-	executor := s.newCareerContextExecutor(projectID, tabularReviewID, displayedDoc, attachedDocuments, messages, send)
+	executor := s.newCareerContextExecutor(applicationID, tabularReviewID, displayedDoc, attachedDocuments, messages, send)
 	if err := assistantagent.RegisterUsedToolsets(ctx, rt, assistantagent.WithCareerContextExecutor(executor)); err != nil {
 		return "", err
 	}
 	modelMessages := toModelMessages(messages)
-	if hint := s.availableDocumentHint(ctx, projectID, displayedDoc, attachedDocuments, messages); hint != "" {
+	if hint := s.availableDocumentHint(ctx, applicationID, displayedDoc, attachedDocuments, messages); hint != "" {
 		modelMessages = append([]*model.Message{{Role: model.ConversationRoleSystem, Parts: []model.Part{model.TextPart{Text: hint}}}}, modelMessages...)
 	}
 	if tabularReviewID != nil && *tabularReviewID != "" {
@@ -151,7 +152,7 @@ func (s *Server) runAssistantAgent(ctx context.Context, chatID, modelName string
 func assistantEventAnnotation(event map[string]any) map[string]any {
 	eventType, _ := event["type"].(string)
 	switch eventType {
-	case "doc_created", "doc_edited", "doc_replicated", "workflow_applied":
+	case "doc_created", "doc_edited", "doc_replicated", "workflow_applied", "company_created", "application_created", "web_page_fetched":
 	default:
 		return nil
 	}
@@ -180,7 +181,7 @@ func toModelMessages(messages []chatRequestMessage) []*model.Message {
 	return out
 }
 
-func (s *Server) availableDocumentHint(ctx context.Context, projectID *string, displayedDoc *chatRequestFile, attachedDocuments []chatRequestFile, messages []chatRequestMessage) string {
+func (s *Server) availableDocumentHint(ctx context.Context, applicationID *string, displayedDoc *chatRequestFile, attachedDocuments []chatRequestFile, messages []chatRequestMessage) string {
 	extra := make([]chatRequestFile, 0, len(attachedDocuments)+1)
 	if displayedDoc != nil {
 		extra = append(extra, *displayedDoc)
@@ -191,8 +192,8 @@ func (s *Server) availableDocumentHint(ctx context.Context, projectID *string, d
 	}
 	var rows []map[string]any
 	where := "true"
-	if projectID != nil && *projectID != "" {
-		where = "project_id = " + recordID("projects", *projectID)
+	if applicationID != nil && *applicationID != "" {
+		where = "application_id = " + recordID("applications", *applicationID)
 	}
 	if queried, err := queryRows(ctx, s.app.DB, documentListQuery(where)); err == nil {
 		rows = queried
@@ -248,6 +249,12 @@ func (s *Server) priorAssistantEventHint(ctx context.Context, chatID string) str
 				lines = append(lines, "- doc_replicated: "+asString(annotation["filename"])+" copies="+mustJSON(annotation["copies"]))
 			case "workflow_applied":
 				lines = append(lines, "- workflow_applied: "+asString(annotation["workflow_id"])+" "+asString(annotation["title"]))
+			case "company_created":
+				lines = append(lines, "- company_created: "+asString(annotation["company_id"])+" "+asString(annotation["name"]))
+			case "application_created":
+				lines = append(lines, "- application_created: "+asString(annotation["application_id"])+" "+asString(annotation["name"])+" company_id="+asString(annotation["company_id"]))
+			case "web_page_fetched":
+				lines = append(lines, "- web_page_fetched: "+asString(annotation["title"])+" "+asString(annotation["url"]))
 			}
 		}
 	}
@@ -272,6 +279,9 @@ func newLukeOllamaPlanner(modelName string, specs []tools.ToolSpec) *lukeOllamaP
 }
 
 func (p *lukeOllamaPlanner) PlanStart(ctx context.Context, input *planner.PlanInput) (*planner.PlanResult, error) {
+	if forced := p.forcedWebPageFetch(input.Messages); forced != nil {
+		return &planner.PlanResult{ToolCalls: []planner.ToolRequest{*forced}}, nil
+	}
 	return p.plan(ctx, input.Messages, true)
 }
 
@@ -319,6 +329,46 @@ func (p *lukeOllamaPlanner) plan(ctx context.Context, messages []*model.Message,
 			Parts: []model.Part{model.TextPart{Text: response.Message.Content}},
 		},
 	}}, nil
+}
+
+func (p *lukeOllamaPlanner) forcedWebPageFetch(messages []*model.Message) *planner.ToolRequest {
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role != model.ConversationRoleUser {
+			continue
+		}
+		for _, part := range messages[i].Parts {
+			textPart, ok := part.(model.TextPart)
+			if !ok {
+				continue
+			}
+			rawURL := firstHTTPURL(textPart.Text)
+			if rawURL == "" {
+				continue
+			}
+			payload, err := json.Marshal(map[string]any{"url": rawURL, "max_chars": defaultWebPageMaxChars})
+			if err != nil {
+				return nil
+			}
+			return &planner.ToolRequest{
+				Name:       careercontext.FetchWebPage,
+				Payload:    rawjson.Message(payload),
+				ToolCallID: newID("toolcall"),
+			}
+		}
+		return nil
+	}
+	return nil
+}
+
+func firstHTTPURL(text string) string {
+	for _, field := range strings.Fields(text) {
+		candidate := strings.Trim(field, " \t\r\n<>\"'()[]{}.,;!")
+		parsed, err := url.Parse(candidate)
+		if err == nil && (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Hostname() != "" {
+			return candidate
+		}
+	}
+	return ""
 }
 
 func (p *lukeOllamaPlanner) ollamaTools() []map[string]any {
@@ -474,7 +524,7 @@ func splitCitationBlock(text string) (string, []map[string]any) {
 	return visible, citations
 }
 
-func (s *Server) newCareerContextExecutor(projectID *string, tabularReviewID *string, displayedDoc *chatRequestFile, attachedDocuments []chatRequestFile, messages []chatRequestMessage, send func(map[string]any) error) agentruntime.ToolCallExecutor {
+func (s *Server) newCareerContextExecutor(applicationID *string, tabularReviewID *string, displayedDoc *chatRequestFile, attachedDocuments []chatRequestFile, messages []chatRequestMessage, send func(map[string]any) error) agentruntime.ToolCallExecutor {
 	extraFiles := make([]chatRequestFile, 0, len(attachedDocuments)+1)
 	editStates := map[string]*assistantEditState{}
 	if displayedDoc != nil {
@@ -487,23 +537,29 @@ func (s *Server) newCareerContextExecutor(projectID *string, tabularReviewID *st
 	return agentruntime.ToolCallExecutorFunc(func(ctx context.Context, _ *agentruntime.ToolCallMeta, call *planner.ToolRequest) (*planner.ToolResult, error) {
 		switch call.Name {
 		case careercontext.ListDocuments:
-			return s.executeListDocuments(ctx, call, projectID, extraFiles)
+			return s.executeListDocuments(ctx, call, applicationID, extraFiles)
 		case careercontext.ReadDocument:
 			return s.executeReadDocument(ctx, call, send)
 		case careercontext.FindInDocument:
 			return s.executeFindInDocument(ctx, call, send)
 		case careercontext.FetchDocuments:
 			return s.executeFetchDocuments(ctx, call, send)
+		case careercontext.FetchWebPage:
+			return s.executeFetchWebPage(ctx, call, send)
 		case careercontext.ListWorkflows:
 			return s.executeListWorkflows(ctx, call)
+		case careercontext.CreateCompany:
+			return s.executeCreateCompany(ctx, call, send)
+		case careercontext.CreateApplication:
+			return s.executeCreateApplication(ctx, call, send)
 		case careercontext.ReadWorkflow:
 			return s.executeReadWorkflow(ctx, call, send)
 		case careercontext.GenerateDocx:
-			return s.executeGenerateDocx(ctx, call, projectID, send)
+			return s.executeGenerateDocx(ctx, call, applicationID, send)
 		case careercontext.EditDocument:
 			return s.executeEditDocument(ctx, call, editStates, send)
 		case careercontext.ReplicateDocument:
-			return s.executeReplicateDocument(ctx, call, projectID, send)
+			return s.executeReplicateDocument(ctx, call, applicationID, send)
 		case careercontext.ReadTableCells:
 			return s.executeReadTableCells(ctx, call, tabularReviewID, send)
 		default:
@@ -517,10 +573,10 @@ type assistantEditState struct {
 	NextChangeID int
 }
 
-func (s *Server) executeListDocuments(ctx context.Context, call *planner.ToolRequest, projectID *string, extraFiles []chatRequestFile) (*planner.ToolResult, error) {
+func (s *Server) executeListDocuments(ctx context.Context, call *planner.ToolRequest, applicationID *string, extraFiles []chatRequestFile) (*planner.ToolResult, error) {
 	where := "true"
-	if projectID != nil && *projectID != "" {
-		where = "project_id = " + recordID("projects", *projectID)
+	if applicationID != nil && *applicationID != "" {
+		where = "application_id = " + recordID("applications", *applicationID)
 	}
 	rows, err := queryRows(ctx, s.app.DB, documentListQuery(where))
 	if err != nil {
@@ -639,6 +695,100 @@ func (s *Server) executeListWorkflows(ctx context.Context, call *planner.ToolReq
 	return &planner.ToolResult{Name: call.Name, Result: &careercontext.ListWorkflowsResult{Workflows: workflows}}, nil
 }
 
+func (s *Server) executeCreateCompany(ctx context.Context, call *planner.ToolRequest, send func(map[string]any) error) (*planner.ToolResult, error) {
+	payload, err := careercontext.UnmarshalCreateCompanyPayload([]byte(call.Payload))
+	if err != nil {
+		return toolError(call.Name, err), nil
+	}
+	name, err := requiredString(payload.Name, "name")
+	if err != nil {
+		return toolError(call.Name, err), nil
+	}
+	var website *string
+	if payload.Website != nil {
+		trimmed := strings.TrimSpace(*payload.Website)
+		if trimmed != "" {
+			website = &trimmed
+		}
+	}
+	row, err := s.createCompany(ctx, name, website)
+	if err != nil {
+		return nil, err
+	}
+	companyID := trimRecord(asString(row["id"]))
+	companyName := asString(row["name"])
+	companyWebsite := asString(row["website"])
+	_ = send(map[string]any{"type": "company_created", "company_id": companyID, "name": companyName})
+	return &planner.ToolResult{Name: call.Name, Result: &careercontext.CreateCompanyResult{
+		OK:        boolPtr(true),
+		CompanyID: stringPtr(companyID),
+		Name:      stringPtr(companyName),
+		Website:   stringPtr(companyWebsite),
+	}}, nil
+}
+
+func (s *Server) executeCreateApplication(ctx context.Context, call *planner.ToolRequest, send func(map[string]any) error) (*planner.ToolResult, error) {
+	payload, err := careercontext.UnmarshalCreateApplicationPayload([]byte(call.Payload))
+	if err != nil {
+		return toolError(call.Name, err), nil
+	}
+	name, err := requiredString(payload.Name, "name")
+	if err != nil {
+		return toolError(call.Name, err), nil
+	}
+	companyID, err := requiredString(payload.CompanyID, "company_id")
+	if err != nil {
+		return toolError(call.Name, err), nil
+	}
+	var cmNumber *string
+	if payload.CmNumber != nil {
+		trimmed := strings.TrimSpace(*payload.CmNumber)
+		if trimmed != "" {
+			cmNumber = &trimmed
+		}
+	}
+	row, err := s.createApplication(ctx, name, companyID, cmNumber, nil)
+	if err != nil {
+		return nil, err
+	}
+	applicationID := trimRecord(asString(row["id"]))
+	applicationName := asString(row["name"])
+	attachedCompanyID := trimRecord(asString(row["company_id"]))
+	applicationCMNumber := asString(row["cm_number"])
+	jobDescriptionDocID := ""
+	if payload.JobDescriptionText != nil && strings.TrimSpace(*payload.JobDescriptionText) != "" {
+		doc, err := s.createJobDescriptionDocument(ctx, applicationName, strings.TrimSpace(*payload.JobDescriptionText), derefString(payload.JobDescriptionURL), applicationID)
+		if err != nil {
+			return nil, err
+		}
+		jobDescriptionDocID = doc.DocumentID
+	}
+	_ = send(map[string]any{
+		"type":                        "application_created",
+		"application_id":              applicationID,
+		"company_id":                  attachedCompanyID,
+		"name":                        applicationName,
+		"job_description_document_id": jobDescriptionDocID,
+	})
+	return &planner.ToolResult{Name: call.Name, Result: &careercontext.CreateApplicationResult{
+		OK:                       boolPtr(true),
+		ApplicationID:            stringPtr(applicationID),
+		CompanyID:                stringPtr(attachedCompanyID),
+		Name:                     stringPtr(applicationName),
+		CmNumber:                 stringPtr(applicationCMNumber),
+		JobDescriptionDocumentID: stringPtr(jobDescriptionDocID),
+	}}, nil
+}
+
+func (s *Server) createJobDescriptionDocument(ctx context.Context, applicationName string, text string, sourceURL string, applicationID string) (assistantDocumentWriteResult, error) {
+	filename := safeMarkdownFilename("Job Description - " + applicationName)
+	body := "# Job Description\n\n" + text
+	if sourceURL != "" {
+		body = "Source: " + sourceURL + "\n\n" + body
+	}
+	return s.createAssistantDocument(ctx, filename, "md", []byte(body), "job_description", &applicationID)
+}
+
 func (s *Server) executeReadWorkflow(ctx context.Context, call *planner.ToolRequest, send func(map[string]any) error) (*planner.ToolResult, error) {
 	payload, err := careercontext.UnmarshalReadWorkflowPayload([]byte(call.Payload))
 	if err != nil {
@@ -667,7 +817,7 @@ func (s *Server) executeReadWorkflow(ctx context.Context, call *planner.ToolRequ
 	}}, nil
 }
 
-func (s *Server) executeGenerateDocx(ctx context.Context, call *planner.ToolRequest, projectID *string, send func(map[string]any) error) (*planner.ToolResult, error) {
+func (s *Server) executeGenerateDocx(ctx context.Context, call *planner.ToolRequest, applicationID *string, send func(map[string]any) error) (*planner.ToolResult, error) {
 	payload, err := careercontext.UnmarshalGenerateDocxPayload([]byte(call.Payload))
 	if err != nil {
 		return toolError(call.Name, err), nil
@@ -682,7 +832,7 @@ func (s *Server) executeGenerateDocx(ctx context.Context, call *planner.ToolRequ
 	if err != nil {
 		return generateDocxToolError(call.Name, filename, err, send), nil
 	}
-	doc, err := s.createAssistantDocument(ctx, filename, "docx", data, "generated", projectID)
+	doc, err := s.createAssistantDocument(ctx, filename, "docx", data, "generated", applicationID)
 	if err != nil {
 		return generateDocxToolError(call.Name, filename, err, send), nil
 	}
@@ -711,7 +861,7 @@ func generateDocxToolError(name tools.Ident, filename string, err error, send fu
 	return &planner.ToolResult{Name: name, Result: result}
 }
 
-func (s *Server) executeReplicateDocument(ctx context.Context, call *planner.ToolRequest, projectID *string, send func(map[string]any) error) (*planner.ToolResult, error) {
+func (s *Server) executeReplicateDocument(ctx context.Context, call *planner.ToolRequest, applicationID *string, send func(map[string]any) error) (*planner.ToolResult, error) {
 	payload, err := careercontext.UnmarshalReplicateDocumentPayload([]byte(call.Payload))
 	if err != nil {
 		return toolError(call.Name, err), nil
@@ -739,7 +889,7 @@ func (s *Server) executeReplicateDocument(ctx context.Context, call *planner.Too
 	copies := make([]*careercontext.AssistantDocumentCopy, 0, count)
 	for i := 1; i <= count; i++ {
 		filename := replicatedFilename(source.Filename, derefString(payload.NewFilename), i, count)
-		doc, err := s.createAssistantDocument(ctx, filename, strings.TrimPrefix(filepath.Ext(filename), "."), data, "upload", projectID)
+		doc, err := s.createAssistantDocument(ctx, filename, strings.TrimPrefix(filepath.Ext(filename), "."), data, "upload", applicationID)
 		if err != nil {
 			result := &careercontext.ReplicateDocumentResult{OK: boolPtr(false), Filename: stringPtr(source.Filename), Count: intPtr(len(copies)), Copies: copies, Error: stringPtr(err.Error())}
 			_ = send(map[string]any{"type": "doc_replicated", "filename": source.Filename, "count": len(copies), "copies": copies, "error": err.Error()})
@@ -901,11 +1051,11 @@ func (s *Server) readAssistantDocument(ctx context.Context, documentID string) (
 
 func rowToDocumentRef(row map[string]any) *careercontext.AssistantDocumentRef {
 	return &careercontext.AssistantDocumentRef{
-		DocumentID: stringPtr(trimRecord(asString(row["id"]))),
-		Filename:   stringPtr(asString(row["filename"])),
-		ProjectID:  stringPtr(trimRecord(asString(row["project_id"]))),
-		FileType:   stringPtr(asString(row["file_type"])),
-		Status:     stringPtr(asString(row["status"])),
+		DocumentID:    stringPtr(trimRecord(asString(row["id"]))),
+		Filename:      stringPtr(asString(row["filename"])),
+		ApplicationID: stringPtr(trimRecord(asString(row["application_id"]))),
+		FileType:      stringPtr(asString(row["file_type"])),
+		Status:        stringPtr(asString(row["status"])),
 	}
 }
 
@@ -988,7 +1138,7 @@ func generatedSections(sections []*careercontext.AssistantDocxSection) []generat
 	return out
 }
 
-func (s *Server) createAssistantDocument(ctx context.Context, filename, fileType string, data []byte, source string, projectID *string) (assistantDocumentWriteResult, error) {
+func (s *Server) createAssistantDocument(ctx context.Context, filename, fileType string, data []byte, source string, applicationID *string) (assistantDocumentWriteResult, error) {
 	docID := newID("doc")
 	versionID := docID + "_v1"
 	if fileType == "" {
@@ -1012,8 +1162,8 @@ func (s *Server) createAssistantDocument(ctx context.Context, filename, fileType
 	if err := s.runDocumentWorkflow(localdata.WithUserContext(ctx, s.app.User), workflow, docID, payload); err != nil {
 		return assistantDocumentWriteResult{}, err
 	}
-	if projectID != nil && *projectID != "" {
-		if _, err := s.app.DB.Query(ctx, "UPDATE "+recordID("documents", docID)+" SET project_id = "+recordID("projects", *projectID)+", updated_at = time::now();"); err != nil {
+	if applicationID != nil && *applicationID != "" {
+		if _, err := s.app.DB.Query(ctx, "UPDATE "+recordID("documents", docID)+" SET application_id = "+recordID("applications", *applicationID)+", updated_at = time::now();"); err != nil {
 			return assistantDocumentWriteResult{}, err
 		}
 	}
@@ -1238,6 +1388,14 @@ func plural(word string, count int) string {
 }
 
 func safeDocxFilename(title string) string {
+	return safeFilename(title, ".docx")
+}
+
+func safeMarkdownFilename(title string) string {
+	return safeFilename(title, ".md")
+}
+
+func safeFilename(title string, ext string) string {
 	cleaned := strings.Map(func(r rune) rune {
 		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == ' ' || r == '-' || r == '_' {
 			return r
@@ -1251,7 +1409,7 @@ func safeDocxFilename(title string) string {
 	if cleaned == "" {
 		cleaned = "document"
 	}
-	return cleaned + ".docx"
+	return cleaned + ext
 }
 
 func replicatedFilename(source, requested string, index, count int) string {

@@ -68,13 +68,13 @@ const cases = [
     },
   },
   {
-    name: "sse-project-chat",
+    name: "sse-application-chat",
     transport: "sse",
     request: {
       method: "POST",
-      path: "/projects/{projectId}/chat",
+      path: "/applications/{applicationId}/chat",
       body: {
-        messages: [{ role: "user", content: "Fixture project hello" }],
+        messages: [{ role: "user", content: "Fixture application hello" }],
         model: "gemma4",
       },
     },

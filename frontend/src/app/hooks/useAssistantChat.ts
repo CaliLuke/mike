@@ -9,14 +9,14 @@ import type {
   LukeMessage,
 } from "@/app/components/shared/types";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
-import { streamChat, streamProjectChat } from "@/app/lib/lukeApi";
+import { streamChat, streamApplicationChat } from "@/app/lib/lukeApi";
 
 import { useGenerateChatTitle } from "./useGenerateChatTitle";
 
 interface UseAssistantChatOptions {
   initialMessages?: LukeMessage[];
   chatId?: string;
-  projectId?: string;
+  applicationId?: string;
 }
 
 function findLastContentIndex(events: AssistantEvent[]): number {
@@ -29,7 +29,7 @@ function findLastContentIndex(events: AssistantEvent[]): number {
 export function useAssistantChat({
   initialMessages = [],
   chatId: initialChatId,
-  projectId,
+  applicationId,
 }: UseAssistantChatOptions = {}) {
   const router = useRouter();
   const { replaceChatId, loadChats, setCurrentChatId, saveChat, setNewChatMessages } =
@@ -304,9 +304,9 @@ export function useAssistantChat({
         document_id: f.document_id as string,
       }));
 
-      const response = await (projectId
-        ? streamProjectChat({
-            projectId,
+      const response = await (applicationId
+        ? streamApplicationChat({
+            applicationId,
             messages: apiMessages,
             chat_id: chatId,
             model,
@@ -721,8 +721,8 @@ export function useAssistantChat({
           replaceChatId(chatId, finalChatId, message.content.trim().slice(0, 120) || "New Chat");
         }
         setCurrentChatId(finalChatId);
-        const chatBasePath = projectId
-          ? `/projects/${projectId}/assistant/chat`
+        const chatBasePath = applicationId
+          ? `/applications/${applicationId}/assistant/chat`
           : `/assistant/chat`;
         router.replace(`${chatBasePath}/${finalChatId}`);
       }
@@ -818,14 +818,14 @@ export function useAssistantChat({
 
   const handleNewChat = async (
     message: LukeMessage,
-    projectId?: string,
+    applicationId?: string,
   ): Promise<string | null> => {
     if (!message.content.trim()) return null;
 
     setMessages([message]);
     setNewChatMessages([message]);
 
-    const newChatId = await saveChat(projectId);
+    const newChatId = await saveChat(applicationId);
     if (newChatId) {
       setChatId(newChatId);
       setCurrentChatId(newChatId);

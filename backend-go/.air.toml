@@ -1,0 +1,27 @@
+root = "."
+tmp_dir = "../.tmp/air"
+
+[build]
+cmd = "go build -o ../.tmp/air/luke-backend ./cmd/luke-backend"
+entrypoint = ["../.tmp/air/luke-backend"]
+delay = 1000
+exclude_dir = [
+  "coverage",
+  "design/gen",
+  "gen",
+  "internal/persistence/rustbridge/target",
+  "testdata",
+  "tmp",
+]
+exclude_regex = ["_test.go"]
+include_ext = ["go", "mod", "sum"]
+kill_delay = "500ms"
+log = "../.tmp/air/build-errors.log"
+send_interrupt = true
+stop_on_error = true
+
+[log]
+time = true
+
+[misc]
+clean_on_exit = false

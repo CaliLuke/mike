@@ -8,6 +8,73 @@
 package http
 
 type (
+	// CreateApplicationPayloadTransport is the internal JSON transport type for CreateApplicationPayload.
+	// It lives in the toolset-local http package and is used only for JSON
+	// decode + validation (missing-field detection) before transforming into
+	// the public tool type.
+	CreateApplicationPayloadTransport struct {
+		// Application name, usually the role title from the job ad
+		Name *string `json:"name,omitempty"`
+		// Local company identifier returned by create_company or a prior
+		// company_created event
+		CompanyID *string `json:"company_id,omitempty"`
+		// Optional Competition Bureau matter number
+		CmNumber *string `json:"cm_number,omitempty"`
+		// Optional full job description text to save as an application document
+		JobDescriptionText *string `json:"job_description_text,omitempty"`
+		// Optional source URL for the job description
+		JobDescriptionURL *string `json:"job_description_url,omitempty"`
+	}
+
+	// CreateApplicationResultTransport is the internal JSON transport type for CreateApplicationResult.
+	// It lives in the toolset-local http package and is used only for JSON
+	// decode + validation (missing-field detection) before transforming into
+	// the public tool type.
+	CreateApplicationResultTransport struct {
+		// Whether the application was created
+		OK *bool `json:"ok,omitempty"`
+		// Local application identifier
+		ApplicationID *string `json:"application_id,omitempty"`
+		// Attached local company identifier
+		CompanyID *string `json:"company_id,omitempty"`
+		// Application name
+		Name *string `json:"name,omitempty"`
+		// Competition Bureau matter number
+		CmNumber *string `json:"cm_number,omitempty"`
+		// Created job description document identifier, when job text was provided
+		JobDescriptionDocumentID *string `json:"job_description_document_id,omitempty"`
+		// Error message when creation failed
+		Error *string `json:"error,omitempty"`
+	}
+
+	// CreateCompanyPayloadTransport is the internal JSON transport type for CreateCompanyPayload.
+	// It lives in the toolset-local http package and is used only for JSON
+	// decode + validation (missing-field detection) before transforming into
+	// the public tool type.
+	CreateCompanyPayloadTransport struct {
+		// Company name
+		Name *string `json:"name,omitempty"`
+		// Optional company website
+		Website *string `json:"website,omitempty"`
+	}
+
+	// CreateCompanyResultTransport is the internal JSON transport type for CreateCompanyResult.
+	// It lives in the toolset-local http package and is used only for JSON
+	// decode + validation (missing-field detection) before transforming into
+	// the public tool type.
+	CreateCompanyResultTransport struct {
+		// Whether the company was created
+		OK *bool `json:"ok,omitempty"`
+		// Local company identifier
+		CompanyID *string `json:"company_id,omitempty"`
+		// Company name
+		Name *string `json:"name,omitempty"`
+		// Company website
+		Website *string `json:"website,omitempty"`
+		// Error message when creation failed
+		Error *string `json:"error,omitempty"`
+	}
+
 	// EditDocumentPayloadTransport is the internal JSON transport type for EditDocumentPayload.
 	// It lives in the toolset-local http package and is used only for JSON
 	// decode + validation (missing-field detection) before transforming into
@@ -58,6 +125,34 @@ type (
 	FetchDocumentsResultTransport struct {
 		// Fetched document contents
 		Documents []*AssistantDocumentTextTransport `json:"documents,omitempty"`
+	}
+
+	// FetchWebPagePayloadTransport is the internal JSON transport type for FetchWebPagePayload.
+	// It lives in the toolset-local http package and is used only for JSON
+	// decode + validation (missing-field detection) before transforming into
+	// the public tool type.
+	FetchWebPagePayloadTransport struct {
+		// Public HTTP or HTTPS URL to download and simplify
+		URL *string `json:"url,omitempty"`
+		// Optional maximum characters of simplified text to return
+		MaxChars *int `json:"max_chars,omitempty"`
+	}
+
+	// FetchWebPageResultTransport is the internal JSON transport type for FetchWebPageResult.
+	// It lives in the toolset-local http package and is used only for JSON
+	// decode + validation (missing-field detection) before transforming into
+	// the public tool type.
+	FetchWebPageResultTransport struct {
+		// Final fetched URL after redirects
+		URL *string `json:"url,omitempty"`
+		// Extracted page title
+		Title *string `json:"title,omitempty"`
+		// Simplified readable page text
+		Text *string `json:"text,omitempty"`
+		// Whether the simplified text was truncated
+		Truncated *bool `json:"truncated,omitempty"`
+		// Error message when fetching failed
+		Error *string `json:"error,omitempty"`
 	}
 
 	// FindInDocumentPayloadTransport is the internal JSON transport type for FindInDocumentPayload.
@@ -318,8 +413,8 @@ type (
 		DocumentID *string `json:"document_id,omitempty"`
 		// Document filename
 		Filename *string `json:"filename,omitempty"`
-		// Owning project identifier, when attached to a project
-		ProjectID *string `json:"project_id,omitempty"`
+		// Owning application identifier, when attached to a application
+		ApplicationID *string `json:"application_id,omitempty"`
 		// Stored file type or MIME hint
 		FileType *string `json:"file_type,omitempty"`
 		// Processing status

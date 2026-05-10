@@ -39,6 +39,57 @@ const ServiceName = "folders"
 // MethodKey key.
 var MethodNames = [4]string{"create", "update", "delete", "move_document"}
 
+type AssistantCreateApplicationArgs struct {
+	// Application name, usually the role title from the job ad
+	Name *string `json:"name,omitempty"`
+	// Local company identifier returned by create_company or a prior
+	// company_created event
+	CompanyID *string `json:"company_id,omitempty"`
+	// Optional Competition Bureau matter number
+	CmNumber *string `json:"cm_number,omitempty"`
+	// Optional full job description text to save as an application document
+	JobDescriptionText *string `json:"job_description_text,omitempty"`
+	// Optional source URL for the job description
+	JobDescriptionURL *string `json:"job_description_url,omitempty"`
+}
+
+type AssistantCreateCompanyArgs struct {
+	// Company name
+	Name *string `json:"name,omitempty"`
+	// Optional company website
+	Website *string `json:"website,omitempty"`
+}
+
+type AssistantCreatedApplication struct {
+	// Whether the application was created
+	OK *bool `json:"ok,omitempty"`
+	// Local application identifier
+	ApplicationID *string `json:"application_id,omitempty"`
+	// Attached local company identifier
+	CompanyID *string `json:"company_id,omitempty"`
+	// Application name
+	Name *string `json:"name,omitempty"`
+	// Competition Bureau matter number
+	CmNumber *string `json:"cm_number,omitempty"`
+	// Created job description document identifier, when job text was provided
+	JobDescriptionDocumentID *string `json:"job_description_document_id,omitempty"`
+	// Error message when creation failed
+	Error *string `json:"error,omitempty"`
+}
+
+type AssistantCreatedCompany struct {
+	// Whether the company was created
+	OK *bool `json:"ok,omitempty"`
+	// Local company identifier
+	CompanyID *string `json:"company_id,omitempty"`
+	// Company name
+	Name *string `json:"name,omitempty"`
+	// Company website
+	Website *string `json:"website,omitempty"`
+	// Error message when creation failed
+	Error *string `json:"error,omitempty"`
+}
+
 type AssistantDocumentBundle struct {
 	// Fetched document contents
 	Documents []*AssistantDocumentText `json:"documents,omitempty"`
@@ -102,8 +153,8 @@ type AssistantDocumentRef struct {
 	DocumentID *string `json:"document_id,omitempty"`
 	// Document filename
 	Filename *string `json:"filename,omitempty"`
-	// Owning project identifier, when attached to a project
-	ProjectID *string `json:"project_id,omitempty"`
+	// Owning application identifier, when attached to a application
+	ApplicationID *string `json:"application_id,omitempty"`
 	// Stored file type or MIME hint
 	FileType *string `json:"file_type,omitempty"`
 	// Processing status
@@ -197,6 +248,13 @@ type AssistantFetchDocumentsArgs struct {
 	DocumentIds []string `json:"document_ids,omitempty"`
 }
 
+type AssistantFetchWebPageArgs struct {
+	// Public HTTP or HTTPS URL to download and simplify
+	URL *string `json:"url,omitempty"`
+	// Optional maximum characters of simplified text to return
+	MaxChars *int `json:"max_chars,omitempty"`
+}
+
 type AssistantFindDocumentArgs struct {
 	// Local document identifier to search
 	DocumentID *string `json:"document_id,omitempty"`
@@ -285,6 +343,19 @@ type AssistantTableCellsText struct {
 	Text *string `json:"text,omitempty"`
 }
 
+type AssistantWebPageText struct {
+	// Final fetched URL after redirects
+	URL *string `json:"url,omitempty"`
+	// Extracted page title
+	Title *string `json:"title,omitempty"`
+	// Simplified readable page text
+	Text *string `json:"text,omitempty"`
+	// Whether the simplified text was truncated
+	Truncated *bool `json:"truncated,omitempty"`
+	// Error message when fetching failed
+	Error *string `json:"error,omitempty"`
+}
+
 type AssistantWorkflowList struct {
 	// Saved workflows
 	Workflows []*AssistantWorkflowRef `json:"workflows,omitempty"`
@@ -318,22 +389,22 @@ type AssistantWorkflowText struct {
 
 // CreatePayload is the payload type of the folders service create method.
 type CreatePayload struct {
-	ProjectID      string  `json:"projectId"`
+	ApplicationID  string  `json:"applicationId"`
 	Name           string  `json:"name"`
 	ParentFolderID *string `json:"parent_folder_id,omitempty"`
 }
 
 // DeletePayload is the payload type of the folders service delete method.
 type DeletePayload struct {
-	ProjectID string `json:"projectId"`
-	FolderID  string `json:"folderId"`
+	ApplicationID string `json:"applicationId"`
+	FolderID      string `json:"folderId"`
 }
 
 // Document is the result type of the folders service move_document method.
 type Document struct {
 	ID                  string           `json:"id"`
 	UserID              *string          `json:"user_id,omitempty"`
-	ProjectID           *string          `json:"project_id,omitempty"`
+	ApplicationID       *string          `json:"application_id,omitempty"`
 	FolderID            *string          `json:"folder_id,omitempty"`
 	Filename            string           `json:"filename"`
 	FileType            *string          `json:"file_type,omitempty"`
@@ -351,7 +422,7 @@ type Document struct {
 // Folder is the result type of the folders service create method.
 type Folder struct {
 	ID             string  `json:"id"`
-	ProjectID      string  `json:"project_id"`
+	ApplicationID  string  `json:"application_id"`
 	UserID         string  `json:"user_id"`
 	Name           string  `json:"name"`
 	ParentFolderID *string `json:"parent_folder_id,omitempty"`
@@ -362,9 +433,9 @@ type Folder struct {
 // MoveDocumentPayload is the payload type of the folders service move_document
 // method.
 type MoveDocumentPayload struct {
-	ProjectID  string  `json:"projectId"`
-	DocumentID string  `json:"documentId"`
-	FolderID   *string `json:"folder_id,omitempty"`
+	ApplicationID string  `json:"applicationId"`
+	DocumentID    string  `json:"documentId"`
+	FolderID      *string `json:"folder_id,omitempty"`
 }
 
 type StructureNode struct {
@@ -377,7 +448,7 @@ type StructureNode struct {
 
 // UpdatePayload is the payload type of the folders service update method.
 type UpdatePayload struct {
-	ProjectID      string  `json:"projectId"`
+	ApplicationID  string  `json:"applicationId"`
 	FolderID       string  `json:"folderId"`
 	Name           *string `json:"name,omitempty"`
 	ParentFolderID *string `json:"parent_folder_id,omitempty"`

@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This repository is the Luke codebase: a local-first, single-user AI workbench for a job search. Projects represent positions being pursued, and the long-term architecture is a Next.js frontend, a Loom-designed Go backend, embedded SurrealDB/SurrealKV persistence, local file storage, Ollama-first AI, optional hosted model keys, and Wails packaging after the local browser app is stable.
+This repository is the Luke codebase: a local-first, single-user AI workbench for a job search. Applications represent positions being pursued, and the long-term architecture is a Next.js frontend, a Loom-designed Go backend, embedded SurrealDB/SurrealKV persistence, local file storage, Ollama-first AI, optional hosted model keys, and Wails packaging after the local browser app is stable.
 
 Current package layout:
 
@@ -11,6 +11,12 @@ Current package layout:
 - `reference/express-backend/`: Retired TypeScript/Express backend kept only as a compatibility reference for the Go port. Do not run or modify it for normal development, and do not add new product behavior there.
 
 Keep frontend-only utilities under `frontend/src/lib`. Keep Go backend business logic outside generated Loom code. Avoid cross-package imports; use API boundaries instead. If you need to understand legacy behavior, read `reference/express-backend/src`, then implement the behavior in `backend-go`.
+
+## No Shims, No Hacks
+
+Do not solve migrations or product terminology changes with compatibility shims, aliases, duplicate routes, fallback wrappers, hidden adapter layers, or "temporary" hacks. When a concept is renamed or replaced, rewrite the code, routes, API contracts, generated design, tests, docs, and UI to the new concept directly. Remove the old names instead of preserving them as compatibility paths. If existing persisted local data needs migration, implement an explicit data migration with clear ownership and tests; do not keep the old model alive through aliases.
+
+This rule is categorical. Do not add compatibility shims unless the user explicitly asks for a backwards-compatibility layer in that exact task.
 
 ## Build, Test, and Development Commands
 

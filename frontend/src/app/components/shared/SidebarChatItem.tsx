@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, MoreHorizontal, Pencil, Trash2, X } from "lucide-react";
-import { useEffect,useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { OwnerOnlyModal } from "@/app/components/shared/OwnerOnlyModal";
 import type { LukeChat } from "@/app/components/shared/types";
@@ -18,17 +18,17 @@ interface Props {
   chat: LukeChat;
   isActive: boolean;
   onSelect: () => void;
-  projectName?: string;
+  applicationName?: string;
 }
 
-export function SidebarChatItem({ chat, isActive, onSelect, projectName }: Props) {
+export function SidebarChatItem({ chat, isActive, onSelect, applicationName }: Props) {
   const { renameChat, deleteChat } = useChatHistoryContext();
   const { user } = useAuth();
   const [isRenaming, setIsRenaming] = useState(false);
   const [editTitle, setEditTitle] = useState(chat.title ?? "");
   const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
-  // Sidebar can show collaborator chats from projects the user owns;
+  // Sidebar can show collaborator chats from applications the user owns;
   // rename/delete are still creator-only on the backend, so guard here.
   const isChatOwner = !!user?.id && chat.user_id === user.id;
 
@@ -91,16 +91,18 @@ export function SidebarChatItem({ chat, isActive, onSelect, projectName }: Props
             onMouseLeave={(e) => {
               e.currentTarget.scrollTo({ left: 0, behavior: "smooth" });
             }}
-            className={`scrollbar-none min-w-0 flex-1 overflow-x-hidden px-3 py-2 text-left text-xs whitespace-nowrap ${
+            className={`min-w-0 flex-1 scrollbar-none overflow-x-hidden px-3 py-2 text-left text-xs whitespace-nowrap ${
               isActive ? "text-gray-900" : "text-gray-700"
             }`}
             title={
-              projectName
-                ? `${projectName}: ${chat.title ?? "Untitled chat"}`
+              applicationName
+                ? `${applicationName}: ${chat.title ?? "Untitled chat"}`
                 : (chat.title ?? "Untitled chat")
             }
           >
-            {projectName && <span className="font-normal text-gray-400">{projectName}: </span>}
+            {applicationName && (
+              <span className="font-normal text-gray-400">{applicationName}: </span>
+            )}
             {chat.title ?? "Untitled chat"}
           </button>
 

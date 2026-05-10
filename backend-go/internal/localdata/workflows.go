@@ -197,7 +197,7 @@ func persistDocumentVersionWorkflow(ctx context.Context, resources *workflowReso
 		if _, queryErr := tx.Query(ctx, fmt.Sprintf(`
 			UPSERT %s CONTENT {
 				user_id: users:local,
-				project_id: NONE,
+				application_id: NONE,
 				filename: %s,
 				file_type: %s,
 				size_bytes: %d,

@@ -238,7 +238,7 @@ export function DocView({
         const ctx = canvas.getContext("2d");
         if (!ctx) continue;
 
-        const task = page.render({ canvasContext: ctx, viewport });
+        const task = page.render({ canvas, canvasContext: ctx, viewport });
         try {
           await task.promise;
         } catch (e: unknown) {

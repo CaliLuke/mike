@@ -23,7 +23,7 @@ type UploadRequestBody struct {
 type UploadResponseBody struct {
 	ID                  *string                      `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
 	UserID              *string                      `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
-	ProjectID           *string                      `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
+	ApplicationID       *string                      `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
 	FolderID            *string                      `form:"folder_id,omitempty" json:"folder_id,omitempty" xml:"folder_id,omitempty"`
 	Filename            *string                      `form:"filename,omitempty" json:"filename,omitempty" xml:"filename,omitempty"`
 	FileType            *string                      `form:"file_type,omitempty" json:"file_type,omitempty" xml:"file_type,omitempty"`
@@ -74,7 +74,7 @@ type DocxRequestBody struct {
 type DocumentResponse struct {
 	ID                  *string                  `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
 	UserID              *string                  `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
-	ProjectID           *string                  `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
+	ApplicationID       *string                  `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
 	FolderID            *string                  `form:"folder_id,omitempty" json:"folder_id,omitempty" xml:"folder_id,omitempty"`
 	Filename            *string                  `form:"filename,omitempty" json:"filename,omitempty" xml:"filename,omitempty"`
 	FileType            *string                  `form:"file_type,omitempty" json:"file_type,omitempty" xml:"file_type,omitempty"`
@@ -179,7 +179,7 @@ func NewUploadDocumentCreated(body *UploadResponseBody) *documents.Document {
 	v := &documents.Document{
 		ID:                  *body.ID,
 		UserID:              body.UserID,
-		ProjectID:           body.ProjectID,
+		ApplicationID:       body.ApplicationID,
 		FolderID:            body.FolderID,
 		Filename:            *body.Filename,
 		FileType:            body.FileType,

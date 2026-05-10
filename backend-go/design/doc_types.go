@@ -13,19 +13,19 @@ var StructureNode = Type("StructureNode", func() {
 
 var Folder = Type("Folder", func() {
 	Attribute("id", String)
-	Attribute("project_id", String)
+	Attribute("application_id", String)
 	Attribute("user_id", String)
 	Attribute("name", String)
 	Attribute("parent_folder_id", String)
 	Attribute("created_at", String)
 	Attribute("updated_at", String)
-	Required("id", "project_id", "user_id", "name", "created_at", "updated_at")
+	Required("id", "application_id", "user_id", "name", "created_at", "updated_at")
 })
 
 var Document = Type("Document", func() {
 	Attribute("id", String)
 	Attribute("user_id", String)
-	Attribute("project_id", String)
+	Attribute("application_id", String)
 	Attribute("folder_id", String)
 	Attribute("filename", String)
 	Attribute("file_type", String)

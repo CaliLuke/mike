@@ -24,9 +24,21 @@ var _ = Service("chat", func() {
 				Args(AssistantFetchDocumentsArgs)
 				Return(AssistantDocumentBundle)
 			})
+			Tool("fetch_web_page", "Download a public web page and return simplified readable text", func() {
+				Args(AssistantFetchWebPageArgs)
+				Return(AssistantWebPageText)
+			})
 			Tool("list_workflows", "List saved local workflows available to the user", func() {
 				Args(AssistantNoArgs)
 				Return(AssistantWorkflowList)
+			})
+			Tool("create_company", "Create a company for attaching applications", func() {
+				Args(AssistantCreateCompanyArgs)
+				Return(AssistantCreatedCompany)
+			})
+			Tool("create_application", "Create a tracked job application attached to a company", func() {
+				Args(AssistantCreateApplicationArgs)
+				Return(AssistantCreatedApplication)
 			})
 			Tool("read_workflow", "Read one saved local workflow", func() {
 				Args(AssistantReadWorkflowArgs)
@@ -65,7 +77,7 @@ var _ = Service("chat", func() {
 
 	Method("create", func() {
 		Payload(func() {
-			Attribute("project_id", String)
+			Attribute("application_id", String)
 		})
 		Result(IDResponse)
 		HTTP(func() {
@@ -127,7 +139,7 @@ var _ = Service("chat", func() {
 		Payload(func() {
 			Attribute("messages", ArrayOf(ChatMessage))
 			Attribute("chat_id", String)
-			Attribute("project_id", String)
+			Attribute("application_id", String)
 			Attribute("model", String)
 			Required("messages")
 		})
@@ -140,20 +152,20 @@ var _ = Service("chat", func() {
 	})
 })
 
-var _ = Service("project_chat", func() {
+var _ = Service("application_chat", func() {
 	Method("stream", func() {
 		Payload(func() {
-			Attribute("projectId", String)
+			Attribute("applicationId", String)
 			Attribute("messages", ArrayOf(ChatMessage))
 			Attribute("chat_id", String)
 			Attribute("model", String)
 			Attribute("displayed_doc", MessageFile)
 			Attribute("attached_documents", ArrayOf(MessageFile))
-			Required("projectId", "messages")
+			Required("applicationId", "messages")
 		})
 		StreamingResult(SSEEvent)
 		HTTP(func() {
-			POST("/projects/{projectId}/chat")
+			POST("/applications/{applicationId}/chat")
 			ServerSentEvents()
 			Response(StatusOK)
 		})

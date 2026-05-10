@@ -107,8 +107,8 @@ func ResolveDownloadToken(ctx context.Context, db *persistence.DB, token string)
 	return DownloadToken{Token: token, Payload: payload, ExpiresAt: expiresAt}, nil
 }
 
-func DeleteProject(ctx context.Context, db *persistence.DB, projectID string) error {
-	return deleteRecordInTransaction(ctx, db, "projects", projectID)
+func DeleteApplication(ctx context.Context, db *persistence.DB, applicationID string) error {
+	return deleteRecordInTransaction(ctx, db, "applications", applicationID)
 }
 
 func DeleteTabularReview(ctx context.Context, db *persistence.DB, reviewID string) error {

@@ -136,6 +136,9 @@ func (app *App) initialize(ctx context.Context) error {
 	if err := seedLocalUser(ctx, app.DB); err != nil {
 		return err
 	}
+	if err := migrateApplicationsToCompanies(ctx, app.DB); err != nil {
+		return err
+	}
 	if err := seedBuiltinWorkflows(ctx, app.DB); err != nil {
 		return err
 	}

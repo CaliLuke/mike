@@ -19,7 +19,7 @@ type ListResponseBody []*ChatResponse
 // CreateRequestBody is the type of the "chat" service "create" endpoint HTTP
 // request body.
 type CreateRequestBody struct {
-	ProjectID *string `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
+	ApplicationID *string `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
 }
 
 // CreateResponseBody is the type of the "chat" service "create" endpoint HTTP
@@ -44,11 +44,11 @@ type RenameRequestBody struct {
 // RenameResponseBody is the type of the "chat" service "rename" endpoint HTTP
 // response body.
 type RenameResponseBody struct {
-	ID        string  `form:"id" json:"id" xml:"id"`
-	ProjectID *string `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
-	UserID    string  `form:"user_id" json:"user_id" xml:"user_id"`
-	Title     *string `form:"title,omitempty" json:"title,omitempty" xml:"title,omitempty"`
-	CreatedAt string  `form:"created_at" json:"created_at" xml:"created_at"`
+	ID            string  `form:"id" json:"id" xml:"id"`
+	ApplicationID *string `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
+	UserID        string  `form:"user_id" json:"user_id" xml:"user_id"`
+	Title         *string `form:"title,omitempty" json:"title,omitempty" xml:"title,omitempty"`
+	CreatedAt     string  `form:"created_at" json:"created_at" xml:"created_at"`
 }
 
 // GenerateTitleRequestBody is the type of the "chat" service "generate_title"
@@ -66,10 +66,10 @@ type GenerateTitleResponseBody struct {
 // StreamRequestBody is the type of the "chat" service "stream" endpoint HTTP
 // request body.
 type StreamRequestBody struct {
-	Messages  []*ChatMessageRequestBody `form:"messages,omitempty" json:"messages,omitempty" xml:"messages,omitempty"`
-	ChatID    *string                   `form:"chat_id,omitempty" json:"chat_id,omitempty" xml:"chat_id,omitempty"`
-	ProjectID *string                   `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
-	Model     *string                   `form:"model,omitempty" json:"model,omitempty" xml:"model,omitempty"`
+	Messages      []*ChatMessageRequestBody `form:"messages,omitempty" json:"messages,omitempty" xml:"messages,omitempty"`
+	ChatID        *string                   `form:"chat_id,omitempty" json:"chat_id,omitempty" xml:"chat_id,omitempty"`
+	ApplicationID *string                   `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
+	Model         *string                   `form:"model,omitempty" json:"model,omitempty" xml:"model,omitempty"`
 }
 
 // StreamResponseBody is the type of the "chat" service "stream" endpoint HTTP
@@ -87,20 +87,20 @@ type StreamResponseBody struct {
 
 // ChatResponse is used to define fields on response body types.
 type ChatResponse struct {
-	ID        string  `form:"id" json:"id" xml:"id"`
-	ProjectID *string `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
-	UserID    string  `form:"user_id" json:"user_id" xml:"user_id"`
-	Title     *string `form:"title,omitempty" json:"title,omitempty" xml:"title,omitempty"`
-	CreatedAt string  `form:"created_at" json:"created_at" xml:"created_at"`
+	ID            string  `form:"id" json:"id" xml:"id"`
+	ApplicationID *string `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
+	UserID        string  `form:"user_id" json:"user_id" xml:"user_id"`
+	Title         *string `form:"title,omitempty" json:"title,omitempty" xml:"title,omitempty"`
+	CreatedAt     string  `form:"created_at" json:"created_at" xml:"created_at"`
 }
 
 // ChatResponseBody is used to define fields on response body types.
 type ChatResponseBody struct {
-	ID        string  `form:"id" json:"id" xml:"id"`
-	ProjectID *string `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
-	UserID    string  `form:"user_id" json:"user_id" xml:"user_id"`
-	Title     *string `form:"title,omitempty" json:"title,omitempty" xml:"title,omitempty"`
-	CreatedAt string  `form:"created_at" json:"created_at" xml:"created_at"`
+	ID            string  `form:"id" json:"id" xml:"id"`
+	ApplicationID *string `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
+	UserID        string  `form:"user_id" json:"user_id" xml:"user_id"`
+	Title         *string `form:"title,omitempty" json:"title,omitempty" xml:"title,omitempty"`
+	CreatedAt     string  `form:"created_at" json:"created_at" xml:"created_at"`
 }
 
 // ServerMessageResponseBody is used to define fields on response body types.
@@ -327,11 +327,11 @@ func NewGetResponseBody(res *chat.ChatDetail) *GetResponseBody {
 // "rename" endpoint of the "chat" service.
 func NewRenameResponseBody(res *chat.Chat) *RenameResponseBody {
 	body := &RenameResponseBody{
-		ID:        res.ID,
-		ProjectID: res.ProjectID,
-		UserID:    res.UserID,
-		Title:     res.Title,
-		CreatedAt: res.CreatedAt,
+		ID:            res.ID,
+		ApplicationID: res.ApplicationID,
+		UserID:        res.UserID,
+		Title:         res.Title,
+		CreatedAt:     res.CreatedAt,
 	}
 	return body
 }
@@ -377,7 +377,7 @@ func NewStreamResponseBody(res *chat.SSEEvent) *StreamResponseBody {
 // NewCreatePayload builds a chat service create endpoint payload.
 func NewCreatePayload(body *CreateRequestBody) *chat.CreatePayload {
 	v := &chat.CreatePayload{
-		ProjectID: body.ProjectID,
+		ApplicationID: body.ApplicationID,
 	}
 
 	return v
@@ -423,9 +423,9 @@ func NewGenerateTitlePayload(body *GenerateTitleRequestBody, chatID string) *cha
 // NewStreamPayload builds a chat service stream endpoint payload.
 func NewStreamPayload(body *StreamRequestBody) *chat.StreamPayload {
 	v := &chat.StreamPayload{
-		ChatID:    body.ChatID,
-		ProjectID: body.ProjectID,
-		Model:     body.Model,
+		ChatID:        body.ChatID,
+		ApplicationID: body.ApplicationID,
+		Model:         body.Model,
 	}
 	v.Messages = make([]*chat.ChatMessage, len(body.Messages))
 	for i, val := range body.Messages {

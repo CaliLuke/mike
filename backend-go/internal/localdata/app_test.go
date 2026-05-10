@@ -109,8 +109,16 @@ func TestRecordsPersistAcrossRestart(t *testing.T) {
 	dataDir := t.TempDir()
 	app := openTestAppAt(t, dataDir)
 	execStatements(t, app.DB, `
-		CREATE projects:restart CONTENT {
+		CREATE companies:restart CONTENT {
 			user_id: users:local,
+			name: "Restart Co",
+			website: NONE,
+			created_at: time::now(),
+			updated_at: time::now()
+		};
+		CREATE applications:restart CONTENT {
+			user_id: users:local,
+			company_id: companies:restart,
 			name: "Restarted",
 			cm_number: NONE,
 			visibility: "private",
@@ -123,9 +131,9 @@ func TestRecordsPersistAcrossRestart(t *testing.T) {
 
 	reopened := openTestAppAt(t, dataDir)
 	defer closeTestApp(t, reopened)
-	rows := queryRows(t, reopened.DB, "SELECT name FROM projects:restart;")
+	rows := queryRows(t, reopened.DB, "SELECT name FROM applications:restart;")
 	if len(rows) != 1 || rows[0]["name"] != "Restarted" {
-		t.Fatalf("persisted project not found after restart: %#v", rows)
+		t.Fatalf("persisted application not found after restart: %#v", rows)
 	}
 }
 
@@ -356,7 +364,7 @@ func TestSchemaEnforcesEnumsAndObjectFields(t *testing.T) {
 
 	_, err := app.DB.Query(context.Background(), `
 		CREATE documents:bad_status CONTENT {
-			project_id: NONE,
+			application_id: NONE,
 			user_id: users:local,
 			filename: "bad.txt",
 			file_type: "txt",
@@ -376,7 +384,7 @@ func TestSchemaEnforcesEnumsAndObjectFields(t *testing.T) {
 
 	_, err = app.DB.Query(context.Background(), `
 		CREATE documents:bad_json CONTENT {
-			project_id: NONE,
+			application_id: NONE,
 			user_id: users:local,
 			filename: "bad.txt",
 			file_type: "txt",
@@ -415,8 +423,16 @@ func TestSchemaAcceptsCompatibilityPayloadShapes(t *testing.T) {
 	defer closeTestApp(t, app)
 
 	execStatements(t, app.DB, `
-		CREATE projects:compat_shapes CONTENT {
+		CREATE companies:compat_shapes CONTENT {
 			user_id: users:local,
+			name: "Compat Co",
+			website: NONE,
+			created_at: time::now(),
+			updated_at: time::now()
+		};
+		CREATE applications:compat_shapes CONTENT {
+			user_id: users:local,
+			company_id: companies:compat_shapes,
 			name: "Compat",
 			cm_number: NONE,
 			visibility: "shared",
@@ -431,7 +447,7 @@ func TestSchemaAcceptsCompatibilityPayloadShapes(t *testing.T) {
 			created_at: time::now()
 		};
 		CREATE documents:compat_shapes CONTENT {
-			project_id: projects:compat_shapes,
+			application_id: applications:compat_shapes,
 			user_id: users:local,
 			filename: "compat.txt",
 			file_type: "txt",
@@ -445,7 +461,7 @@ func TestSchemaAcceptsCompatibilityPayloadShapes(t *testing.T) {
 			updated_at: time::now()
 		};
 		CREATE chats:compat_shapes CONTENT {
-			project_id: projects:compat_shapes,
+			application_id: applications:compat_shapes,
 			user_id: users:local,
 			title: "Compat Chat",
 			created_at: time::now()
@@ -467,7 +483,7 @@ func TestSchemaAcceptsCompatibilityPayloadShapes(t *testing.T) {
 			created_at: time::now()
 		};
 		CREATE tabular_reviews:compat_shapes CONTENT {
-			project_id: projects:compat_shapes,
+			application_id: applications:compat_shapes,
 			user_id: users:local,
 			title: "Compat Review",
 			columns_config: [{ index: 0, name: "Summary", prompt: "Summarize" }],
@@ -515,8 +531,16 @@ func TestDBCascadeDeletesChildren(t *testing.T) {
 	defer closeTestApp(t, app)
 
 	if _, err := app.DB.Query(context.Background(), `
-		CREATE projects:cascade CONTENT {
+		CREATE companies:cascade CONTENT {
 			user_id: users:local,
+			name: "Cascade Co",
+			website: NONE,
+			created_at: time::now(),
+			updated_at: time::now()
+		};
+		CREATE applications:cascade CONTENT {
+			user_id: users:local,
+			company_id: companies:cascade,
 			name: "Cascade",
 			cm_number: NONE,
 			visibility: "private",
@@ -524,22 +548,22 @@ func TestDBCascadeDeletesChildren(t *testing.T) {
 			created_at: time::now(),
 			updated_at: time::now()
 		};
-		CREATE project_folders:cascade CONTENT {
-			project_id: projects:cascade,
+		CREATE application_folders:cascade CONTENT {
+			application_id: applications:cascade,
 			user_id: users:local,
 			name: "Folder",
 			parent_folder_id: NONE,
 			created_at: time::now(),
 			updated_at: time::now()
 		};
-	`+documentStatement("cascade", "projects:cascade", "cascade.txt", "project_folders:cascade", "NONE")+versionStatement("cascade_v1", "documents:cascade", "objects/cascade.txt", "cascade.txt")+`
-		DELETE projects:cascade;
+	`+documentStatement("cascade", "applications:cascade", "cascade.txt", "application_folders:cascade", "NONE")+versionStatement("cascade_v1", "documents:cascade", "objects/cascade.txt", "cascade.txt")+`
+		DELETE applications:cascade;
 	`); err != nil {
 		t.Fatal(err)
 	}
 
-	assertNoRows(t, app.DB, "SELECT * FROM project_folders WHERE project_id = projects:cascade;")
-	assertNoRows(t, app.DB, "SELECT * FROM documents WHERE project_id = projects:cascade;")
+	assertNoRows(t, app.DB, "SELECT * FROM application_folders WHERE application_id = applications:cascade;")
+	assertNoRows(t, app.DB, "SELECT * FROM documents WHERE application_id = applications:cascade;")
 	assertNoRows(t, app.DB, "SELECT * FROM document_versions WHERE document_id = documents:cascade;")
 }
 
@@ -597,7 +621,7 @@ func TestDBCascadeDeletesChatChildren(t *testing.T) {
 
 	if _, err := app.DB.Query(context.Background(), `
 		CREATE chats:chat_cascade CONTENT {
-			project_id: NONE,
+			application_id: NONE,
 			user_id: users:local,
 			title: "Chat",
 			created_at: time::now()
@@ -711,18 +735,18 @@ func TestLoadBearingIndexesAreDefined(t *testing.T) {
 	}
 	info := string(raw)
 	for _, snippet := range []string{
-		"documents_project_folder_idx",
-		"project_id, folder_id",
+		"documents_application_folder_idx",
+		"application_id, folder_id",
 		"document_versions_doc_created_idx",
 		"document_id, created_at",
 		"document_versions_doc_vnum_idx",
 		"document_id, version_number",
 		"UNIQUE",
-		"chats_project_idx",
-		"project_id",
+		"chats_application_idx",
+		"application_id",
 		"chat_messages_chat_idx",
 		"chat_id, created_at",
-		"tabular_reviews_project_idx",
+		"tabular_reviews_application_idx",
 		"tabular_cells_review_doc_column_idx",
 		"review_id, document_id, column_index",
 		"tabular_review_chat_messages_chat_idx",
@@ -740,7 +764,7 @@ func TestTransactionsWrapMultiRecordWrites(t *testing.T) {
 	if err := app.DB.Transaction(context.Background(), func(ctx context.Context, tx *persistence.Tx) error {
 		_, err := tx.Query(ctx, `
 			CREATE chats:tx_append CONTENT {
-				project_id: NONE,
+				application_id: NONE,
 				user_id: users:local,
 				title: "Tx",
 				created_at: time::now()
@@ -778,8 +802,16 @@ func TestRepositoryWritePathsUseTransactions(t *testing.T) {
 	defer closeTestApp(t, app)
 
 	if _, err := app.DB.Query(context.Background(), `
-		CREATE projects:repo_tx CONTENT {
+		CREATE companies:repo_tx CONTENT {
 			user_id: users:local,
+			name: "Repo Co",
+			website: NONE,
+			created_at: time::now(),
+			updated_at: time::now()
+		};
+		CREATE applications:repo_tx CONTENT {
+			user_id: users:local,
+			company_id: companies:repo_tx,
 			name: "Repo Tx",
 			cm_number: NONE,
 			visibility: "private",
@@ -788,7 +820,7 @@ func TestRepositoryWritePathsUseTransactions(t *testing.T) {
 			updated_at: time::now()
 		};
 		CREATE tabular_reviews:repo_tx_review CONTENT {
-			project_id: projects:repo_tx,
+			application_id: applications:repo_tx,
 			user_id: users:local,
 			title: "Review",
 			columns_config: [{ index: 0, name: "Summary", prompt: "Summarize" }],
@@ -799,7 +831,7 @@ func TestRepositoryWritePathsUseTransactions(t *testing.T) {
 			updated_at: time::now()
 		};
 		CREATE chats:repo_tx_chat CONTENT {
-			project_id: projects:repo_tx,
+			application_id: applications:repo_tx,
 			user_id: users:local,
 			title: "Chat",
 			created_at: time::now()
@@ -821,10 +853,10 @@ func TestRepositoryWritePathsUseTransactions(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertNoRows(t, app.DB, "SELECT * FROM tabular_reviews WHERE id = tabular_reviews:repo_tx_review;")
-	if err := DeleteProject(context.Background(), app.DB, "repo_tx"); err != nil {
+	if err := DeleteApplication(context.Background(), app.DB, "repo_tx"); err != nil {
 		t.Fatal(err)
 	}
-	assertNoRows(t, app.DB, "SELECT * FROM projects WHERE id = projects:repo_tx;")
+	assertNoRows(t, app.DB, "SELECT * FROM applications WHERE id = applications:repo_tx;")
 }
 
 func TestDocumentWorkflowsUseDeterministicUpsertsAndLocalUser(t *testing.T) {
@@ -1030,10 +1062,10 @@ func assertOneRow(t *testing.T, db *persistence.DB, query string) {
 	}
 }
 
-func documentStatement(id, projectID, filename, folderID, currentVersionID string) string {
+func documentStatement(id, applicationID, filename, folderID, currentVersionID string) string {
 	return fmt.Sprintf(`
 		CREATE documents:%s CONTENT {
-			project_id: %s,
+			application_id: %s,
 			user_id: users:local,
 			filename: %q,
 			file_type: "txt",
@@ -1046,7 +1078,7 @@ func documentStatement(id, projectID, filename, folderID, currentVersionID strin
 			created_at: time::now(),
 			updated_at: time::now()
 		};
-	`, id, projectID, filename, folderID, currentVersionID)
+	`, id, applicationID, filename, folderID, currentVersionID)
 }
 
 func versionStatement(id, documentID, storagePath, displayName string) string {
@@ -1083,10 +1115,10 @@ func editStatement(id, documentID, versionID string) string {
 	`, id, documentID, versionID)
 }
 
-func tabularReviewStatement(id, projectID, workflowID string) string {
+func tabularReviewStatement(id, applicationID, workflowID string) string {
 	return fmt.Sprintf(`
 		CREATE tabular_reviews:%s CONTENT {
-			project_id: %s,
+			application_id: %s,
 			user_id: users:local,
 			title: "Review",
 			columns_config: [{ index: 0, name: "Summary", prompt: "Summarize" }],
@@ -1096,7 +1128,7 @@ func tabularReviewStatement(id, projectID, workflowID string) string {
 			created_at: time::now(),
 			updated_at: time::now()
 		};
-	`, id, projectID, workflowID)
+	`, id, applicationID, workflowID)
 }
 
 func splitSurrealStatements(query string) []string {

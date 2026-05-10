@@ -169,35 +169,6 @@ func DecodeGetRequest(mux loomhttp.Muxer, decoder func(*http.Request) loomhttp.D
 	}
 }
 
-// EncodePeopleResponse returns an encoder for responses returned by the
-// tabular people endpoint.
-func EncodePeopleResponse(encoder func(context.Context, http.ResponseWriter) loomhttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
-	return func(ctx context.Context, w http.ResponseWriter, v any) error {
-		res, _ := v.(*tabular.ProjectPeople)
-		enc := encoder(ctx, w)
-		body := NewPeopleResponseBody(res)
-		w.WriteHeader(http.StatusOK)
-		return enc.Encode(body)
-	}
-}
-
-// DecodePeopleRequest returns a decoder for requests sent to the tabular
-// people endpoint.
-func DecodePeopleRequest(mux loomhttp.Muxer, decoder func(*http.Request) loomhttp.Decoder) func(*http.Request) (*tabular.PeoplePayload, error) {
-	return func(r *http.Request) (*tabular.PeoplePayload, error) {
-		var payload *tabular.PeoplePayload
-		var (
-			reviewID string
-
-			params = mux.Vars(r)
-		)
-		reviewID = params["reviewId"]
-		payload = NewPeoplePayload(reviewID)
-
-		return payload, nil
-	}
-}
-
 // EncodeUpdateResponse returns an encoder for responses returned by the
 // tabular update endpoint.
 func EncodeUpdateResponse(encoder func(context.Context, http.ResponseWriter) loomhttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
@@ -402,12 +373,11 @@ func DecodeGenerateRequest(mux loomhttp.Muxer, decoder func(*http.Request) loomh
 func marshalTabularTabularReviewToTabularReviewResponse(v *tabular.TabularReview) *TabularReviewResponse {
 	res := &TabularReviewResponse{
 		ID:            v.ID,
-		ProjectID:     v.ProjectID,
+		ApplicationID: v.ApplicationID,
 		UserID:        v.UserID,
 		Title:         v.Title,
 		WorkflowID:    v.WorkflowID,
 		Practice:      v.Practice,
-		IsOwner:       v.IsOwner,
 		CreatedAt:     v.CreatedAt,
 		UpdatedAt:     v.UpdatedAt,
 		DocumentCount: v.DocumentCount,
@@ -420,12 +390,6 @@ func marshalTabularTabularReviewToTabularReviewResponse(v *tabular.TabularReview
 				continue
 			}
 			res.ColumnsConfig[i] = marshalTabularColumnConfigToColumnConfigResponse(val)
-		}
-	}
-	if v.SharedWith != nil {
-		res.SharedWith = make([]string, len(v.SharedWith))
-		for i, val := range v.SharedWith {
-			res.SharedWith[i] = val
 		}
 	}
 
@@ -503,12 +467,11 @@ func marshalTabularColumnConfigToColumnConfigResponseBody(v *tabular.ColumnConfi
 func marshalTabularTabularReviewToTabularReviewResponseBody(v *tabular.TabularReview) *TabularReviewResponseBody {
 	res := &TabularReviewResponseBody{
 		ID:            v.ID,
-		ProjectID:     v.ProjectID,
+		ApplicationID: v.ApplicationID,
 		UserID:        v.UserID,
 		Title:         v.Title,
 		WorkflowID:    v.WorkflowID,
 		Practice:      v.Practice,
-		IsOwner:       v.IsOwner,
 		CreatedAt:     v.CreatedAt,
 		UpdatedAt:     v.UpdatedAt,
 		DocumentCount: v.DocumentCount,
@@ -521,12 +484,6 @@ func marshalTabularTabularReviewToTabularReviewResponseBody(v *tabular.TabularRe
 				continue
 			}
 			res.ColumnsConfig[i] = marshalTabularColumnConfigToColumnConfigResponseBody(val)
-		}
-	}
-	if v.SharedWith != nil {
-		res.SharedWith = make([]string, len(v.SharedWith))
-		for i, val := range v.SharedWith {
-			res.SharedWith[i] = val
 		}
 	}
 
@@ -573,7 +530,7 @@ func marshalTabularDocumentToDocumentResponseBody(v *tabular.Document) *Document
 	res := &DocumentResponseBody{
 		ID:                  v.ID,
 		UserID:              v.UserID,
-		ProjectID:           v.ProjectID,
+		ApplicationID:       v.ApplicationID,
 		FolderID:            v.FolderID,
 		Filename:            v.Filename,
 		FileType:            v.FileType,
@@ -623,29 +580,6 @@ func marshalTabularStructureNodeToStructureNodeResponseBody(v *tabular.Structure
 		}
 	} else {
 		res.Children = []*StructureNodeResponseBody{}
-	}
-
-	return res
-}
-
-// marshalTabularProjectOwnerToProjectOwnerResponseBody builds a value of type
-// *ProjectOwnerResponseBody from a value of type *tabular.ProjectOwner.
-func marshalTabularProjectOwnerToProjectOwnerResponseBody(v *tabular.ProjectOwner) *ProjectOwnerResponseBody {
-	res := &ProjectOwnerResponseBody{
-		UserID:      v.UserID,
-		Email:       v.Email,
-		DisplayName: v.DisplayName,
-	}
-
-	return res
-}
-
-// marshalTabularProjectMemberToProjectMemberResponseBody builds a value of
-// type *ProjectMemberResponseBody from a value of type *tabular.ProjectMember.
-func marshalTabularProjectMemberToProjectMemberResponseBody(v *tabular.ProjectMember) *ProjectMemberResponseBody {
-	res := &ProjectMemberResponseBody{
-		Email:       v.Email,
-		DisplayName: v.DisplayName,
 	}
 
 	return res

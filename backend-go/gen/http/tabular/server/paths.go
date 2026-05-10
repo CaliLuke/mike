@@ -31,11 +31,6 @@ func GetTabularPath(reviewID string) string {
 	return fmt.Sprintf("/tabular-review/%v", reviewID)
 }
 
-// PeopleTabularPath returns the URL path to the tabular service people HTTP endpoint.
-func PeopleTabularPath(reviewID string) string {
-	return fmt.Sprintf("/tabular-review/%v/people", reviewID)
-}
-
 // UpdateTabularPath returns the URL path to the tabular service update HTTP endpoint.
 func UpdateTabularPath(reviewID string) string {
 	return fmt.Sprintf("/tabular-review/%v", reviewID)

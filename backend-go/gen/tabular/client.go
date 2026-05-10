@@ -19,7 +19,6 @@ type Client struct {
 	CreateEndpoint         loom.Endpoint
 	PromptEndpoint         loom.Endpoint
 	GetEndpoint            loom.Endpoint
-	PeopleEndpoint         loom.Endpoint
 	UpdateEndpoint         loom.Endpoint
 	DeleteEndpoint         loom.Endpoint
 	ClearCellsEndpoint     loom.Endpoint
@@ -28,8 +27,8 @@ type Client struct {
 }
 
 // NewClient initializes a "tabular" service client given the endpoints.
-func NewClient(list, create, prompt, get, people, update, delete_, clearCells, regenerateCell, generate loom.Endpoint) *Client {
-	return &Client{ListEndpoint: list, CreateEndpoint: create, PromptEndpoint: prompt, GetEndpoint: get, PeopleEndpoint: people, UpdateEndpoint: update, DeleteEndpoint: delete_, ClearCellsEndpoint: clearCells, RegenerateCellEndpoint: regenerateCell, GenerateEndpoint: generate}
+func NewClient(list, create, prompt, get, update, delete_, clearCells, regenerateCell, generate loom.Endpoint) *Client {
+	return &Client{ListEndpoint: list, CreateEndpoint: create, PromptEndpoint: prompt, GetEndpoint: get, UpdateEndpoint: update, DeleteEndpoint: delete_, ClearCellsEndpoint: clearCells, RegenerateCellEndpoint: regenerateCell, GenerateEndpoint: generate}
 }
 
 // List calls the "list" endpoint of the "tabular" service.
@@ -70,16 +69,6 @@ func (c *Client) Get(ctx context.Context, p *GetPayload) (res *TabularReviewDeta
 		return
 	}
 	return ires.(*TabularReviewDetail), nil
-}
-
-// People calls the "people" endpoint of the "tabular" service.
-func (c *Client) People(ctx context.Context, p *PeoplePayload) (res *ProjectPeople, err error) {
-	var ires any
-	ires, err = c.PeopleEndpoint(ctx, p)
-	if err != nil {
-		return
-	}
-	return ires.(*ProjectPeople), nil
 }
 
 // Update calls the "update" endpoint of the "tabular" service.

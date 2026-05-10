@@ -36,20 +36,66 @@ type tabularPayload struct {
 	DocumentIDs   []string         `json:"document_ids"`
 	ColumnsConfig []map[string]any `json:"columns_config"`
 	WorkflowID    *string          `json:"workflow_id"`
-	ProjectID     *string          `json:"project_id"`
+	ApplicationID *string          `json:"application_id"`
 	SharedWith    []string         `json:"shared_with"`
 }
 
 var nonRecordID = regexp.MustCompile(`[^A-Za-z0-9_]+`)
 
-const projectListQuery = `
+const applicationListQuery = `
 SELECT
-	id, user_id, true AS is_owner, name, cm_number, shared_with, created_at, updated_at,
+	id, user_id, true AS is_owner, company_id, company_id.name AS company_name, name, cm_number, shared_with, created_at, updated_at,
 	[] AS folders, 0 AS document_count, 0 AS chat_count, 0 AS review_count
-FROM projects ORDER BY updated_at DESC;`
+FROM applications ORDER BY updated_at DESC;`
 
-func (s *Server) createProject(ctx context.Context, name string, cmNumber *string, sharedWith []string) (map[string]any, error) {
-	id := newID("project")
+const companyListQuery = `
+SELECT
+	id, user_id, name, website, created_at, updated_at,
+	count(SELECT VALUE id FROM applications WHERE company_id = $parent.id) AS application_count
+FROM companies ORDER BY name;`
+
+func (s *Server) createCompany(ctx context.Context, name string, website *string) (map[string]any, error) {
+	id := newID("company")
+	_, err := s.app.DB.Query(ctx, fmt.Sprintf(`
+		CREATE %s CONTENT {
+			user_id: users:local,
+			name: %s,
+			website: %s,
+			created_at: time::now(),
+			updated_at: time::now()
+		};
+	`, recordID("companies", id), surrealString(name), optionStringPtr(website)))
+	if err != nil {
+		return nil, err
+	}
+	return s.getCompany(ctx, id)
+}
+
+func (s *Server) getCompany(ctx context.Context, companyID string) (map[string]any, error) {
+	rows, err := queryRows(ctx, s.app.DB, `
+SELECT
+	id, user_id, name, website, created_at, updated_at,
+	count(SELECT VALUE id FROM applications WHERE company_id = $parent.id) AS application_count
+FROM `+recordID("companies", companyID)+`;`)
+	return firstRow(rows, err)
+}
+
+func (s *Server) updateCompany(ctx context.Context, companyID string, name, website *string) (map[string]any, error) {
+	sets := []string{"updated_at = time::now()"}
+	if name != nil {
+		sets = append(sets, "name = "+surrealString(*name))
+	}
+	if website != nil {
+		sets = append(sets, "website = "+optionString(*website))
+	}
+	if _, err := s.app.DB.Query(ctx, "UPDATE "+recordID("companies", companyID)+" SET "+strings.Join(sets, ", ")+";"); err != nil {
+		return nil, err
+	}
+	return s.getCompany(ctx, companyID)
+}
+
+func (s *Server) createApplication(ctx context.Context, name, companyID string, cmNumber *string, sharedWith []string) (map[string]any, error) {
+	id := newID("application")
 	if sharedWith == nil {
 		sharedWith = []string{}
 	}
@@ -60,6 +106,7 @@ func (s *Server) createProject(ctx context.Context, name string, cmNumber *strin
 	_, err = s.app.DB.Query(ctx, fmt.Sprintf(`
 		CREATE %s CONTENT {
 			user_id: users:local,
+			company_id: %s,
 			name: %s,
 			cm_number: %s,
 			visibility: "private",
@@ -67,26 +114,29 @@ func (s *Server) createProject(ctx context.Context, name string, cmNumber *strin
 			created_at: time::now(),
 			updated_at: time::now()
 		};
-	`, recordID("projects", id), surrealString(name), optionStringPtr(cmNumber), string(sharedJSON)))
+	`, recordID("applications", id), recordID("companies", companyID), surrealString(name), optionStringPtr(cmNumber), string(sharedJSON)))
 	if err != nil {
 		return nil, err
 	}
-	return s.getProject(ctx, id)
+	return s.getApplication(ctx, id)
 }
 
-func (s *Server) getProject(ctx context.Context, projectID string) (map[string]any, error) {
+func (s *Server) getApplication(ctx context.Context, applicationID string) (map[string]any, error) {
 	rows, err := queryRows(ctx, s.app.DB, `
 SELECT
-	id, user_id, true AS is_owner, name, cm_number, shared_with, created_at, updated_at,
+	id, user_id, true AS is_owner, company_id, company_id.name AS company_name, name, cm_number, shared_with, created_at, updated_at,
 	[] AS folders, 0 AS document_count, 0 AS chat_count, 0 AS review_count
-FROM `+recordID("projects", projectID)+`;`)
+FROM `+recordID("applications", applicationID)+`;`)
 	return firstRow(rows, err)
 }
 
-func (s *Server) updateProject(ctx context.Context, projectID string, name, cmNumber *string, sharedWith []string) (map[string]any, error) {
+func (s *Server) updateApplication(ctx context.Context, applicationID string, name, companyID, cmNumber *string, sharedWith []string) (map[string]any, error) {
 	sets := []string{"updated_at = time::now()"}
 	if name != nil {
 		sets = append(sets, "name = "+surrealString(*name))
+	}
+	if companyID != nil && *companyID != "" {
+		sets = append(sets, "company_id = "+recordID("companies", *companyID))
 	}
 	if cmNumber != nil {
 		sets = append(sets, "cm_number = "+optionString(*cmNumber))
@@ -98,10 +148,10 @@ func (s *Server) updateProject(ctx context.Context, projectID string, name, cmNu
 		}
 		sets = append(sets, "shared_with = "+string(sharedJSON))
 	}
-	if _, err := s.app.DB.Query(ctx, "UPDATE "+recordID("projects", projectID)+" SET "+strings.Join(sets, ", ")+";"); err != nil {
+	if _, err := s.app.DB.Query(ctx, "UPDATE "+recordID("applications", applicationID)+" SET "+strings.Join(sets, ", ")+";"); err != nil {
 		return nil, err
 	}
-	return s.getProject(ctx, projectID)
+	return s.getApplication(ctx, applicationID)
 }
 
 func (s *Server) getDocument(ctx context.Context, documentID string) (map[string]any, error) {
@@ -112,12 +162,12 @@ func (s *Server) getDocument(ctx context.Context, documentID string) (map[string
 	return rows[0], nil
 }
 
-func (s *Server) assignDocument(ctx context.Context, documentID, projectID string, folderID *string) (map[string]any, error) {
+func (s *Server) assignDocument(ctx context.Context, documentID, applicationID string, folderID *string) (map[string]any, error) {
 	folderValue := "NONE"
 	if folderID != nil && *folderID != "" {
-		folderValue = recordID("project_folders", *folderID)
+		folderValue = recordID("application_folders", *folderID)
 	}
-	_, err := s.app.DB.Query(ctx, "UPDATE "+recordID("documents", documentID)+" SET project_id = "+recordID("projects", projectID)+", folder_id = "+folderValue+", updated_at = time::now();")
+	_, err := s.app.DB.Query(ctx, "UPDATE "+recordID("documents", documentID)+" SET application_id = "+recordID("applications", applicationID)+", folder_id = "+folderValue+", updated_at = time::now();")
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +177,7 @@ func (s *Server) assignDocument(ctx context.Context, documentID, projectID strin
 func documentListQuery(where string) string {
 	return `
 SELECT
-	id, user_id, project_id, folder_id, filename, file_type,
+	id, user_id, application_id, folder_id, filename, file_type,
 	current_version_id.storage_path AS storage_path,
 	current_version_id.pdf_storage_path AS pdf_storage_path,
 	size_bytes, page_count, structure_tree.root AS structure_tree, status, created_at, updated_at,
@@ -135,24 +185,24 @@ SELECT
 FROM documents WHERE ` + where + ` ORDER BY updated_at DESC;`
 }
 
-func (s *Server) upsertFolder(ctx context.Context, folderID, projectID, name string, parentFolderID *string) (map[string]any, error) {
+func (s *Server) upsertFolder(ctx context.Context, folderID, applicationID, name string, parentFolderID *string) (map[string]any, error) {
 	if folderID == "" {
 		folderID = newID("folder")
 	}
 	_, err := s.app.DB.Query(ctx, fmt.Sprintf(`
 		UPSERT %s CONTENT {
-			project_id: %s,
+			application_id: %s,
 			user_id: users:local,
 			name: %s,
 			parent_folder_id: %s,
 			created_at: time::now(),
 			updated_at: time::now()
 		};
-	`, recordID("project_folders", folderID), recordID("projects", projectID), surrealString(name), optionRecord("project_folders", parentFolderID)))
+	`, recordID("application_folders", folderID), recordID("applications", applicationID), surrealString(name), optionRecord("application_folders", parentFolderID)))
 	if err != nil {
 		return nil, err
 	}
-	rows, err := queryRows(ctx, s.app.DB, "SELECT id, project_id, user_id, name, parent_folder_id, created_at, updated_at FROM "+recordID("project_folders", folderID)+";")
+	rows, err := queryRows(ctx, s.app.DB, "SELECT id, application_id, user_id, name, parent_folder_id, created_at, updated_at FROM "+recordID("application_folders", folderID)+";")
 	if err != nil || len(rows) == 0 {
 		return nil, err
 	}
@@ -165,12 +215,12 @@ func (s *Server) updateFolderRecord(ctx context.Context, folderID string, name *
 		sets = append(sets, "name = "+surrealString(*name))
 	}
 	if parentFolderID != nil {
-		sets = append(sets, "parent_folder_id = "+optionRecord("project_folders", parentFolderID))
+		sets = append(sets, "parent_folder_id = "+optionRecord("application_folders", parentFolderID))
 	}
-	if _, err := s.app.DB.Query(ctx, "UPDATE "+recordID("project_folders", folderID)+" SET "+strings.Join(sets, ", ")+";"); err != nil {
+	if _, err := s.app.DB.Query(ctx, "UPDATE "+recordID("application_folders", folderID)+" SET "+strings.Join(sets, ", ")+";"); err != nil {
 		return nil, err
 	}
-	rows, err := queryRows(ctx, s.app.DB, "SELECT id, project_id, user_id, name, parent_folder_id, created_at, updated_at FROM "+recordID("project_folders", folderID)+";")
+	rows, err := queryRows(ctx, s.app.DB, "SELECT id, application_id, user_id, name, parent_folder_id, created_at, updated_at FROM "+recordID("application_folders", folderID)+";")
 	if err != nil || len(rows) == 0 {
 		return nil, err
 	}
@@ -313,16 +363,16 @@ func (s *Server) resolveEdit(w http.ResponseWriter, r *http.Request, status stri
 	writeFirst(w, rows, err)
 }
 
-func (s *Server) createChat(ctx context.Context, projectID *string) (map[string]any, error) {
+func (s *Server) createChat(ctx context.Context, applicationID *string) (map[string]any, error) {
 	id := newID("chat")
 	_, err := s.app.DB.Query(ctx, fmt.Sprintf(`
 		CREATE %s CONTENT {
-			project_id: %s,
+			application_id: %s,
 			user_id: users:local,
 			title: "New Chat",
 			created_at: time::now()
 		};
-	`, recordID("chats", id), optionRecord("projects", projectID)))
+	`, recordID("chats", id), optionRecord("applications", applicationID)))
 	if err != nil {
 		return nil, err
 	}
@@ -334,7 +384,7 @@ func (s *Server) createChat(ctx context.Context, projectID *string) (map[string]
 }
 
 func chatListQuery(where string) string {
-	return "SELECT id, project_id, user_id, title, created_at FROM chats WHERE " + where + " ORDER BY created_at DESC;"
+	return "SELECT id, application_id, user_id, title, created_at FROM chats WHERE " + where + " ORDER BY created_at DESC;"
 }
 
 func (s *Server) chatDetail(ctx context.Context, chatID string) (map[string]any, error) {
@@ -486,16 +536,16 @@ func (s *Server) upsertTabularReview(ctx context.Context, reviewID string, req t
 	if err != nil {
 		return nil, err
 	}
-	sharedJSON, err := json.Marshal(req.SharedWith)
 	if req.SharedWith == nil {
-		sharedJSON = []byte("[]")
+		req.SharedWith = []string{}
 	}
+	sharedJSON, err := json.Marshal(req.SharedWith)
 	if err != nil {
 		return nil, err
 	}
 	_, err = s.app.DB.Query(ctx, fmt.Sprintf(`
 		UPSERT %s CONTENT {
-			project_id: %s,
+			application_id: %s,
 			user_id: users:local,
 			title: %s,
 			columns_config: %s,
@@ -505,7 +555,7 @@ func (s *Server) upsertTabularReview(ctx context.Context, reviewID string, req t
 			created_at: time::now(),
 			updated_at: time::now()
 		};
-	`, recordID("tabular_reviews", reviewID), optionRecord("projects", req.ProjectID), surrealString(title), string(columnsJSON), optionRecord("workflows", req.WorkflowID), string(sharedJSON)))
+	`, recordID("tabular_reviews", reviewID), optionRecord("applications", req.ApplicationID), surrealString(title), string(columnsJSON), optionRecord("workflows", req.WorkflowID), string(sharedJSON)))
 	if err != nil {
 		return nil, err
 	}
@@ -516,7 +566,7 @@ func (s *Server) upsertTabularReview(ctx context.Context, reviewID string, req t
 			}
 		}
 	}
-	rows, err := queryRows(ctx, s.app.DB, "SELECT id, project_id, user_id, title, columns_config, workflow_id, practice, shared_with, true AS is_owner, created_at, updated_at, 0 AS document_count FROM "+recordID("tabular_reviews", reviewID)+";")
+	rows, err := queryRows(ctx, s.app.DB, "SELECT id, application_id, user_id, title, columns_config, workflow_id, practice, shared_with, true AS is_owner, created_at, updated_at, 0 AS document_count FROM "+recordID("tabular_reviews", reviewID)+";")
 	if err != nil || len(rows) == 0 {
 		return nil, err
 	}
@@ -524,7 +574,7 @@ func (s *Server) upsertTabularReview(ctx context.Context, reviewID string, req t
 }
 
 func (s *Server) tabularDetail(ctx context.Context, reviewID string) (map[string]any, error) {
-	reviews, err := queryRows(ctx, s.app.DB, "SELECT id, project_id, user_id, title, columns_config, workflow_id, practice, shared_with, true AS is_owner, created_at, updated_at FROM "+recordID("tabular_reviews", reviewID)+";")
+	reviews, err := queryRows(ctx, s.app.DB, "SELECT id, application_id, user_id, title, columns_config, workflow_id, practice, shared_with, true AS is_owner, created_at, updated_at FROM "+recordID("tabular_reviews", reviewID)+";")
 	if err != nil || len(reviews) == 0 {
 		return nil, err
 	}
@@ -580,7 +630,7 @@ func (s *Server) createTabularChat(ctx context.Context, reviewID string) (map[st
 	if err != nil {
 		return nil, err
 	}
-	rows, err := queryRows(ctx, s.app.DB, "SELECT id, review_id AS project_id, user_id, title, created_at FROM "+recordID("tabular_review_chats", id)+";")
+	rows, err := queryRows(ctx, s.app.DB, "SELECT id, review_id AS application_id, user_id, title, created_at FROM "+recordID("tabular_review_chats", id)+";")
 	if err != nil || len(rows) == 0 {
 		return nil, err
 	}

@@ -8,7 +8,7 @@ import { useUserProfile } from "@/contexts/UserProfileContext";
 
 import type { LukeMessage } from "../shared/types";
 import { ChatInput } from "./ChatInput";
-import { SelectAssistantProjectModal } from "./SelectAssistantProjectModal";
+import { SelectAssistantApplicationModal } from "./SelectAssistantApplicationModal";
 
 interface InitialViewProps {
   onSubmit: (message: LukeMessage) => void;
@@ -21,7 +21,7 @@ export function InitialView({ onSubmit }: InitialViewProps) {
   const { user } = useAuth();
   const { profile } = useUserProfile();
   const [loaded, setLoaded] = useState(false);
-  const [projectModalOpen, setProjectModalOpen] = useState(false);
+  const [applicationModalOpen, setApplicationModalOpen] = useState(false);
   const [iconOffset, setIconOffset] = useState(0);
   const [textOffset, setTextOffset] = useState(0);
   const textRef = useRef<HTMLHeadingElement>(null);
@@ -75,7 +75,7 @@ export function InitialView({ onSubmit }: InitialViewProps) {
             onSubmit={onSubmit}
             onCancel={() => {}}
             isLoading={false}
-            onProjectsClick={() => setProjectModalOpen(true)}
+            onApplicationsClick={() => setApplicationModalOpen(true)}
           />
 
           <div className="text-center">
@@ -86,9 +86,9 @@ export function InitialView({ onSubmit }: InitialViewProps) {
         </div>
       </div>
 
-      <SelectAssistantProjectModal
-        open={projectModalOpen}
-        onClose={() => setProjectModalOpen(false)}
+      <SelectAssistantApplicationModal
+        open={applicationModalOpen}
+        onClose={() => setApplicationModalOpen(false)}
       />
     </div>
   );

@@ -46,7 +46,7 @@ var _ = Service("tabular_chat", func() {
 			Attribute("messages", ArrayOf(ChatMessage))
 			Attribute("chat_id", String)
 			Attribute("review_title", String)
-			Attribute("project_name", String)
+			Attribute("application_name", String)
 			Required("reviewId", "messages")
 		})
 		StreamingResult(SSEEvent)

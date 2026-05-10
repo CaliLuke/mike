@@ -1,15 +1,14 @@
 "use client";
 
-import { ChevronDown, Download, Loader2, MessageSquare, Play, Plus, Users } from "lucide-react";
+import { ChevronDown, Download, Loader2, MessageSquare, Play, Plus } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { useSidebar } from "@/app/contexts/SidebarContext";
 import {
   clearTabularCells,
-  getProject,
+  getApplication,
   getTabularReview,
-  getTabularReviewPeople,
   regenerateTabularCell,
   streamTabularGeneration,
   updateTabularReview,
@@ -23,16 +22,15 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useUserProfile } from "@/contexts/UserProfileContext";
 
 import { AddDocumentsModal } from "../shared/AddDocumentsModal";
-import { AddProjectDocsModal } from "../shared/AddProjectDocsModal";
+import { AddApplicationDocsModal } from "../shared/AddApplicationDocsModal";
 import { ApiKeyMissingModal } from "../shared/ApiKeyMissingModal";
 import { HeaderSearchBtn } from "../shared/HeaderSearchBtn";
 import { OwnerOnlyModal } from "../shared/OwnerOnlyModal";
-import { PeopleModal } from "../shared/PeopleModal";
 import { RenameableTitle } from "../shared/RenameableTitle";
 import type {
   ColumnConfig,
   LukeDocument,
-  LukeProject,
+  LukeApplication,
   TabularCell,
   TabularReview,
 } from "../shared/types";
@@ -45,13 +43,13 @@ import { TRTable } from "./TRTable";
 
 interface Props {
   reviewId: string;
-  projectId?: string;
+  applicationId?: string;
 }
 
-export function TRView({ reviewId, projectId }: Props) {
+export function TRView({ reviewId, applicationId }: Props) {
   const { setSidebarOpen } = useSidebar();
   const [review, setReview] = useState<TabularReview | null>(null);
-  const [project, setProject] = useState<LukeProject | null>(null);
+  const [application, setApplication] = useState<LukeApplication | null>(null);
   const [cells, setCells] = useState<TabularCell[]>([]);
   const [documents, setDocuments] = useState<LukeDocument[]>([]);
   const [columns, setColumns] = useState<ColumnConfig[]>([]);
@@ -61,7 +59,6 @@ export function TRView({ reviewId, projectId }: Props) {
   const [savingColumnsConfig, setSavingColumnsConfig] = useState(false);
   const [addColOpen, setAddColOpen] = useState(false);
   const [addDocsOpen, setAddDocsOpen] = useState(false);
-  const [peopleModalOpen, setPeopleModalOpen] = useState(false);
   const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
   const { user } = useAuth();
   const [expandedCell, setExpandedCell] = useState<TabularCell | null>(null);
@@ -124,15 +121,15 @@ export function TRView({ reviewId, projectId }: Props) {
         setColumns(review.columns_config || []);
       }),
     ];
-    if (projectId) {
+    if (applicationId) {
       fetches.push(
-        getProject(projectId)
-          .then(setProject)
+        getApplication(applicationId)
+          .then(setApplication)
           .catch(() => {}),
       );
     }
     Promise.all(fetches).finally(() => setLoading(false));
-  }, [reviewId, projectId]);
+  }, [reviewId, applicationId]);
 
   function getNextColumnIndex() {
     return columns.reduce((max, column) => Math.max(max, column.index), -1) + 1;
@@ -437,40 +434,40 @@ export function TRView({ reviewId, projectId }: Props) {
         {/* Header */}
         <div className="flex shrink-0 items-start justify-between gap-4 bg-white px-8 py-4">
           <div className="flex items-center gap-1.5 font-serif text-2xl font-medium">
-            {projectId && (
+            {applicationId && (
               <>
                 <button
-                  onClick={() => router.push("/projects")}
+                  onClick={() => router.push("/applications")}
                   className="text-gray-500 transition-colors hover:text-gray-700"
                 >
-                  Projects
+                  Applications
                 </button>
                 <span className="text-gray-300">›</span>
                 <button
-                  onClick={() => router.push(`/projects/${projectId}`)}
+                  onClick={() => router.push(`/applications/${applicationId}`)}
                   className="text-gray-500 transition-colors hover:text-gray-700"
                 >
                   {loading ? (
                     <div className="h-6 w-32 animate-pulse rounded bg-gray-100" />
                   ) : (
                     <>
-                      {project?.name ?? ""}
-                      {project?.cm_number && (
-                        <span className="ml-1 text-gray-400">(#{project.cm_number})</span>
+                      {application?.name ?? ""}
+                      {application?.cm_number && (
+                        <span className="ml-1 text-gray-400">(#{application.cm_number})</span>
                       )}
                     </>
                   )}
                 </button>
                 <span className="text-gray-300">›</span>
                 <button
-                  onClick={() => router.push(`/projects/${projectId}?tab=reviews`)}
+                  onClick={() => router.push(`/applications/${applicationId}?tab=reviews`)}
                   className="text-gray-500 transition-colors hover:text-gray-700"
                 >
                   Tabular Reviews
                 </button>
               </>
             )}
-            {!projectId && (
+            {!applicationId && (
               <button
                 onClick={() => router.push("/tabular-reviews")}
                 className="text-gray-500 transition-colors hover:text-gray-700"
@@ -495,21 +492,6 @@ export function TRView({ reviewId, projectId }: Props) {
                 onChange={setSearch}
                 placeholder="Search documents…"
               />
-              {!projectId && (
-                <button
-                  onClick={() => setPeopleModalOpen(true)}
-                  disabled={loading}
-                  className={`flex h-8 w-8 items-center justify-center text-sm transition-colors ${
-                    loading
-                      ? "cursor-default text-gray-300"
-                      : "cursor-pointer text-gray-500 hover:text-gray-900"
-                  }`}
-                  title="People with access"
-                  aria-label="People with access"
-                >
-                  <Users className="h-4 w-4" />
-                </button>
-              )}
               <button
                 onClick={() =>
                   exportTabularReviewToExcel({
@@ -637,7 +619,7 @@ export function TRView({ reviewId, projectId }: Props) {
             <TRChatPanel
               reviewId={reviewId}
               reviewTitle={review?.title ?? null}
-              projectName={project?.name ?? null}
+              applicationName={application?.name ?? null}
               columns={columns}
               documents={documents}
               onCitationClick={handleTabularCitationClick}
@@ -719,19 +701,19 @@ export function TRView({ reviewId, projectId }: Props) {
         onAdd={handleAddColumn}
       />
 
-      {project ? (
-        <AddProjectDocsModal
+      {application ? (
+        <AddApplicationDocsModal
           open={addDocsOpen}
           onClose={() => setAddDocsOpen(false)}
           onSelect={(docs: LukeDocument[]) => handleAddDocuments(docs)}
           breadcrumb={[
-            "Projects",
-            project.name + (project.cm_number ? ` (#${project.cm_number})` : ""),
+            "Applications",
+            application.name + (application.cm_number ? ` (#${application.cm_number})` : ""),
             "Tabular Reviews",
             ...(review ? [review.title || "Untitled Review"] : []),
             "Add Documents",
           ]}
-          projectId={project.id}
+          applicationId={application.id}
           excludeDocIds={new Set(documents.map((d) => d.id))}
         />
       ) : (
@@ -746,32 +728,6 @@ export function TRView({ reviewId, projectId }: Props) {
           ]}
         />
       )}
-
-      <PeopleModal
-        open={peopleModalOpen}
-        onClose={() => setPeopleModalOpen(false)}
-        resource={review}
-        fetchPeople={getTabularReviewPeople}
-        currentUserEmail={user?.email ?? null}
-        breadcrumb={["Tabular Reviews", review?.title || "Untitled Review", "People"]}
-        // Only the review owner may modify the member list. PeopleModal
-        // hides the add/remove controls when this prop is undefined.
-        onSharedWithChange={
-          review?.is_owner === false
-            ? undefined
-            : async (next) => {
-                const updated = await updateTabularReview(reviewId, { shared_with: next });
-                setReview((prev) =>
-                  prev
-                    ? {
-                        ...prev,
-                        shared_with: updated.shared_with,
-                      }
-                    : prev,
-                );
-              }
-        }
-      />
 
       <OwnerOnlyModal
         open={!!ownerOnlyAction}

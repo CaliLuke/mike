@@ -22,16 +22,16 @@ import (
 // set to call the "folders" service "create" endpoint
 func (c *Client) BuildCreateRequest(ctx context.Context, v any) (*http.Request, error) {
 	var (
-		projectID string
+		applicationID string
 	)
 	{
 		p, ok := v.(*folders.CreatePayload)
 		if !ok {
 			return nil, loomhttp.ErrInvalidType("folders", "create", "*folders.CreatePayload", v)
 		}
-		projectID = p.ProjectID
+		applicationID = p.ApplicationID
 	}
-	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: CreateFoldersPath(projectID)}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: CreateFoldersPath(applicationID)}
 	req, err := http.NewRequest("POST", u.String(), nil)
 	if err != nil {
 		return nil, loomhttp.ErrInvalidURL("folders", "create", u.String(), err)
@@ -103,18 +103,18 @@ func DecodeCreateResponse(decoder func(*http.Response) loomhttp.Decoder, restore
 // set to call the "folders" service "update" endpoint
 func (c *Client) BuildUpdateRequest(ctx context.Context, v any) (*http.Request, error) {
 	var (
-		projectID string
-		folderID  string
+		applicationID string
+		folderID      string
 	)
 	{
 		p, ok := v.(*folders.UpdatePayload)
 		if !ok {
 			return nil, loomhttp.ErrInvalidType("folders", "update", "*folders.UpdatePayload", v)
 		}
-		projectID = p.ProjectID
+		applicationID = p.ApplicationID
 		folderID = p.FolderID
 	}
-	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: UpdateFoldersPath(projectID, folderID)}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: UpdateFoldersPath(applicationID, folderID)}
 	req, err := http.NewRequest("PATCH", u.String(), nil)
 	if err != nil {
 		return nil, loomhttp.ErrInvalidURL("folders", "update", u.String(), err)
@@ -186,18 +186,18 @@ func DecodeUpdateResponse(decoder func(*http.Response) loomhttp.Decoder, restore
 // set to call the "folders" service "delete" endpoint
 func (c *Client) BuildDeleteRequest(ctx context.Context, v any) (*http.Request, error) {
 	var (
-		projectID string
-		folderID  string
+		applicationID string
+		folderID      string
 	)
 	{
 		p, ok := v.(*folders.DeletePayload)
 		if !ok {
 			return nil, loomhttp.ErrInvalidType("folders", "delete", "*folders.DeletePayload", v)
 		}
-		projectID = p.ProjectID
+		applicationID = p.ApplicationID
 		folderID = p.FolderID
 	}
-	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: DeleteFoldersPath(projectID, folderID)}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: DeleteFoldersPath(applicationID, folderID)}
 	req, err := http.NewRequest("DELETE", u.String(), nil)
 	if err != nil {
 		return nil, loomhttp.ErrInvalidURL("folders", "delete", u.String(), err)
@@ -240,18 +240,18 @@ func DecodeDeleteResponse(decoder func(*http.Response) loomhttp.Decoder, restore
 // path set to call the "folders" service "move_document" endpoint
 func (c *Client) BuildMoveDocumentRequest(ctx context.Context, v any) (*http.Request, error) {
 	var (
-		projectID  string
-		documentID string
+		applicationID string
+		documentID    string
 	)
 	{
 		p, ok := v.(*folders.MoveDocumentPayload)
 		if !ok {
 			return nil, loomhttp.ErrInvalidType("folders", "move_document", "*folders.MoveDocumentPayload", v)
 		}
-		projectID = p.ProjectID
+		applicationID = p.ApplicationID
 		documentID = p.DocumentID
 	}
-	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: MoveDocumentFoldersPath(projectID, documentID)}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: MoveDocumentFoldersPath(applicationID, documentID)}
 	req, err := http.NewRequest("PATCH", u.String(), nil)
 	if err != nil {
 		return nil, loomhttp.ErrInvalidURL("folders", "move_document", u.String(), err)

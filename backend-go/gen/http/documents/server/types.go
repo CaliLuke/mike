@@ -27,7 +27,7 @@ type UploadRequestBody struct {
 type UploadResponseBody struct {
 	ID                  string                       `form:"id" json:"id" xml:"id"`
 	UserID              *string                      `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
-	ProjectID           *string                      `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
+	ApplicationID       *string                      `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
 	FolderID            *string                      `form:"folder_id,omitempty" json:"folder_id,omitempty" xml:"folder_id,omitempty"`
 	Filename            string                       `form:"filename" json:"filename" xml:"filename"`
 	FileType            *string                      `form:"file_type,omitempty" json:"file_type,omitempty" xml:"file_type,omitempty"`
@@ -78,7 +78,7 @@ type DocxRequestBody struct {
 type DocumentResponse struct {
 	ID                  string                   `form:"id" json:"id" xml:"id"`
 	UserID              *string                  `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
-	ProjectID           *string                  `form:"project_id,omitempty" json:"project_id,omitempty" xml:"project_id,omitempty"`
+	ApplicationID       *string                  `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
 	FolderID            *string                  `form:"folder_id,omitempty" json:"folder_id,omitempty" xml:"folder_id,omitempty"`
 	Filename            string                   `form:"filename" json:"filename" xml:"filename"`
 	FileType            *string                  `form:"file_type,omitempty" json:"file_type,omitempty" xml:"file_type,omitempty"`
@@ -131,7 +131,7 @@ func NewUploadResponseBody(res *documents.Document) *UploadResponseBody {
 	body := &UploadResponseBody{
 		ID:                  res.ID,
 		UserID:              res.UserID,
-		ProjectID:           res.ProjectID,
+		ApplicationID:       res.ApplicationID,
 		FolderID:            res.FolderID,
 		Filename:            res.Filename,
 		FileType:            res.FileType,
