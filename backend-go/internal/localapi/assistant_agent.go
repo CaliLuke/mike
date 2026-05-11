@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -525,9 +526,7 @@ func (t *assistantEventTimeline) finishMatching(match func(map[string]any) bool,
 		}
 		next := cloneMap(t.events[i])
 		delete(next, "isStreaming")
-		for key, value := range patch {
-			next[key] = value
-		}
+		maps.Copy(next, patch)
 		t.events[i] = next
 		return
 	}
@@ -563,9 +562,7 @@ func (t *assistantEventTimeline) copyEvent(event map[string]any, eventType strin
 
 func cloneMap(in map[string]any) map[string]any {
 	out := make(map[string]any, len(in))
-	for key, value := range in {
-		out[key] = value
-	}
+	maps.Copy(out, in)
 	return out
 }
 
@@ -709,7 +706,7 @@ func (p *lukeOllamaPlanner) forcedWebPageFetch(messages []*model.Message) *plann
 }
 
 func firstHTTPURL(text string) string {
-	for _, field := range strings.Fields(text) {
+	for field := range strings.FieldsSeq(text) {
 		candidate := strings.Trim(field, " \t\r\n<>\"'()[]{}.,;!")
 		parsed, err := url.Parse(candidate)
 		if err == nil && (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Hostname() != "" {
@@ -1052,7 +1049,7 @@ func (s *Server) executeFindInDocument(ctx context.Context, call *planner.ToolRe
 		DocumentID:   doc.DocumentID,
 		Filename:     doc.Filename,
 		Matches:      matches,
-		TotalMatches: intPtr(total),
+		TotalMatches: new(total),
 	}}, nil
 }
 
@@ -1128,12 +1125,12 @@ func (s *Server) executeCreateCompany(ctx context.Context, call *planner.ToolReq
 			})
 			span.SetAttributes(attribute.String("company.dedupe.decision", "reuse_exact"))
 			return &planner.ToolResult{Name: call.Name, Result: &careercontext.CreateCompanyResult{
-				OK:             boolPtr(true),
+				OK:             new(true),
 				CompanyID:      stringPtr(best.ID),
 				Name:           stringPtr(best.Name),
 				Website:        stringPtr(best.Website),
-				ReusedExisting: boolPtr(true),
-				Similarity:     float64Ptr(best.Similarity),
+				ReusedExisting: new(true),
+				Similarity:     new(best.Similarity),
 			}}, nil
 		}
 		if !confirmNew {
@@ -1146,11 +1143,11 @@ func (s *Server) executeCreateCompany(ctx context.Context, call *planner.ToolReq
 			})
 			span.SetAttributes(attribute.String("company.dedupe.decision", "requires_confirmation"))
 			return &planner.ToolResult{Name: call.Name, Result: &careercontext.CreateCompanyResult{
-				OK:                   boolPtr(false),
-				RequiresConfirmation: boolPtr(true),
+				OK:                   new(false),
+				RequiresConfirmation: new(true),
 				SimilarCompanyID:     stringPtr(best.ID),
 				SimilarCompanyName:   stringPtr(best.Name),
-				Similarity:           float64Ptr(best.Similarity),
+				Similarity:           new(best.Similarity),
 				Error:                stringPtr("A similar company already exists. Reuse similar_company_id unless the user confirms this should be a separate company; only then call create_company again with confirm_new=true."),
 			}}, nil
 		}
@@ -1168,11 +1165,11 @@ func (s *Server) executeCreateCompany(ctx context.Context, call *planner.ToolReq
 	companyWebsite := asString(row["website"])
 	_ = send(map[string]any{"type": "company_created", "company_id": companyID, "name": companyName})
 	return &planner.ToolResult{Name: call.Name, Result: &careercontext.CreateCompanyResult{
-		OK:             boolPtr(true),
+		OK:             new(true),
 		CompanyID:      stringPtr(companyID),
 		Name:           stringPtr(companyName),
 		Website:        stringPtr(companyWebsite),
-		ReusedExisting: boolPtr(false),
+		ReusedExisting: new(false),
 	}}, nil
 }
 
@@ -1235,7 +1232,7 @@ func (s *Server) executeCreateApplication(ctx context.Context, call *planner.Too
 		"job_description_document_id": jobDescriptionDocID,
 	})
 	return &planner.ToolResult{Name: call.Name, Result: &careercontext.CreateApplicationResult{
-		OK:                       boolPtr(true),
+		OK:                       new(true),
 		ApplicationID:            stringPtr(applicationID),
 		CompanyID:                stringPtr(attachedCompanyID),
 		Name:                     stringPtr(applicationName),
@@ -1317,12 +1314,12 @@ func (s *Server) executeGenerateDocx(ctx context.Context, call *planner.ToolRequ
 	}
 	span.SetAttributes(attribute.String("document.id", doc.DocumentID), attribute.String("document.version_id", doc.VersionID))
 	result := &careercontext.GenerateDocxResult{
-		OK:            boolPtr(true),
+		OK:            new(true),
 		Filename:      stringPtr(doc.Filename),
 		DownloadURL:   stringPtr(doc.DownloadURL),
 		DocumentID:    stringPtr(doc.DocumentID),
 		VersionID:     stringPtr(doc.VersionID),
-		VersionNumber: intPtr(doc.VersionNumber),
+		VersionNumber: new(doc.VersionNumber),
 	}
 	_ = send(map[string]any{
 		"type":           "doc_created",
@@ -1336,7 +1333,7 @@ func (s *Server) executeGenerateDocx(ctx context.Context, call *planner.ToolRequ
 }
 
 func generateDocxToolError(name tools.Ident, filename string, err error, send func(map[string]any) error) *planner.ToolResult {
-	result := &careercontext.GenerateDocxResult{OK: boolPtr(false), Error: stringPtr(err.Error()), Filename: stringPtr(filename)}
+	result := &careercontext.GenerateDocxResult{OK: new(false), Error: stringPtr(err.Error()), Filename: stringPtr(filename)}
 	_ = send(map[string]any{"type": "doc_created", "filename": filename, "download_url": "", "error": err.Error()})
 	return &planner.ToolResult{Name: name, Result: result}
 }
@@ -1379,7 +1376,7 @@ func (s *Server) executeReplicateDocument(ctx context.Context, call *planner.Too
 		doc, err := s.createAssistantDocument(ctx, filename, strings.TrimPrefix(filepath.Ext(filename), "."), data, "upload", applicationID)
 		if err != nil {
 			recordSpanError(span, err)
-			result := &careercontext.ReplicateDocumentResult{OK: boolPtr(false), Filename: stringPtr(source.Filename), Count: intPtr(len(copies)), Copies: copies, Error: stringPtr(err.Error())}
+			result := &careercontext.ReplicateDocumentResult{OK: new(false), Filename: stringPtr(source.Filename), Count: new(len(copies)), Copies: copies, Error: stringPtr(err.Error())}
 			_ = send(map[string]any{"type": "doc_replicated", "filename": source.Filename, "count": len(copies), "copies": copies, "error": err.Error()})
 			return &planner.ToolResult{Name: call.Name, Result: result}, nil
 		}
@@ -1391,7 +1388,7 @@ func (s *Server) executeReplicateDocument(ctx context.Context, call *planner.Too
 		})
 	}
 	span.SetAttributes(attribute.Int("document.created_copy_count", len(copies)))
-	result := &careercontext.ReplicateDocumentResult{OK: boolPtr(true), Filename: stringPtr(source.Filename), Count: intPtr(len(copies)), Copies: copies}
+	result := &careercontext.ReplicateDocumentResult{OK: new(true), Filename: stringPtr(source.Filename), Count: new(len(copies)), Copies: copies}
 	_ = send(map[string]any{"type": "doc_replicated", "filename": source.Filename, "count": len(copies), "copies": copies})
 	return &planner.ToolResult{Name: call.Name, Result: result}, nil
 }
@@ -1452,7 +1449,7 @@ func (s *Server) executeEditDocument(ctx context.Context, call *planner.ToolRequ
 	if len(tracked) == 0 {
 		matchErr := fmt.Errorf("no edits matched the document text")
 		recordSpanError(span, matchErr)
-		result := &careercontext.EditDocumentResult{OK: boolPtr(false), Filename: stringPtr(version.Filename), DocumentID: stringPtr(documentID), Error: stringPtr(matchErr.Error())}
+		result := &careercontext.EditDocumentResult{OK: new(false), Filename: stringPtr(version.Filename), DocumentID: stringPtr(documentID), Error: stringPtr(matchErr.Error())}
 		_ = send(map[string]any{"type": "doc_edited", "filename": version.Filename, "document_id": documentID, "annotations": []any{}, "error": matchErr.Error()})
 		return &planner.ToolResult{Name: call.Name, Result: result}, nil
 	}
@@ -1463,8 +1460,8 @@ func (s *Server) executeEditDocument(ctx context.Context, call *planner.ToolRequ
 			EditID:        stringPtr(newID("edit")),
 			DocumentID:    stringPtr(documentID),
 			ChangeID:      stringPtr(item.ChangeID),
-			DeletedText:   stringPtrAlways(item.DeletedText),
-			InsertedText:  stringPtrAlways(item.InsertedText),
+			DeletedText:   new(item.DeletedText),
+			InsertedText:  new(item.InsertedText),
 			ContextBefore: stringPtr(item.ContextBefore),
 			ContextAfter:  stringPtr(item.ContextAfter),
 			Reason:        stringPtr(item.Reason),
@@ -1490,15 +1487,15 @@ func (s *Server) executeEditDocument(ctx context.Context, call *planner.ToolRequ
 	span.SetAttributes(attribute.String("document.version_id", newVersion.VersionID), attribute.Int("document.version_number", newVersion.VersionNumber))
 	for _, annotation := range annotations {
 		annotation.VersionID = stringPtr(newVersion.VersionID)
-		annotation.VersionNumber = intPtr(newVersion.VersionNumber)
+		annotation.VersionNumber = new(newVersion.VersionNumber)
 	}
 	result := &careercontext.EditDocumentResult{
-		OK:            boolPtr(true),
+		OK:            new(true),
 		Filename:      stringPtr(version.Filename),
 		DownloadURL:   stringPtr(newVersion.DownloadURL),
 		DocumentID:    stringPtr(documentID),
 		VersionID:     stringPtr(newVersion.VersionID),
-		VersionNumber: intPtr(newVersion.VersionNumber),
+		VersionNumber: new(newVersion.VersionNumber),
 		Annotations:   annotations,
 	}
 	_ = send(map[string]any{"type": "doc_edited", "filename": version.Filename, "document_id": documentID, "version_id": newVersion.VersionID, "version_number": newVersion.VersionNumber, "download_url": newVersion.DownloadURL, "annotations": annotations})
@@ -1568,8 +1565,7 @@ func (s *Server) readAssistantDocument(ctx context.Context, documentID string) (
 			recordSpanError(span, readErr)
 			return nil, readErr
 		}
-		body, _ := displayBytes(version.Filename, data)
-		text = string(body)
+		text = extractDocumentText(version.Filename, data)
 		span.SetAttributes(
 			attribute.Int("document.bytes", len(data)),
 			attribute.Int("document.text_chars", len(text)),
@@ -1687,18 +1683,12 @@ func findDocumentMatches(text, query string, maxResults, contextChars int) ([]*c
 		end := start + len(query)
 		total++
 		if len(matches) < maxResults {
-			contextStart := start - contextChars
-			if contextStart < 0 {
-				contextStart = 0
-			}
-			contextEnd := end + contextChars
-			if contextEnd > len(text) {
-				contextEnd = len(text)
-			}
+			contextStart := max(start-contextChars, 0)
+			contextEnd := min(end+contextChars, len(text))
 			matches = append(matches, &careercontext.AssistantDocumentMatch{
-				Index:   intPtr(len(matches)),
-				Start:   intPtr(start),
-				End:     intPtr(end),
+				Index:   new(len(matches)),
+				Start:   new(start),
+				End:     new(end),
 				Quote:   stringPtr(text[start:end]),
 				Context: stringPtr(text[contextStart:contextEnd]),
 			})
@@ -1838,7 +1828,8 @@ func (s *Server) writeEditedTrackedVersion(ctx context.Context, documentID, file
 		recordSpanError(span, writeErr)
 		return assistantDocumentWriteResult{}, writeErr
 	}
-	query := fmt.Sprintf(`
+	var query strings.Builder
+	fmt.Fprintf(&query, `
 		CREATE %s CONTENT {
 			document_id: %s,
 			storage_path: %s,
@@ -1855,7 +1846,7 @@ func (s *Server) writeEditedTrackedVersion(ctx context.Context, documentID, file
 		if editID == "" {
 			editID = newID("edit")
 		}
-		query += fmt.Sprintf(`
+		fmt.Fprintf(&query, `
 			CREATE %s CONTENT {
 				document_id: %s,
 				chat_message_id: NONE,
@@ -1874,7 +1865,7 @@ func (s *Server) writeEditedTrackedVersion(ctx context.Context, documentID, file
 		`, recordID("document_edits", editID), recordID("documents", documentID), recordID("document_versions", versionID), surrealString(derefString(annotation.ChangeID)), surrealString(derefString(annotation.DeletedText)), surrealString(derefString(annotation.InsertedText)), surrealString(derefString(annotation.ContextBefore)), surrealString(derefString(annotation.ContextAfter)))
 		annotation.EditID = stringPtr(editID)
 	}
-	if _, queryErr := s.app.DB.Query(ctx, query); queryErr != nil {
+	if _, queryErr := s.app.DB.Query(ctx, query.String()); queryErr != nil {
 		recordSpanError(span, queryErr)
 		return assistantDocumentWriteResult{}, queryErr
 	}
@@ -2103,10 +2094,6 @@ func stringPtr(value string) *string {
 	return &value
 }
 
-func stringPtrAlways(value string) *string {
-	return &value
-}
-
 func derefString(value *string) string {
 	if value == nil {
 		return ""
@@ -2119,18 +2106,6 @@ func requiredString(value *string, name string) (string, error) {
 		return "", fmt.Errorf("%s is required", name)
 	}
 	return strings.TrimSpace(*value), nil
-}
-
-func intPtr(value int) *int {
-	return &value
-}
-
-func boolPtr(value bool) *bool {
-	return &value
-}
-
-func float64Ptr(value float64) *float64 {
-	return &value
 }
 
 func asAnySlice(value any) []any {

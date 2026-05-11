@@ -97,7 +97,7 @@ func cmdRun(name string) {
 		result.Write(os.Stdout)
 		os.Exit(1)
 	}
-	defer tel.Close()
+	defer func() { _ = tel.Close() }()
 
 	if err := scn.Run(ctx, client, tel, result); err != nil {
 		result.AddNote("scenario error: %v", err)

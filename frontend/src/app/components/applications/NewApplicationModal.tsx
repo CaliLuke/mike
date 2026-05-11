@@ -1,7 +1,8 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { Upload, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import { DOCUMENT_UPLOAD_ACCEPT } from "@/app/lib/documentTypes";
 import {
@@ -24,7 +25,11 @@ interface Props {
 
 export function NewApplicationModal({ open, onClose, onCreated }: Props) {
   const [name, setName] = useState("");
-  const [companies, setCompanies] = useState<LukeCompany[]>([]);
+  const { data: companies = [] } = useQuery<LukeCompany[]>({
+    queryKey: ["companies"],
+    queryFn: listCompanies,
+    enabled: open,
+  });
   const [companyId, setCompanyId] = useState("");
   const [newCompanyName, setNewCompanyName] = useState("");
   const [cmNumber, setCmNumber] = useState("");
@@ -40,15 +45,8 @@ export function NewApplicationModal({ open, onClose, onCreated }: Props) {
     applications: dirApplications,
   } = useDirectoryData(open);
 
-  useEffect(() => {
-    if (!open) return;
-    listCompanies()
-      .then((items) => {
-        setCompanies(items);
-        setCompanyId((current) => current || items[0]?.id || "");
-      })
-      .catch(() => setCompanies([]));
-  }, [open]);
+  // Default to the first company until the user explicitly picks one.
+  const effectiveCompanyId = companyId || companies[0]?.id || "";
 
   if (!open) return null;
 
@@ -64,11 +62,11 @@ export function NewApplicationModal({ open, onClose, onCreated }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || (!companyId && !newCompanyName.trim())) return;
+    if (!name.trim() || (!effectiveCompanyId && !newCompanyName.trim())) return;
     setLoading(true);
     setError("");
     try {
-      const company = companyId || (await createCompany(newCompanyName.trim())).id;
+      const company = effectiveCompanyId || (await createCompany(newCompanyName.trim())).id;
       const application = await createApplication(
         name.trim(),
         company,
@@ -137,7 +135,7 @@ export function NewApplicationModal({ open, onClose, onCreated }: Props) {
 
             <div className="mt-3 grid grid-cols-2 gap-3">
               <select
-                value={companyId}
+                value={effectiveCompanyId}
                 onChange={(e) => {
                   setCompanyId(e.target.value);
                   setNewCompanyName("");
@@ -151,7 +149,7 @@ export function NewApplicationModal({ open, onClose, onCreated }: Props) {
                   </option>
                 ))}
               </select>
-              {!companyId && (
+              {!effectiveCompanyId && (
                 <input
                   type="text"
                   value={newCompanyName}
@@ -217,7 +215,9 @@ export function NewApplicationModal({ open, onClose, onCreated }: Props) {
               </button>
               <button
                 type="submit"
-                disabled={!name.trim() || (!companyId && !newCompanyName.trim()) || loading}
+                disabled={
+                  !name.trim() || (!effectiveCompanyId && !newCompanyName.trim()) || loading
+                }
                 className="rounded-lg bg-gray-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-40"
               >
                 {loading ? "Creating…" : "Create application"}

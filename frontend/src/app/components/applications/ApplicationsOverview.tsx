@@ -1,14 +1,16 @@
 "use client";
 
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createColumnHelper, type RowSelectionState } from "@tanstack/react-table";
 import { ChevronDown, FolderOpen, Pencil, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { DataTable } from "@/app/components/shared/DataTable";
 import { HeaderSearchBtn } from "@/app/components/shared/HeaderSearchBtn";
 import type { LukeApplication } from "@/app/components/shared/types";
 import { deleteApplication, listApplications } from "@/app/lib/lukeApi";
+import { trackClick } from "@/app/lib/telemetry";
 import { useAuth } from "@/contexts/AuthContext";
 
 import { EditApplicationModal } from "./EditApplicationModal";
@@ -29,9 +31,21 @@ const columnHelper = createColumnHelper<LukeApplication>();
 const NAME_STICKY_OFFSET = 32;
 const NAME_COL_WIDTH = 300;
 
+const APPLICATIONS_KEY = ["applications"] as const;
+
 export function ApplicationsOverview() {
-  const [applications, setApplications] = useState<LukeApplication[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { authLoading, user } = useAuth();
+  const { data: applications = [], isLoading } = useQuery<LukeApplication[]>({
+    queryKey: APPLICATIONS_KEY,
+    queryFn: listApplications,
+    enabled: !authLoading && !!user,
+    refetchOnWindowFocus: true,
+  });
+  const loading = (authLoading || isLoading) && !!user;
+  const mutateApplications = (fn: (prev: LukeApplication[]) => LukeApplication[]) =>
+    queryClient.setQueryData<LukeApplication[]>(APPLICATIONS_KEY, (prev) => fn(prev ?? []));
+
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editingApplication, setEditingApplication] = useState<LukeApplication | null>(null);
   const [search, setSearch] = useState("");
@@ -39,37 +53,6 @@ export function ApplicationsOverview() {
   const [actionsOpen, setActionsOpen] = useState(false);
   const actionsRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  const { authLoading, user } = useAuth();
-
-  const reloadApplications = useCallback(() => {
-    if (authLoading) return;
-    if (!user) {
-      setApplications([]);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    listApplications()
-      .then(setApplications)
-      .catch(() => setApplications([]))
-      .finally(() => setLoading(false));
-  }, [authLoading, user]);
-
-  useEffect(() => {
-    void Promise.resolve().then(reloadApplications);
-  }, [reloadApplications]);
-
-  useEffect(() => {
-    const handleVisible = () => {
-      if (document.visibilityState === "visible") reloadApplications();
-    };
-    document.addEventListener("visibilitychange", handleVisible);
-    window.addEventListener("focus", reloadApplications);
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisible);
-      window.removeEventListener("focus", reloadApplications);
-    };
-  }, [reloadApplications]);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -87,13 +70,15 @@ export function ApplicationsOverview() {
     const ids = [...selectedIds];
     setActionsOpen(false);
     setRowSelection({});
+    trackClick("application.delete.bulk", { count: ids.length });
     await Promise.all(ids.map((id) => deleteApplication(id).catch(() => {})));
-    setApplications((prev) => prev.filter((p) => !ids.includes(p.id)));
+    mutateApplications((prev) => prev.filter((p) => !ids.includes(p.id)));
   }
 
   async function handleDeleteOne(id: string) {
+    trackClick("application.delete", { "application.id": id });
     await deleteApplication(id);
-    setApplications((prev) => prev.filter((p) => p.id !== id));
+    mutateApplications((prev) => prev.filter((p) => p.id !== id));
     setRowSelection((prev) => {
       const next = { ...prev };
       delete next[id];
@@ -280,7 +265,10 @@ export function ApplicationsOverview() {
         enableRowSelection
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
-        onRowClick={(application) => router.push(`/applications/${application.id}`)}
+        onRowClick={(application) => {
+          trackClick("application.open", { "application.id": application.id });
+          router.push(`/applications/${application.id}`);
+        }}
         isLoading={loading}
         loadingNode={skeletonRows}
         emptyNode={emptyState}
@@ -293,7 +281,7 @@ export function ApplicationsOverview() {
         open={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
         onCreated={(p) => {
-          setApplications((prev) => [p, ...prev]);
+          mutateApplications((prev) => [p, ...prev]);
           router.push(`/applications/${p.id}`);
         }}
       />
@@ -302,7 +290,7 @@ export function ApplicationsOverview() {
         application={editingApplication}
         onClose={() => setEditingApplication(null)}
         onUpdated={(updated) => {
-          setApplications((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+          mutateApplications((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
         }}
       />
     </div>

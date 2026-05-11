@@ -400,7 +400,7 @@ func (s *Service) RegisterRomancy(app *romancy.App) {
 						"turn":         turn,
 						"tool_call_id": callID,
 						"name":         call.OllamaName,
-						"arguments":    json.RawMessage(call.Arguments),
+						"arguments":    call.Arguments,
 					})
 					toolOut, err := s.dispatchAct.Execute(ctx, ToolDispatchInput{
 						ChatID:        in.ChatID,

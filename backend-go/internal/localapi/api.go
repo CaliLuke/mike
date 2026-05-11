@@ -1088,7 +1088,7 @@ func (s *Server) regenerateCell(w http.ResponseWriter, r *http.Request) {
 	}
 	spec, hasSpec := columnSpecs[req.ColumnIndex]
 	if !hasSpec || strings.TrimSpace(spec.Prompt) == "" {
-		err := fmt.Errorf("column %d has no prompt configured", req.ColumnIndex)
+		err = fmt.Errorf("column %d has no prompt configured", req.ColumnIndex)
 		recordSpanError(span, err)
 		span.SetAttributes(attribute.String("tabular.exit_reason", "no_column_prompt"))
 		writeError(w, http.StatusBadRequest, err)

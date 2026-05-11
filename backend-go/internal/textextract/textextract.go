@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -212,7 +213,7 @@ func extractDocx(data []byte) (string, error) {
 		decoder := xml.NewDecoder(bytes.NewReader(body))
 		for {
 			tok, err := decoder.Token()
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			if err != nil {

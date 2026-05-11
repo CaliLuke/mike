@@ -1,129 +1,74 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
 
 import { API_BASE } from "@/app/lib/lukeApi";
 
 export interface FetchDocxResult {
   bytes: ArrayBuffer | null;
-  downloadUrl: string | null;
   loading: boolean;
   error: string | null;
 }
 
-// Module-level cache keyed by `${documentId}:${versionId}:${refetchKey}`.
-// The same cache is shared across every hook instance so tab switches
-// (which remount new DocxView subtrees or re-run the effect because of an
-// unstable prop upstream) don't cause a refetch as long as the tuple is
-// unchanged. Promises are cached too, so concurrent mounts for the same
-// key share a single in-flight request.
-const bytesCache = new Map<string, ArrayBuffer>();
-const inFlight = new Map<string, Promise<ArrayBuffer>>();
+const DOCX_BYTES_KEY = "docx-bytes";
 
-function cacheKey(documentId: string, versionId?: string | null, refetchKey?: number): string {
-  return `${documentId}:${versionId ?? ""}:${refetchKey ?? ""}`;
+function queryKey(
+  documentId: string | null | undefined,
+  versionId?: string | null,
+  refetchKey?: number,
+) {
+  return [DOCX_BYTES_KEY, documentId, versionId ?? "", refetchKey ?? 0] as const;
 }
 
 /**
  * Fetch the raw .docx bytes for a document, optionally targeting a specific
- * tracked-changes version. Results are cached so the DocxView can re-render
- * cheaply when switching between versions, and tab switches don't refetch.
+ * tracked-changes version. Cached by React Query so tab switches don't
+ * refetch and concurrent mounts share the in-flight request.
  */
 export function useFetchDocxBytes(
   documentId: string | null | undefined,
   versionId?: string | null,
   refetchKey?: number,
 ): FetchDocxResult {
-  const initialKey = documentId ? cacheKey(documentId, versionId, refetchKey) : null;
-  const [bytes, setBytes] = useState<ArrayBuffer | null>(
-    initialKey ? (bytesCache.get(initialKey) ?? null) : null,
-  );
-  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const query = useQuery<ArrayBuffer>({
+    queryKey: queryKey(documentId, versionId, refetchKey),
+    enabled: !!documentId,
+    queryFn: async ({ signal }) => {
+      const qs = versionId ? `?version_id=${encodeURIComponent(versionId)}` : "";
+      const r = await fetch(`${API_BASE}/single-documents/${documentId}/docx${qs}`, { signal });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.arrayBuffer();
+    },
+  });
 
-  useEffect(() => {
-    if (!documentId) {
-      queueMicrotask(() => {
-        setBytes(null);
-        setDownloadUrl(null);
-      });
-      return;
-    }
-
-    const key = cacheKey(documentId, versionId, refetchKey);
-    const qs = versionId ? `?version_id=${encodeURIComponent(versionId)}` : "";
-    const url = `${API_BASE}/single-documents/${documentId}/docx${qs}`;
-
-    // Cache hit: reuse bytes synchronously, no network, no spinner.
-    const cached = bytesCache.get(key);
-    if (cached) {
-      queueMicrotask(() => {
-        setBytes(cached);
-        setDownloadUrl(url);
-        setLoading(false);
-        setError(null);
-      });
-      return;
-    }
-
-    let cancelled = false;
-    queueMicrotask(() => {
-      setLoading(true);
-      setError(null);
-    });
-
-    const pending =
-      inFlight.get(key) ??
-      (async () => {
-        // Stream bytes through the local backend.
-        const bin = await fetch(url);
-        if (!bin.ok) throw new Error(`HTTP ${bin.status}`);
-        const buf = await bin.arrayBuffer();
-        bytesCache.set(key, buf);
-        return buf;
-      })();
-    if (!inFlight.has(key)) inFlight.set(key, pending);
-
-    pending
-      .then((buf) => {
-        if (cancelled) return;
-        setBytes(buf);
-        setDownloadUrl(url);
-      })
-      .catch((e: unknown) => {
-        if (cancelled) return;
-        setError(e instanceof Error ? e.message : String(e));
-      })
-      .finally(() => {
-        inFlight.delete(key);
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [documentId, versionId, refetchKey]);
-
-  return { bytes, downloadUrl, loading, error };
+  return {
+    bytes: query.data ?? null,
+    loading: query.isLoading,
+    error: query.error ? (query.error as Error).message : null,
+  };
 }
 
 /**
- * Evict cache entries for a given document (e.g. after accept/reject
- * writes new bytes at the same storage path, or the user uploads a new
- * version). Pass a versionId to scope eviction; omit to clear every
+ * Evict cached docx bytes for a document (e.g. after accept/reject
+ * writes new bytes at the same storage path, or a new version is
+ * uploaded). Pass a versionId to scope eviction; omit to clear every
  * cached version for that document.
  */
-export function invalidateDocxBytes(documentId: string, versionId?: string | null): void {
-  if (versionId !== undefined) {
-    for (const key of Array.from(bytesCache.keys())) {
-      if (key.startsWith(`${documentId}:${versionId ?? ""}:`)) {
-        bytesCache.delete(key);
-      }
-    }
-    return;
-  }
-  for (const key of Array.from(bytesCache.keys())) {
-    if (key.startsWith(`${documentId}:`)) bytesCache.delete(key);
-  }
+export function useInvalidateDocxBytes() {
+  const qc = useQueryClient();
+  return useCallback(
+    (documentId: string, versionId?: string | null) => {
+      qc.invalidateQueries({
+        predicate: (q) => {
+          const k = q.queryKey;
+          if (!Array.isArray(k) || k[0] !== DOCX_BYTES_KEY) return false;
+          if (k[1] !== documentId) return false;
+          if (versionId === undefined) return true;
+          return k[2] === (versionId ?? "");
+        },
+      });
+    },
+    [qc],
+  );
 }

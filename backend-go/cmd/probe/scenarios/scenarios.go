@@ -5,6 +5,7 @@ package scenarios
 
 import (
 	"context"
+	"maps"
 
 	"github.com/CaliLuke/luke/backend-go/internal/probe"
 )
@@ -36,8 +37,6 @@ func Get(name string) (Scenario, bool) {
 
 func All() map[string]Scenario {
 	out := make(map[string]Scenario, len(registry))
-	for k, v := range registry {
-		out[k] = v
-	}
+	maps.Copy(out, registry)
 	return out
 }

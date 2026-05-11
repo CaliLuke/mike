@@ -177,12 +177,16 @@ func NewRegistry() *Registry { return &Registry{} }
 // GetOrCreate returns the broadcaster for chatID, creating one on first use.
 func (r *Registry) GetOrCreate(chatID string) *Broadcaster {
 	if existing, ok := r.m.Load(chatID); ok {
-		return existing.(*Broadcaster)
+		if b, ok := existing.(*Broadcaster); ok {
+			return b
+		}
 	}
 	created := newBroadcaster()
 	actual, loaded := r.m.LoadOrStore(chatID, created)
 	if loaded {
-		return actual.(*Broadcaster)
+		if b, ok := actual.(*Broadcaster); ok {
+			return b
+		}
 	}
 	return created
 }
@@ -190,7 +194,9 @@ func (r *Registry) GetOrCreate(chatID string) *Broadcaster {
 // Get returns the broadcaster for chatID if one exists, else nil.
 func (r *Registry) Get(chatID string) *Broadcaster {
 	if existing, ok := r.m.Load(chatID); ok {
-		return existing.(*Broadcaster)
+		if b, ok := existing.(*Broadcaster); ok {
+			return b
+		}
 	}
 	return nil
 }
@@ -199,6 +205,8 @@ func (r *Registry) Get(chatID string) *Broadcaster {
 // on an unknown chat_id.
 func (r *Registry) Remove(chatID string) {
 	if existing, ok := r.m.LoadAndDelete(chatID); ok {
-		existing.(*Broadcaster).Close()
+		if b, ok := existing.(*Broadcaster); ok {
+			b.Close()
+		}
 	}
 }

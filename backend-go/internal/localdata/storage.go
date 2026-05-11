@@ -88,7 +88,7 @@ func rejectSymlinkComponents(root, path string) error {
 		return fmt.Errorf("resolve local storage relative path: %w", err)
 	}
 	current := root
-	for _, part := range strings.Split(rel, string(os.PathSeparator)) {
+	for part := range strings.SplitSeq(rel, string(os.PathSeparator)) {
 		if part == "." || part == "" {
 			continue
 		}

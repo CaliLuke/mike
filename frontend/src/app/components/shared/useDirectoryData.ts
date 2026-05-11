@@ -1,66 +1,42 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
 
 import { getApplication, listApplications, listStandaloneDocuments } from "@/app/lib/lukeApi";
 
 import type { LukeApplication, LukeDocument } from "./types";
 
-const CACHE_TTL_MS = 30_000;
-
-interface DirectoryCache {
+interface DirectoryData {
   standaloneDocuments: LukeDocument[];
   applications: LukeApplication[];
-  fetchedAt: number;
 }
 
-let cache: DirectoryCache | null = null;
-
-export function invalidateDirectoryCache() {
-  cache = null;
-}
+const DIRECTORY_KEY = ["directory"] as const;
 
 export function useDirectoryData(enabled: boolean) {
-  const [loading, setLoading] = useState(true);
-  const [standaloneDocuments, setStandaloneDocuments] = useState<LukeDocument[]>([]);
-  const [applications, setApplications] = useState<LukeApplication[]>([]);
+  const { data, isLoading } = useQuery<DirectoryData>({
+    queryKey: DIRECTORY_KEY,
+    enabled,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const [ps, ds] = await Promise.all([listApplications(), listStandaloneDocuments()]);
+      const sorted = [...ds].sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
+      const fullApplications = await Promise.all(ps.map((p) => getApplication(p.id)));
+      return { standaloneDocuments: sorted, applications: fullApplications };
+    },
+  });
 
-  useEffect(() => {
-    if (!enabled) return;
+  return {
+    loading: isLoading,
+    standaloneDocuments: data?.standaloneDocuments ?? [],
+    applications: data?.applications ?? [],
+  };
+}
 
-    const now = Date.now();
-    if (cache && now - cache.fetchedAt < CACHE_TTL_MS) {
-      const cached = cache;
-      queueMicrotask(() => {
-        setStandaloneDocuments(cached.standaloneDocuments);
-        setApplications(cached.applications);
-        setLoading(false);
-      });
-      return;
-    }
-
-    queueMicrotask(() => setLoading(true));
-    Promise.all([listApplications(), listStandaloneDocuments()])
-      .then(([ps, ds]) => {
-        const sorted = [...ds].sort((a, b) =>
-          (b.created_at ?? "").localeCompare(a.created_at ?? ""),
-        );
-        return Promise.all(ps.map((p) => getApplication(p.id))).then((fullApplications) => {
-          cache = {
-            standaloneDocuments: sorted,
-            applications: fullApplications,
-            fetchedAt: Date.now(),
-          };
-          setStandaloneDocuments(sorted);
-          setApplications(fullApplications);
-        });
-      })
-      .catch(() => {
-        setStandaloneDocuments([]);
-        setApplications([]);
-      })
-      .finally(() => setLoading(false));
-  }, [enabled]);
-
-  return { loading, standaloneDocuments, applications };
+export function useInvalidateDirectory() {
+  const qc = useQueryClient();
+  return useCallback(() => {
+    qc.invalidateQueries({ queryKey: DIRECTORY_KEY });
+  }, [qc]);
 }

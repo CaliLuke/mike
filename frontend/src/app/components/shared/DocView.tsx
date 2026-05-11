@@ -407,7 +407,7 @@ export function DocView({
 
   // Render PDF when fetch result arrives
   useEffect(() => {
-    if (!result || result.type !== "pdf") return;
+    if (!result || result.type !== "pdf" || !result.blob) return;
     pdfDocRef.current = null;
     renderedPagesRef.current = [];
     quoteListRef.current = quoteList;
@@ -422,8 +422,10 @@ export function DocView({
     (async () => {
       const lib = await getPdfJs();
       if (cancelled) return;
+      const buffer = await result.blob.arrayBuffer();
+      if (cancelled) return;
       const pdfDoc = await lib.getDocument({
-        data: new Uint8Array(result.buffer),
+        data: new Uint8Array(buffer),
         standardFontDataUrl: STANDARD_FONT_DATA_URL,
       }).promise;
       if (cancelled) return;

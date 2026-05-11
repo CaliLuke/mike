@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { API_BASE } from "@/app/lib/lukeApi";
+import { trackClick } from "@/app/lib/telemetry";
 
 import type { LukeEditAnnotation } from "../shared/types";
 
@@ -198,6 +199,11 @@ export function EditCard({
 
   const handle = async (verb: "accept" | "reject") => {
     if (busy || resolved) return;
+    trackClick(`edit.${verb}`, {
+      "edit.id": annotation.edit_id,
+      "doc.id": annotation.document_id,
+      source: "edit_card",
+    });
     setBusy(true);
     onResolveStart?.({
       editId: annotation.edit_id,

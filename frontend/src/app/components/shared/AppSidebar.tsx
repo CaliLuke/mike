@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import {
   Building2,
   ChevronDown,
@@ -14,9 +15,10 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { SidebarChatItem } from "@/app/components/shared/SidebarChatItem";
+import type { LukeApplication, LukeCompany, LukeDocument } from "@/app/components/shared/types";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { listApplications, listCompanies, listDocuments } from "@/app/lib/lukeApi";
 import { getTracer } from "@/app/lib/telemetry";
@@ -47,37 +49,38 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
   const [shouldAnimate, setShouldAnimate] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
-  const [applicationNames, setApplicationNames] = useState<Record<string, string>>({});
-  const [applicationCount, setApplicationCount] = useState<number | null>(null);
-  const [companyCount, setCompanyCount] = useState<number | null>(null);
-  const [fileCount, setFileCount] = useState<number | null>(null);
 
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    const refresh = () => {
-      Promise.all([listApplications(), listCompanies(), listDocuments()])
-        .then(([applications, companies, documents]) => {
-          if (cancelled) return;
-          const map: Record<string, string> = {};
-          for (const p of applications) map[p.id] = p.name;
-          setApplicationNames(map);
-          setApplicationCount(applications.length);
-          setCompanyCount(companies.length);
-          setFileCount(documents.length);
-        })
-        .catch(() => {});
-    };
-    refresh();
-    // Poll while the sidebar is mounted so the user sees the count tick
-    // up shortly after the assistant creates a new company / application.
-    // 5s is plenty fast for visual feedback on a local-only app.
-    const interval = window.setInterval(refresh, 5000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, [user]);
+  // Same query keys as the page-level overviews so the sidebar reads
+  // from the shared cache instead of double-fetching. Polling kicks in
+  // while the sidebar is mounted so counts tick up after the assistant
+  // creates a new company / application.
+  const enabled = !!user;
+  const { data: applications = [] } = useQuery<LukeApplication[]>({
+    queryKey: ["applications"],
+    queryFn: listApplications,
+    enabled,
+    refetchInterval: 5000,
+  });
+  const { data: companies = [] } = useQuery<LukeCompany[]>({
+    queryKey: ["companies"],
+    queryFn: listCompanies,
+    enabled,
+    refetchInterval: 5000,
+  });
+  const { data: documents = [] } = useQuery<LukeDocument[]>({
+    queryKey: ["documents"],
+    queryFn: listDocuments,
+    enabled,
+    refetchInterval: 5000,
+  });
+  const applicationNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const p of applications) map[p.id] = p.name;
+    return map;
+  }, [applications]);
+  const applicationCount = enabled ? applications.length : null;
+  const companyCount = enabled ? companies.length : null;
+  const fileCount = enabled ? documents.length : null;
 
   useEffect(() => {
     if (!isOpen) queueMicrotask(() => setShouldAnimate(true));

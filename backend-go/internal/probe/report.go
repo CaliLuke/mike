@@ -53,49 +53,49 @@ func (r *Result) Write(w io.Writer) {
 	if r.Passed() {
 		status = "PASS"
 	}
-	fmt.Fprintf(w, "\n=== probe: %s — %s (%.1fs) ===\n", r.Scenario, status, dur.Seconds())
+	_, _ = fmt.Fprintf(w, "\n=== probe: %s — %s (%.1fs) ===\n", r.Scenario, status, dur.Seconds())
 
 	if len(r.SetupErrors) > 0 {
-		fmt.Fprintln(w, "\nSetup errors:")
+		_, _ = fmt.Fprintln(w, "\nSetup errors:")
 		for _, e := range r.SetupErrors {
-			fmt.Fprintf(w, "  ✗ %s\n", e)
+			_, _ = fmt.Fprintf(w, "  ✗ %s\n", e)
 		}
 	}
 
 	if len(r.Assertions) > 0 {
-		fmt.Fprintln(w, "\nAssertions:")
+		_, _ = fmt.Fprintln(w, "\nAssertions:")
 		for _, a := range r.Assertions {
 			mark := "✓"
 			if !a.OK {
 				mark = "✗"
 			}
-			fmt.Fprintf(w, "  %s %s — %s\n", mark, a.Description, a.Detail)
+			_, _ = fmt.Fprintf(w, "  %s %s — %s\n", mark, a.Description, a.Detail)
 		}
 	}
 
 	if len(r.SSESummary) > 0 {
-		fmt.Fprintln(w, "\nSSE events:")
+		_, _ = fmt.Fprintln(w, "\nSSE events:")
 		for k, v := range r.SSESummary {
-			fmt.Fprintf(w, "  %-30s %d\n", k, v)
+			_, _ = fmt.Fprintf(w, "  %-30s %d\n", k, v)
 		}
 	}
 
 	if len(r.Notes) > 0 {
-		fmt.Fprintln(w, "\nNotes:")
+		_, _ = fmt.Fprintln(w, "\nNotes:")
 		for _, n := range r.Notes {
-			fmt.Fprintf(w, "  · %s\n", n)
+			_, _ = fmt.Fprintf(w, "  · %s\n", n)
 		}
 	}
 
 	if len(r.SpansAll) > 0 {
 		interesting := pickInterestingSpans(r.SpansAll)
-		fmt.Fprintf(w, "\nSpans (%d total, showing %d):\n", len(r.SpansAll), len(interesting))
+		_, _ = fmt.Fprintf(w, "\nSpans (%d total, showing %d):\n", len(r.SpansAll), len(interesting))
 		for _, s := range interesting {
-			fmt.Fprintf(w, "  %s\n", s.String())
+			_, _ = fmt.Fprintf(w, "  %s\n", s.String())
 		}
 	}
 
-	fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w)
 }
 
 // pickInterestingSpans trims the span list to errors + tabular.* + chatv2.* +

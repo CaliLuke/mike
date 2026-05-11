@@ -329,7 +329,7 @@ func persistDocumentVersionWorkflow(ctx context.Context, resources *workflowReso
 		versionNumber = explicitVersion
 	}
 	err = resources.db.Transaction(ctx, func(ctx context.Context, tx *persistence.Tx) error {
-		if err := txQuery(ctx, tx, "upsert_document", fmt.Sprintf(`
+		if txErr := txQuery(ctx, tx, "upsert_document", fmt.Sprintf(`
 			UPSERT %s CONTENT {
 				user_id: users:local,
 				application_id: NONE,
@@ -344,10 +344,10 @@ func persistDocumentVersionWorkflow(ctx context.Context, resources *workflowReso
 				created_at: time::now(),
 				updated_at: time::now()
 			};
-		`, recordID("documents", documentID), surrealString(filename), optionString(fileType), size, recordID("document_versions", versionID))); err != nil {
-			return err
+		`, recordID("documents", documentID), surrealString(filename), optionString(fileType), size, recordID("document_versions", versionID))); txErr != nil {
+			return txErr
 		}
-		if err := txQuery(ctx, tx, "upsert_document_version", fmt.Sprintf(`
+		if txErr := txQuery(ctx, tx, "upsert_document_version", fmt.Sprintf(`
 			UPSERT %s CONTENT {
 				document_id: %s,
 				storage_path: %s,
@@ -372,8 +372,8 @@ func persistDocumentVersionWorkflow(ctx context.Context, resources *workflowReso
 			optionInt(len(extract.Text), extract.Text != ""),
 			optionString(string(extract.Status)),
 			optionString(extract.Error),
-		)); err != nil {
-			return err
+		)); txErr != nil {
+			return txErr
 		}
 		return upsertWorkflowOperation(ctx, tx, operationID, input, payloadJSON)
 	})

@@ -71,8 +71,8 @@ func summarizeSurrealQuery(query string) (string, string) {
 
 func normalizeSurrealTarget(value string) string {
 	value = strings.Trim(value, "`\"'")
-	if idx := strings.IndexByte(value, ':'); idx >= 0 {
-		return value[:idx]
+	if before, _, ok := strings.Cut(value, ":"); ok {
+		return before
 	}
 	return value
 }

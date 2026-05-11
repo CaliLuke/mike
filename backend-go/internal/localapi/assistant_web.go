@@ -69,7 +69,7 @@ func (s *Server) executeFetchWebPage(ctx context.Context, call *planner.ToolRequ
 		URL:       stringPtr(page.URL),
 		Title:     stringPtr(page.Title),
 		Text:      stringPtr(page.Text),
-		Truncated: boolPtr(page.Truncated),
+		Truncated: new(page.Truncated),
 	}}, nil
 }
 

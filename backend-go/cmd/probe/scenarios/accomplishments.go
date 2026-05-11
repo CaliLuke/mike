@@ -61,14 +61,14 @@ func runAccomplishments(ctx context.Context, client *probe.Client, tel *probe.Te
 			return
 		}
 		// Best-effort cleanup. Failure here is logged but doesn't fail the run.
-		if err := client.Delete(context.Background(), "/tabular-review/"+reviewID); err != nil {
-			result.AddNote("cleanup delete failed: %v", err)
+		if delErr := client.Delete(context.Background(), "/tabular-review/"+reviewID); delErr != nil {
+			result.AddNote("cleanup delete failed: %v", delErr)
 		}
 	}()
 
 	// Drive Generate and count SSE events.
 	streamStart := probe.Now()
-	if err := client.StreamSSE(ctx, http.MethodPost,
+	if err = client.StreamSSE(ctx, http.MethodPost,
 		"/tabular-review/"+reviewID+"/generate",
 		map[string]any{
 			"document_ids":   []string{doc.ID},
@@ -104,7 +104,7 @@ func runAccomplishments(ctx context.Context, client *probe.Client, tel *probe.Te
 	// poison the post-flight inspection.
 	detailCtx, detailCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer detailCancel()
-	if err := client.GetJSON(detailCtx, "/tabular-review/"+reviewID, &detail); err != nil {
+	if err = client.GetJSON(detailCtx, "/tabular-review/"+reviewID, &detail); err != nil {
 		result.RecordSetupError(fmt.Errorf("get review detail: %w", err))
 		return nil
 	}

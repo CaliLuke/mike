@@ -4,7 +4,8 @@ import { ArrowDown } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useSidebar } from "@/app/contexts/SidebarContext";
-import { invalidateDocxBytes } from "@/app/hooks/useFetchDocxBytes";
+import { useInvalidateDocxBytes } from "@/app/hooks/useFetchDocxBytes";
+import { trackClick } from "@/app/lib/telemetry";
 
 import type { LukeCitationAnnotation, LukeEditAnnotation, LukeMessage } from "../shared/types";
 import { AssistantMessage } from "./AssistantMessage";
@@ -28,6 +29,7 @@ export function ChatView({ messages, isResponseLoading, handleChat, cancel }: Pr
   const [workflowModalOpen, setWorkflowModalOpen] = useState(false);
   const [workflowModalInitialId, setWorkflowModalInitialId] = useState<string | undefined>();
   const [reloadingDocIds, setReloadingDocIds] = useState<Set<string>>(() => new Set());
+  const invalidateDocxBytes = useInvalidateDocxBytes();
   // Per-edit in-flight set — disables Accept/Reject on only the one
   // edit currently being resolved, so sibling edits in the same message
   // (and their twins in DocPanel) stay clickable.
@@ -84,6 +86,11 @@ export function ChatView({ messages, isResponseLoading, handleChat, cancel }: Pr
    */
   const upsertTab = useCallback(
     (tab: AssistantSidePanelTab) => {
+      trackClick("assistant.tab.open", {
+        "tab.kind": tab.kind,
+        "tab.id": tab.id,
+        "doc.id": tab.documentId ?? null,
+      });
       setTabs((prev) => {
         const idx = prev.findIndex((t) => t.documentId === tab.documentId);
         if (idx >= 0) {
@@ -232,7 +239,7 @@ export function ChatView({ messages, isResponseLoading, handleChat, cancel }: Pr
       // explicit re-open) fetches the fresh file.
       invalidateDocxBytes(args.documentId);
     },
-    [],
+    [invalidateDocxBytes],
   );
 
   const patchTab = useCallback(
@@ -556,7 +563,10 @@ export function ChatView({ messages, isResponseLoading, handleChat, cancel }: Pr
           <AssistantSidePanel
             tabs={tabs}
             activeTabId={activeTabId}
-            onActivateTab={setActiveTabId}
+            onActivateTab={(tabId) => {
+              trackClick("assistant.tab.activate", { "tab.id": tabId });
+              setActiveTabId(tabId);
+            }}
             onCloseTab={closeTab}
             onCloseAll={closeAllTabs}
             isEditorReloading={(documentId) => reloadingDocIds.has(documentId)}

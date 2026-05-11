@@ -167,8 +167,8 @@ func TestAssistantCompanyAndApplicationToolsPersistRecords(t *testing.T) {
 	}()
 
 	payload, err := careercontext.MarshalCreateCompanyPayload(&careercontext.CreateCompanyPayload{
-		Name:    stringPtrAlways("Acme Recruiting"),
-		Website: stringPtrAlways("https://acme.example"),
+		Name:    new("Acme Recruiting"),
+		Website: new("https://acme.example"),
 	})
 	if err != nil {
 		t.Fatalf("marshal create company payload: %v", err)
@@ -183,7 +183,7 @@ func TestAssistantCompanyAndApplicationToolsPersistRecords(t *testing.T) {
 	assertCompanyToolResultForTest(t, app, created, events)
 
 	duplicatePayload, err := careercontext.MarshalCreateCompanyPayload(&careercontext.CreateCompanyPayload{
-		Name: stringPtrAlways("Acme Recruiting, Inc."),
+		Name: new("Acme Recruiting, Inc."),
 	})
 	if err != nil {
 		t.Fatalf("marshal duplicate create company payload: %v", err)
@@ -197,10 +197,10 @@ func TestAssistantCompanyAndApplicationToolsPersistRecords(t *testing.T) {
 	}
 
 	applicationPayload, err := careercontext.MarshalCreateApplicationPayload(&careercontext.CreateApplicationPayload{
-		Name:               stringPtrAlways("Senior Product Counsel"),
+		Name:               new("Senior Product Counsel"),
 		CompanyID:          created.CompanyID,
-		JobDescriptionText: stringPtrAlways("GitHub is hiring a Senior Product Counsel to support product teams."),
-		JobDescriptionURL:  stringPtrAlways("https://example.com/jobs/123"),
+		JobDescriptionText: new("GitHub is hiring a Senior Product Counsel to support product teams."),
+		JobDescriptionURL:  new("https://example.com/jobs/123"),
 	})
 	if err != nil {
 		t.Fatalf("marshal create application payload: %v", err)
@@ -523,12 +523,12 @@ func postSSEForTest(t *testing.T, handler http.Handler, path string, body any) [
 		t.Fatalf("POST %s status = %d, body = %s", path, response.Code, response.Body.String())
 	}
 	events := []map[string]any{}
-	for _, block := range strings.Split(response.Body.String(), "\n\n") {
+	for block := range strings.SplitSeq(response.Body.String(), "\n\n") {
 		block = strings.TrimSpace(block)
 		if block == "" {
 			continue
 		}
-		for _, line := range strings.Split(block, "\n") {
+		for line := range strings.SplitSeq(block, "\n") {
 			if !strings.HasPrefix(line, "data: ") {
 				continue
 			}

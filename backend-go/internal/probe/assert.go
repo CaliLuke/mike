@@ -90,7 +90,7 @@ func (t *TelemetryDB) SpansBetween(ctx context.Context, from, to time.Time) ([]S
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Span
 	for rows.Next() {
 		var (

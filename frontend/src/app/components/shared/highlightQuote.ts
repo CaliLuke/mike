@@ -2,8 +2,36 @@ import type * as PdfJs from "pdfjs-dist";
 
 let pdfjsLib: typeof PdfJs | null = null;
 
+// pdfjs-dist 5.x relies on the TC39 "Map.prototype.getOrInsertComputed"
+// proposal which isn't yet shipped in the browsers we target. Polyfill it
+// (and the simpler getOrInsert variant) before the lib is loaded so the
+// internal method cache doesn't blow up the first render.
+function installMapPolyfills() {
+  type MapProto = Map<unknown, unknown> & {
+    getOrInsertComputed?: (key: unknown, fn: (k: unknown) => unknown) => unknown;
+    getOrInsert?: (key: unknown, value: unknown) => unknown;
+  };
+  const proto = Map.prototype as MapProto;
+  if (typeof proto.getOrInsertComputed !== "function") {
+    proto.getOrInsertComputed = function (key, fn) {
+      if (this.has(key)) return this.get(key);
+      const value = fn(key);
+      this.set(key, value);
+      return value;
+    };
+  }
+  if (typeof proto.getOrInsert !== "function") {
+    proto.getOrInsert = function (key, value) {
+      if (this.has(key)) return this.get(key);
+      this.set(key, value);
+      return value;
+    };
+  }
+}
+
 export async function getPdfJs() {
   if (pdfjsLib) return pdfjsLib;
+  installMapPolyfills();
   pdfjsLib = await import("pdfjs-dist");
   pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
     "pdfjs-dist/build/pdf.worker.min.mjs",

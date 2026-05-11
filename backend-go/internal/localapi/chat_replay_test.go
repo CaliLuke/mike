@@ -49,7 +49,7 @@ func TestChatReplayQueriesParseAgainstSurrealDB(t *testing.T) {
 		{"type": "citation_data", "url": "https://example.com"},
 	}
 	messageID := newID("msg")
-	if err := server.createChatMessageWithID(ctx, messageID, chatID, "assistant", content, nil, annotations); err != nil {
+	if err = server.createChatMessageWithID(ctx, messageID, chatID, "assistant", content, nil, annotations); err != nil {
 		t.Fatalf("persist assistant message: %v", err)
 	}
 

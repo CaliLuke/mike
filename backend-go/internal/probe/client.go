@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -62,7 +63,7 @@ func (c *Client) Do(ctx context.Context, method, path string, body any) ([]byte,
 	if err != nil {
 		return nil, 0, fmt.Errorf("%s %s: %w", method, path, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, resp.StatusCode, err
@@ -148,7 +149,7 @@ func (c *Client) StreamSSE(ctx context.Context, method, path string, body any, h
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode/100 != 2 {
 		data, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("%s %s -> HTTP %d: %s", method, path, resp.StatusCode, string(data))
@@ -181,16 +182,16 @@ func (c *Client) StreamSSE(ctx context.Context, method, path string, body any, h
 			return ctx.Err()
 		default:
 		}
-		line, err := reader.ReadString('\n')
-		if err != nil && err != io.EOF {
-			return err
+		line, readErr := reader.ReadString('\n')
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
+			return readErr
 		}
 		stripped := strings.TrimRight(line, "\r\n")
 		if stripped == "" {
-			if err := flushOnBlank(); err != nil {
-				return err
+			if flushErr := flushOnBlank(); flushErr != nil {
+				return flushErr
 			}
-			if err == io.EOF {
+			if errors.Is(readErr, io.EOF) {
 				return nil
 			}
 			continue
@@ -200,10 +201,9 @@ func (c *Client) StreamSSE(ctx context.Context, method, path string, body any, h
 			eventType = strings.TrimSpace(stripped[len("event:"):])
 		case strings.HasPrefix(stripped, "data:"):
 			dataLines = append(dataLines, strings.TrimSpace(stripped[len("data:"):]))
-		case strings.HasPrefix(stripped, ":"):
-			// comment / keepalive — ignore.
 		}
-		if err == io.EOF {
+		// lines starting with ":" are SSE comments / keepalives — ignored
+		if errors.Is(readErr, io.EOF) {
 			if flushErr := flushOnBlank(); flushErr != nil {
 				return flushErr
 			}

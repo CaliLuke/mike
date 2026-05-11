@@ -16,9 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { FileDirectory } from "./FileDirectory";
 import { OwnerOnlyModal } from "./OwnerOnlyModal";
 import type { LukeDocument } from "./types";
-import { invalidateDirectoryCache, useDirectoryData } from "./useDirectoryData";
-
-export { invalidateDirectoryCache };
+import { useDirectoryData, useInvalidateDirectory } from "./useDirectoryData";
 
 interface Props {
   open: boolean;
@@ -38,6 +36,7 @@ export function AddDocumentsModal({
   applicationId,
 }: Props) {
   const { loading, standaloneDocuments, applications } = useDirectoryData(open);
+  const invalidateDirectory = useInvalidateDirectory();
   const { user } = useAuth();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [uploading, setUploading] = useState(false);
@@ -150,7 +149,7 @@ export function AddDocumentsModal({
       console.error("Delete failed:", err);
       return;
     }
-    invalidateDirectoryCache();
+    invalidateDirectory();
     setExtraUploadedDocs((prev) => prev.filter((d) => !idSet.has(d.id)));
     setDeletedIds((prev) => {
       const next = new Set(prev);
@@ -174,7 +173,7 @@ export function AddDocumentsModal({
           applicationId ? uploadApplicationDocument(applicationId, f) : uploadStandaloneDocument(f),
         ),
       );
-      invalidateDirectoryCache();
+      invalidateDirectory();
       setExtraUploadedDocs((prev) => [...uploaded, ...prev]);
       uploaded.forEach((d) => setSelectedIds((prev) => new Set([...prev, d.id])));
     } catch (err) {

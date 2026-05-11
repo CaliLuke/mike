@@ -690,9 +690,9 @@ func (s *Server) upsertWorkflow(ctx context.Context, workflowID string, req work
 	}
 	anchorJSON := "NONE"
 	if req.AnchorExtractor != nil {
-		b, err := json.Marshal(req.AnchorExtractor)
-		if err != nil {
-			return nil, err
+		b, marshalErr := json.Marshal(req.AnchorExtractor)
+		if marshalErr != nil {
+			return nil, marshalErr
 		}
 		anchorJSON = string(b)
 	}

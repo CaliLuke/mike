@@ -1,8 +1,9 @@
 "use client";
 
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Building2, Pencil, Plus, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { DataTable } from "@/app/components/shared/DataTable";
 import { HeaderSearchBtn } from "@/app/components/shared/HeaderSearchBtn";
@@ -21,28 +22,29 @@ function formatDate(iso: string) {
   });
 }
 
+const COMPANIES_KEY = ["companies"] as const;
+
 export function CompaniesOverview() {
-  const [companies, setCompanies] = useState<LukeCompany[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { data: companies = [], isLoading: loading } = useQuery<LukeCompany[]>({
+    queryKey: COMPANIES_KEY,
+    queryFn: listCompanies,
+  });
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [website, setWebsite] = useState("");
   const [editingCompany, setEditingCompany] = useState<LukeCompany | null>(null);
 
-  useEffect(() => {
-    listCompanies()
-      .then(setCompanies)
-      .catch(() => setCompanies([]))
-      .finally(() => setLoading(false));
-  }, []);
+  const mutateCompanies = (fn: (prev: LukeCompany[]) => LukeCompany[]) =>
+    queryClient.setQueryData<LukeCompany[]>(COMPANIES_KEY, (prev) => fn(prev ?? []));
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) return;
     const created = await createCompany(trimmed, website.trim() || undefined);
-    setCompanies((prev) => [created, ...prev]);
+    mutateCompanies((prev) => [created, ...prev]);
     setName("");
     setWebsite("");
     setCreating(false);
@@ -103,7 +105,7 @@ export function CompaniesOverview() {
         onEdit={(company) => setEditingCompany(company)}
         onDelete={async (id) => {
           await deleteCompany(id);
-          setCompanies((prev) => prev.filter((item) => item.id !== id));
+          mutateCompanies((prev) => prev.filter((item) => item.id !== id));
         }}
         search={search}
         onSearchChange={setSearch}
@@ -114,7 +116,7 @@ export function CompaniesOverview() {
         company={editingCompany}
         onClose={() => setEditingCompany(null)}
         onUpdated={(updated) => {
-          setCompanies((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+          mutateCompanies((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
         }}
       />
     </div>

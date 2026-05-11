@@ -92,6 +92,37 @@ sqlite3 -column -header "$DB" "SELECT name, service, (end_unix_nano - start_unix
 sqlite3 -column -header "$DB" "SELECT name, service, parent_span_id, start_unix_nano FROM spans WHERE trace_id = '<TRACE_ID>' ORDER BY start_unix_nano"
 ```
 
+### Browser Runtime Errors
+
+The frontend telemetry bootstrap also captures uncaught browser errors and forwards them as spans. `installErrorReporter()` in `frontend/src/app/lib/telemetry.ts` hooks three sinks; each emits a span with `status='2'` (Error), an `error.message` attribute, a `page.url`, and an `error.stack` / `error.name` when an `Error` instance is available:
+
+- `frontend.runtime_error` — `window.onerror`. Carries `error.source`, `error.line`, `error.col`.
+- `frontend.unhandled_rejection` — `window.onunhandledrejection`.
+- `frontend.console_error` — a patched `console.error`. React's dev-time error overlay routes here, so Next.js runtime overlay errors land in this bucket too.
+
+Pull the latest browser errors instead of asking the user to paste a stack trace:
+
+```bash
+DB="$LUKE_DATA_DIR/telemetry.sqlite"
+sqlite3 -column -header "$DB" "
+  SELECT datetime(start_unix_nano/1000000000,'unixepoch','localtime') AS at,
+         name,
+         json_extract(attributes,'\$.\"error.message\"') AS message,
+         json_extract(attributes,'\$.\"page.url\"')      AS url
+    FROM spans
+   WHERE service='luke-frontend' AND status='2'
+   ORDER BY id DESC
+   LIMIT 20"
+```
+
+Drill into one error's stack:
+
+```bash
+sqlite3 -column -header "$DB" "
+  SELECT json_extract(attributes,'\$.\"error.stack\"')
+    FROM spans WHERE id=<SPAN_ID>"
+```
+
 Reference docs and code:
 
 - `docs/telemetry.md` documents the architecture, manual instrumentation, query patterns, and retention.

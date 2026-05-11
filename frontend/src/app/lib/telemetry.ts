@@ -9,7 +9,13 @@
  * Disable in dev by setting NEXT_PUBLIC_OTEL_ENABLED=false.
  */
 
-import { type Span, trace, type Tracer } from "@opentelemetry/api";
+import {
+  type AttributeValue,
+  type Span,
+  SpanStatusCode,
+  trace,
+  type Tracer,
+} from "@opentelemetry/api";
 import { ZoneContextManager } from "@opentelemetry/context-zone";
 import { type ExportResult, ExportResultCode } from "@opentelemetry/core";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
@@ -99,10 +105,123 @@ export function initTelemetry(): void {
       }),
     ],
   });
+
+  installErrorReporter();
+}
+
+/**
+ * Hook the global window error sinks so unhandled exceptions and rejected
+ * promises become OTel spans (status=ERROR, name=`frontend.runtime_error`).
+ * They flow through the same BatchSpanProcessor as everything else and land
+ * in the backend `telemetry.sqlite` spans table.
+ */
+function installErrorReporter(): void {
+  const tracer = getTracer("luke-frontend.errors");
+
+  const emit = (
+    name: string,
+    message: string,
+    attrs: Record<string, unknown>,
+    error?: unknown,
+  ): void => {
+    const span = tracer.startSpan(name);
+    span.setAttribute("error.message", message);
+    span.setAttribute("page.url", window.location.href);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === undefined || v === null) continue;
+      span.setAttribute(k, typeof v === "object" ? JSON.stringify(v) : (v as never));
+    }
+    if (error instanceof Error) {
+      span.recordException(error);
+      if (error.stack) span.setAttribute("error.stack", error.stack);
+      span.setAttribute("error.name", error.name);
+    } else if (typeof error === "string") {
+      span.setAttribute("error.value", error);
+    }
+    span.setStatus({ code: SpanStatusCode.ERROR, message });
+    span.end();
+  };
+
+  window.addEventListener("error", (event) => {
+    emit(
+      "frontend.runtime_error",
+      event.message || "uncaught error",
+      {
+        "error.source": event.filename,
+        "error.line": event.lineno,
+        "error.col": event.colno,
+      },
+      event.error,
+    );
+  });
+
+  window.addEventListener("unhandledrejection", (event) => {
+    const reason = event.reason;
+    const message =
+      reason instanceof Error
+        ? reason.message
+        : typeof reason === "string"
+          ? reason
+          : "unhandled promise rejection";
+    emit("frontend.unhandled_rejection", message, {}, reason);
+  });
+
+  // Mirror console.error so React's dev-time error overlay output is also
+  // captured. Tag the span name differently so it can be filtered out if
+  // it's too noisy.
+  const origConsoleError = console.error.bind(console);
+  console.error = (...args: unknown[]) => {
+    try {
+      const first = args[0];
+      const message =
+        first instanceof Error
+          ? first.message
+          : args
+              .map((a) =>
+                typeof a === "string" ? a : a instanceof Error ? a.message : safeStringify(a),
+              )
+              .join(" ");
+      emit(
+        "frontend.console_error",
+        message,
+        { "error.argv": safeStringify(args.slice(1, 6)) },
+        first,
+      );
+    } catch {
+      // never let logging break the original console.error
+    }
+    origConsoleError(...args);
+  };
+}
+
+function safeStringify(v: unknown): string {
+  try {
+    return typeof v === "string" ? v : JSON.stringify(v);
+  } catch {
+    return String(v);
+  }
 }
 
 export function getTracer(name = SERVICE_NAME): Tracer {
   return trace.getTracer(name);
+}
+
+/**
+ * Emit a zero-duration span for a UI interaction. Use named events
+ * (`chat.send`, `file.upload.click`) so traces are easy to filter and
+ * stable across copy changes. Strip null/undefined so callers can pass
+ * conditional attributes without guarding each one.
+ */
+export function trackClick(
+  name: string,
+  attributes: Record<string, AttributeValue | null | undefined> = {},
+): void {
+  const span = getTracer("luke-frontend.ui").startSpan(name);
+  for (const [k, v] of Object.entries(attributes)) {
+    if (v === undefined || v === null) continue;
+    span.setAttribute(k, v);
+  }
+  span.end();
 }
 
 export type { Span };

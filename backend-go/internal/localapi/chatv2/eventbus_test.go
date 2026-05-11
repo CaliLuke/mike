@@ -65,7 +65,7 @@ func TestBroadcasterBlocksRatherThanDropsWhenBufferFull(t *testing.T) {
 	ch, _ := b.Subscribe()
 
 	// Fill the buffer to capacity without reading anything.
-	for i := 0; i < SubscriberBufferSize; i++ {
+	for range SubscriberBufferSize {
 		b.Publish(NewEvent(EventReasoningDelta, map[string]any{"text": "x"}))
 	}
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { API_BASE } from "@/app/lib/lukeApi";
 
@@ -11,7 +11,7 @@ import { API_BASE } from "@/app/lib/lukeApi";
  * accordingly.
  */
 export type DocResult =
-  | { type: "pdf"; buffer: ArrayBuffer }
+  | { type: "pdf"; blob: Blob }
   | { type: "text"; text: string; markdown: boolean }
   | { type: "docx" }
   | null;
@@ -20,64 +20,38 @@ export function useFetchSingleDoc(
   documentId: string | null | undefined,
   versionId?: string | null,
 ) {
-  const [result, setResult] = useState<DocResult>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const prevKeyRef = useRef<string | null>(null);
+  const query = useQuery<Exclude<DocResult, null>>({
+    queryKey: ["single-doc", documentId, versionId ?? "current"],
+    enabled: !!documentId,
+    queryFn: async ({ signal }) => {
+      const qs = versionId ? `?version_id=${encodeURIComponent(versionId)}` : "";
+      const response = await fetch(`${API_BASE}/single-documents/${documentId}/display${qs}`, {
+        signal,
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-  useEffect(() => {
-    if (!documentId) return;
-    const requestKey = `${documentId}:${versionId ?? "current"}`;
-    if (requestKey === prevKeyRef.current) return;
-    prevKeyRef.current = requestKey;
-
-    setLoading(true);
-    setError(null);
-    setResult(null);
-
-    let cancelled = false;
-
-    (async () => {
-      try {
-        if (cancelled) return;
-
-        const qs = versionId ? `?version_id=${encodeURIComponent(versionId)}` : "";
-        const response = await fetch(`${API_BASE}/single-documents/${documentId}/display${qs}`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        if (cancelled) return;
-
-        const contentType = response.headers.get("content-type") ?? "";
-        if (contentType.includes("application/pdf")) {
-          const buffer = await response.arrayBuffer();
-          if (!cancelled) setResult({ type: "pdf", buffer });
-        } else if (contentType.startsWith("text/")) {
-          const text = await response.text();
-          if (!cancelled) {
-            setResult({
-              type: "text",
-              text,
-              markdown: contentType.includes("markdown"),
-            });
-          }
-        } else {
-          // Drain the body so the connection is reusable, but the
-          // bytes are useless to the PDF viewer — the caller will
-          // fall back to DocxView, which fetches `/docx` itself.
-          await response.arrayBuffer().catch(() => {});
-          if (!cancelled) setResult({ type: "docx" });
-        }
-      } catch {
-        if (!cancelled) setError("Failed to load document.");
-      } finally {
-        if (!cancelled) setLoading(false);
+      const contentType = response.headers.get("content-type") ?? "";
+      if (contentType.includes("application/pdf")) {
+        // Keep a Blob (not an ArrayBuffer) — pdf.js transfers the
+        // underlying buffer to its worker on use, which detaches it.
+        // Reading `blob.arrayBuffer()` per render gives us a fresh,
+        // owned copy each time.
+        const blob = await response.blob();
+        return { type: "pdf", blob };
       }
-    })();
+      if (contentType.startsWith("text/")) {
+        const text = await response.text();
+        return { type: "text", text, markdown: contentType.includes("markdown") };
+      }
+      // Drain the body so the connection is reusable.
+      await response.arrayBuffer().catch(() => {});
+      return { type: "docx" };
+    },
+  });
 
-    return () => {
-      cancelled = true;
-      prevKeyRef.current = null;
-    };
-  }, [documentId, versionId]);
-
-  return { result, loading, error };
+  return {
+    result: (query.data ?? null) as DocResult,
+    loading: query.isLoading,
+    error: query.error ? "Failed to load document." : null,
+  };
 }

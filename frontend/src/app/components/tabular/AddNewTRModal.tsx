@@ -18,10 +18,11 @@ import {
   uploadApplicationDocument,
   uploadStandaloneDocument,
 } from "@/app/lib/lukeApi";
+import { trackClick } from "@/app/lib/telemetry";
 
 import { FileDirectory } from "../shared/FileDirectory";
 import type { LukeApplication, LukeCompany, LukeDocument, LukeWorkflow } from "../shared/types";
-import { invalidateDirectoryCache } from "../shared/useDirectoryData";
+import { useInvalidateDirectory } from "../shared/useDirectoryData";
 import { BUILT_IN_WORKFLOWS } from "../workflows/builtinWorkflows";
 
 interface Props {
@@ -50,6 +51,7 @@ export function AddNewTRModal({
   applicationName,
   applicationCmNumber,
 }: Props) {
+  const invalidateDirectory = useInvalidateDirectory();
   const isApplicationMode = fixedApplicationDocs !== undefined;
   const [title, setTitle] = useState("");
   const [underApplication, setUnderApplication] = useState(false);
@@ -158,8 +160,15 @@ export function AddNewTRModal({
               newApplicationCompanyId || (await createCompany(newApplicationCompanyName.trim())).id,
             )
           : undefined;
-      if (createdApplication) invalidateDirectoryCache();
+      if (createdApplication) invalidateDirectory();
       const applicationId = createdApplication?.id ?? selectedApplicationId;
+      trackClick("tabular_review.create", {
+        "workflow.id": selectedWorkflow?.id ?? null,
+        "workflow.title": selectedWorkflow?.title ?? null,
+        "doc.count": selectedDocIds.size,
+        "application.id": applicationId ?? null,
+        "application.created": !!createdApplication,
+      });
       await onAdd(
         title.trim(),
         underApplication ? applicationId : undefined,

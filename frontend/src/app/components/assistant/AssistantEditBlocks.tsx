@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 
 import { API_BASE } from "@/app/lib/lukeApi";
+import { trackClick } from "@/app/lib/telemetry";
 
 import type { LukeEditAnnotation } from "../shared/types";
 import { applyOptimisticResolution } from "./EditCard";
@@ -58,6 +59,7 @@ function BulkEditActions({
 
   const handleAll = async (verb: "accept" | "reject") => {
     if (busy) return;
+    trackClick(`edit.${verb}.all`, { count: pending.length, source: "edit_blocks" });
     setBusy(verb);
     setProgress({ done: 0, total: pending.length });
     try {

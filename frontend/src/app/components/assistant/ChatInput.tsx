@@ -21,6 +21,7 @@ import {
   isModelAvailable,
   type ModelProvider,
 } from "@/app/lib/modelAvailability";
+import { trackClick } from "@/app/lib/telemetry";
 import { useUserProfile } from "@/contexts/UserProfileContext";
 
 import { AddDocumentsModal } from "../shared/AddDocumentsModal";
@@ -182,6 +183,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     if (!query || isLoading) return;
     if (!isModelAvailable(model, apiKeys)) {
       setApiKeyModalProvider(getModelProvider(model));
+      trackClick("chat.send.blocked", { reason: "api_key_missing", model });
       return;
     }
     setValue("");
@@ -197,6 +199,13 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     const wf = selectedWorkflow;
     setSelectedWorkflow(null);
 
+    trackClick("chat.send", {
+      "chat.input.length": query.length,
+      "chat.attachments": files.length,
+      "chat.workflow": wf?.title ?? null,
+      model,
+    });
+
     onSubmit?.({
       role: "user",
       content: query,
@@ -208,6 +217,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
 
   const handleActionClick = () => {
     if (isLoading) {
+      trackClick("chat.cancel");
       onCancel();
     } else {
       handleSubmit();

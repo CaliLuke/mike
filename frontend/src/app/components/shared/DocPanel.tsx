@@ -4,6 +4,7 @@ import { Download, Loader2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
 import { API_BASE } from "@/app/lib/lukeApi";
+import { trackClick } from "@/app/lib/telemetry";
 
 import { applyOptimisticResolution } from "../assistant/EditCard";
 import { DocView } from "./DocView";
@@ -309,6 +310,11 @@ function EditResolveButtons({
   const handle = useCallback(
     async (verb: "accept" | "reject") => {
       if (busy || resolved) return;
+      trackClick(`edit.${verb}`, {
+        "edit.id": edit.edit_id,
+        "doc.id": edit.document_id,
+        source: "doc_panel",
+      });
       setBusy(true);
       onResolveStart?.({
         editId: edit.edit_id,

@@ -14,21 +14,42 @@ import (
 	pdf "github.com/ledongthuc/pdf"
 )
 
+// displayBytes returns the body + content-type to serve from /display.
+// PDFs are returned as-is so the browser viewer (PDF.js) can render them;
+// docx is left as octet-stream so the frontend falls back to its
+// docx-preview path; plain text formats are served verbatim.
 func displayBytes(filename string, data []byte) ([]byte, string) {
 	ext := strings.ToLower(filepath.Ext(filename))
 	switch ext {
-	case ".txt", ".md", ".csv", ".json":
+	case ".md":
+		return data, "text/markdown; charset=utf-8"
+	case ".txt", ".csv", ".json":
 		return data, "text/plain; charset=utf-8"
+	case ".pdf":
+		return data, "application/pdf"
+	}
+	return data, "application/octet-stream"
+}
+
+// extractDocumentText pulls plain text out of a document for LLM /
+// search consumption. Returns the text and whether extraction was
+// attempted+succeeded for this file type; callers typically fall back
+// to the raw bytes as UTF-8 when this returns "".
+func extractDocumentText(filename string, data []byte) string {
+	ext := strings.ToLower(filepath.Ext(filename))
+	switch ext {
+	case ".txt", ".md", ".csv", ".json":
+		return string(data)
 	case ".docx":
 		if text, err := extractDocxText(data); err == nil && strings.TrimSpace(text) != "" {
-			return []byte(text), "text/plain; charset=utf-8"
+			return text
 		}
 	case ".pdf":
 		if text, err := extractPDFText(data); err == nil && strings.TrimSpace(text) != "" {
-			return []byte(text), "text/plain; charset=utf-8"
+			return text
 		}
 	}
-	return data, "application/octet-stream"
+	return ""
 }
 
 type generatedDocxSection struct {
@@ -96,7 +117,7 @@ func buildSimpleDocx(title string, sections []generatedDocxSection) ([]byte, err
 			}
 			body.WriteString(`</w:tbl>`)
 		}
-		for _, paragraph := range strings.Split(section.Content, "\n") {
+		for paragraph := range strings.SplitSeq(section.Content, "\n") {
 			paragraph = strings.TrimSpace(paragraph)
 			if paragraph == "" {
 				continue
@@ -373,14 +394,8 @@ func applyTrackedEditsToDocumentXML(input string, edits []trackedEditRequest, st
 		if !ok {
 			continue
 		}
-		beforeStart := idx - 240
-		if beforeStart < 0 {
-			beforeStart = 0
-		}
-		afterEnd := idx + len(escapedFind) + 240
-		if afterEnd > len(out) {
-			afterEnd = len(out)
-		}
+		beforeStart := max(idx-240, 0)
+		afterEnd := min(idx+len(escapedFind)+240, len(out))
 		results = append(results, trackedEditResult{
 			ChangeID:      changeID,
 			DeletedText:   find,
