@@ -129,6 +129,43 @@ func (app *App) Close(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
+// ResetUserContent wipes all user-created companies, applications, documents,
+// chats, and blob storage, leaving the seeded local user/profile and builtin
+// workflows intact. Used by the diagnostics UI to start from a clean slate.
+func (app *App) ResetUserContent(ctx context.Context) error {
+	const resetSQL = `
+DELETE workflow_operations;
+DELETE download_tokens;
+DELETE companies;
+DELETE applications;
+DELETE documents;
+DELETE document_versions;
+DELETE document_edits;
+DELETE application_folders;
+DELETE chats;
+DELETE chat_messages;
+DELETE tabular_reviews;
+DELETE tabular_review_chats;
+DELETE tabular_review_chat_messages;
+DELETE tabular_cells;
+`
+	if _, err := app.DB.Query(ctx, resetSQL); err != nil {
+		return fmt.Errorf("reset surreal content: %w", err)
+	}
+	if app.LocalStorageRoot != "" {
+		entries, err := os.ReadDir(app.LocalStorageRoot)
+		if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("read storage root: %w", err)
+		}
+		for _, entry := range entries {
+			if err := os.RemoveAll(filepath.Join(app.LocalStorageRoot, entry.Name())); err != nil {
+				return fmt.Errorf("remove %s: %w", entry.Name(), err)
+			}
+		}
+	}
+	return nil
+}
+
 func (app *App) initialize(ctx context.Context) error {
 	if err := initSchema(ctx, app.DB); err != nil {
 		return err
@@ -137,6 +174,9 @@ func (app *App) initialize(ctx context.Context) error {
 		return err
 	}
 	if err := migrateApplicationsToCompanies(ctx, app.DB); err != nil {
+		return err
+	}
+	if err := migrateEncodedChatMessageIDs(ctx, app.DB); err != nil {
 		return err
 	}
 	if err := seedBuiltinWorkflows(ctx, app.DB); err != nil {

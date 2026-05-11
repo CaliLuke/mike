@@ -1,6 +1,7 @@
 package localapi
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -191,6 +192,118 @@ func postOllama(ctx context.Context, body map[string]any, target any) error {
 		recordSpanError(span, err)
 		return err
 	}
+	return nil
+}
+
+// streamOllamaChat issues a streaming /api/chat request to Ollama and
+// reassembles the response. onThinkingDelta is invoked for every non-empty
+// message.thinking chunk; onContentDelta is invoked for every non-empty
+// message.content chunk. The aggregated final message (with full content,
+// thinking, and any tool_calls observed) is decoded into target.
+//
+// body should NOT pre-set "stream"; this function forces stream=true.
+func streamOllamaChat(ctx context.Context, body map[string]any, onThinkingDelta, onContentDelta func(string), target *ollamaChatResponse) error {
+	body["stream"] = true
+	attrs := []attribute.KeyValue{attribute.String("http.method", http.MethodPost)}
+	if model, ok := body["model"].(string); ok {
+		attrs = append(attrs, attribute.String("llm.model", model))
+	}
+	if messages, ok := body["messages"].([]ollamaMessage); ok {
+		attrs = append(attrs, attribute.Int("llm.message_count", len(messages)))
+	}
+	if tools, ok := body["tools"].([]map[string]any); ok {
+		attrs = append(attrs, attribute.Int("llm.tool_count", len(tools)))
+	}
+	_, span := startLocalSpan(ctx, "ollama.chat", attrs...)
+	defer span.End()
+	data, err := json.Marshal(body)
+	if err != nil {
+		recordSpanError(span, err)
+		return err
+	}
+	span.SetAttributes(attribute.Int("http.request_content_length", len(data)))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, ollamaBaseURL()+"/api/chat", bytes.NewReader(data))
+	if err != nil {
+		recordSpanError(span, err)
+		return err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		recordSpanError(span, err)
+		return err
+	}
+	defer func() { _ = response.Body.Close() }()
+	span.SetAttributes(attribute.Int("http.status_code", response.StatusCode))
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		buf, _ := ioReadAllLimit(response.Body, 4096)
+		err := fmt.Errorf("ollama request failed (%d): %s", response.StatusCode, string(buf))
+		recordSpanError(span, err)
+		return err
+	}
+	var (
+		contentBuf  strings.Builder
+		thinkingBuf strings.Builder
+		role        string
+		toolCalls   []ollamaToolCall
+	)
+	scanner := bufio.NewScanner(response.Body)
+	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
+	for scanner.Scan() {
+		line := bytes.TrimSpace(scanner.Bytes())
+		if len(line) == 0 {
+			continue
+		}
+		var chunk struct {
+			Message struct {
+				Role      string           `json:"role"`
+				Content   string           `json:"content"`
+				Thinking  string           `json:"thinking"`
+				ToolCalls []ollamaToolCall `json:"tool_calls"`
+			} `json:"message"`
+			Done  bool   `json:"done"`
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(line, &chunk); err != nil {
+			recordSpanError(span, err)
+			return err
+		}
+		if chunk.Error != "" {
+			target.Error = chunk.Error
+			return nil
+		}
+		if chunk.Message.Role != "" {
+			role = chunk.Message.Role
+		}
+		if chunk.Message.Thinking != "" {
+			thinkingBuf.WriteString(chunk.Message.Thinking)
+			if onThinkingDelta != nil {
+				onThinkingDelta(chunk.Message.Thinking)
+			}
+		}
+		if chunk.Message.Content != "" {
+			contentBuf.WriteString(chunk.Message.Content)
+			if onContentDelta != nil {
+				onContentDelta(chunk.Message.Content)
+			}
+		}
+		if len(chunk.Message.ToolCalls) > 0 {
+			toolCalls = append(toolCalls, chunk.Message.ToolCalls...)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		recordSpanError(span, err)
+		return err
+	}
+	target.Message.Role = role
+	target.Message.Content = contentBuf.String()
+	target.Message.Thinking = thinkingBuf.String()
+	target.Message.ToolCalls = toolCalls
+	span.SetAttributes(
+		attribute.Int("llm.response_chars", len(target.Message.Content)),
+		attribute.Int("llm.thinking_chars", len(target.Message.Thinking)),
+		attribute.Int("llm.tool_call_count", len(toolCalls)),
+	)
 	return nil
 }
 

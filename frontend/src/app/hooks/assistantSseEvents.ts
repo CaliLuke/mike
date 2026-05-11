@@ -55,6 +55,23 @@ export function handleAssistantSseEvent(
     return null;
   }
 
+  if (data.type === "thinking") {
+    handlers.pushThinkingPlaceholder();
+    return null;
+  }
+
+  if (data.type === "replay_error") {
+    handlers.clearStreamingPlaceholders();
+    handlers.pushEvent({
+      type: "replay_error",
+      message:
+        typeof data.message === "string" && data.message
+          ? data.message
+          : "Could not reload the assistant's thinking trace for this chat.",
+    });
+    return null;
+  }
+
   if (data.type === "tool_call_start") {
     handlers.pushEvent({
       type: "tool_call_start",

@@ -1,10 +1,10 @@
 "use client";
 
-import { Check, LogOut } from "lucide-react";
+import { Check, LogOut, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { deleteAccount } from "@/app/lib/lukeApi";
+import { deleteAccount, resetUserContent, wipeTelemetry } from "@/app/lib/lukeApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,6 +23,11 @@ export default function AccountPage() {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isWipingTelemetry, setIsWipingTelemetry] = useState(false);
+  const [telemetryWiped, setTelemetryWiped] = useState(false);
+  const [resetContentConfirm, setResetContentConfirm] = useState(false);
+  const [isResettingContent, setIsResettingContent] = useState(false);
+  const [contentReset, setContentReset] = useState(false);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -65,6 +70,35 @@ export default function AccountPage() {
       setTimeout(() => setSaved(false), 2000);
     } else {
       setErrorMessage("Failed to update display name. Please try again.");
+    }
+  };
+
+  const handleResetUserContent = async () => {
+    setErrorMessage(null);
+    setIsResettingContent(true);
+    try {
+      await resetUserContent();
+      setResetContentConfirm(false);
+      setContentReset(true);
+      setTimeout(() => setContentReset(false), 2000);
+    } catch {
+      setErrorMessage("Failed to reset content. Please try again.");
+    } finally {
+      setIsResettingContent(false);
+    }
+  };
+
+  const handleWipeTelemetry = async () => {
+    setErrorMessage(null);
+    setIsWipingTelemetry(true);
+    try {
+      await wipeTelemetry();
+      setTelemetryWiped(true);
+      setTimeout(() => setTelemetryWiped(false), 2000);
+    } catch {
+      setErrorMessage("Failed to wipe debug logs. Please try again.");
+    } finally {
+      setIsWipingTelemetry(false);
     }
   };
 
@@ -181,6 +215,90 @@ export default function AccountPage() {
           <LogOut className="mr-2 h-4 w-4" />
           Sign Out
         </Button>
+      </div>
+
+      {/* Diagnostics */}
+      <div className="py-6">
+        <h2 className="mb-1 font-serif text-2xl font-medium">Diagnostics</h2>
+        <p className="mb-4 text-sm text-gray-500">
+          Tools for reproducing issues from a clean state.
+        </p>
+
+        <div className="space-y-4">
+          <div>
+            <p className="mb-2 text-sm text-gray-600">
+              Wipe the local telemetry database (spans, traces).
+            </p>
+            <Button
+              variant="outline"
+              onClick={handleWipeTelemetry}
+              disabled={isWipingTelemetry || telemetryWiped}
+              className="w-full sm:w-auto"
+            >
+              {telemetryWiped ? (
+                <>
+                  <Check className="mr-2 h-4 w-4" />
+                  Wiped
+                </>
+              ) : (
+                <>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  {isWipingTelemetry ? "Wiping…" : "Wipe Debug Logs"}
+                </>
+              )}
+            </Button>
+          </div>
+
+          <div>
+            <p className="mb-2 text-sm text-gray-600">
+              Delete all companies, applications, documents, and chats. Blob storage is also
+              cleared. Your account stays signed in.
+            </p>
+            {resetContentConfirm ? (
+              <div className="max-w-sm space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-medium text-amber-800">
+                  This permanently deletes all your companies, applications, documents, and chats.
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setResetContentConfirm(false)}
+                    disabled={isResettingContent}
+                    className="text-sm"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleResetUserContent}
+                    disabled={isResettingContent}
+                    className="bg-amber-600 text-sm text-white hover:bg-amber-700"
+                  >
+                    {isResettingContent ? "Resetting…" : "Delete Everything"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={() => setResetContentConfirm(true)}
+                disabled={contentReset}
+                className="w-full sm:w-auto"
+              >
+                {contentReset ? (
+                  <>
+                    <Check className="mr-2 h-4 w-4" />
+                    Reset
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Reset All Content
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Danger Zone */}

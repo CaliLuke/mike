@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,6 +22,11 @@ import (
 )
 
 func TestLocalAPIChatAndTabularStreamsPersistMessages(t *testing.T) {
+	// V2 is now the default chat path. This test still covers the legacy V1
+	// wire shape (and the tabular-review chat, which has not been migrated
+	// yet) — pin it to V1 explicitly. Delete this t.Setenv together with the
+	// rest of the V1 chat code when the migration finishes.
+	t.Setenv("LUKE_CHAT_V1", "true")
 	t.Setenv(mockProviderEnvVar, "1")
 	handler, closeApp := newTestHandler(t)
 	defer closeApp()
@@ -41,6 +47,14 @@ func TestLocalAPIChatAndTabularStreamsPersistMessages(t *testing.T) {
 	chatID := eventString(t, globalEvents[0], "chat_id")
 	chatDetail := getJSONForTest(t, handler, "/chats/"+chatID, http.StatusOK)
 	assertMessageRoles(t, chatDetail["messages"], []string{"user", "assistant"})
+
+	encodedFullChatID := url.PathEscape("chats:" + chatID)
+	postSSEForTest(t, handler, "/chat", map[string]any{
+		"chat_id":  encodedFullChatID,
+		"messages": []map[string]string{{"role": "user", "content": "Follow up."}},
+	})
+	chatDetail = getJSONForTest(t, handler, "/chats/"+encodedFullChatID, http.StatusOK)
+	assertMessageRoles(t, chatDetail["messages"], []string{"user", "assistant", "user", "assistant"})
 
 	tabularEvents := postSSEForTest(t, handler, "/tabular-review/"+reviewID+"/chat", map[string]any{
 		"messages": []map[string]string{{"role": "user", "content": "What changed?"}},
@@ -206,7 +220,7 @@ func TestAssistantCompanyAndApplicationToolsPersistRecords(t *testing.T) {
 }
 
 func TestPlannerForcesWebPageFetchForURL(t *testing.T) {
-	p := newLukeOllamaPlanner("ignored", nil)
+	p := newLukeOllamaPlanner("ignored", nil, nil)
 	result, err := p.PlanStart(context.Background(), &planner.PlanInput{
 		Messages: []*model.Message{{
 			Role: model.ConversationRoleUser,

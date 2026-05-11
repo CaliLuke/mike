@@ -14,6 +14,7 @@ require (
 	github.com/mibk/dupl v1.1.0
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/sdk v1.43.0
+	go.opentelemetry.io/otel/trace v1.43.0
 	golang.org/x/net v0.53.0
 	golang.org/x/tools v0.44.0
 	golang.org/x/vuln v1.3.0
@@ -270,7 +271,6 @@ require (
 	go.opentelemetry.io/otel/metric v1.43.0 // indirect
 	go.opentelemetry.io/otel/sdk/log v0.19.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.43.0 // indirect
-	go.opentelemetry.io/otel/trace v1.43.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
 	go.temporal.io/api v1.62.9 // indirect
 	go.temporal.io/sdk v1.42.0 // indirect

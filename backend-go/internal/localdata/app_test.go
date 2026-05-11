@@ -859,6 +859,36 @@ func TestRepositoryWritePathsUseTransactions(t *testing.T) {
 	assertNoRows(t, app.DB, "SELECT * FROM applications WHERE id = applications:repo_tx;")
 }
 
+func TestMigrateEncodedChatMessageIDsRepairsCanonicalChatReference(t *testing.T) {
+	app := openTestApp(t)
+	defer closeTestApp(t, app)
+
+	if _, err := app.DB.Query(context.Background(), `
+		CREATE chats:chat_encoded CONTENT {
+			user_id: users:local,
+			application_id: NONE,
+			title: "Encoded",
+			created_at: time::now()
+		};
+		CREATE chat_messages:legacy_encoded CONTENT {
+			chat_id: chats:chats_3Achat_encoded,
+			role: "assistant",
+			content: "orphaned",
+			files: [],
+			annotations: [],
+			created_at: time::now()
+		};
+	`); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := migrateEncodedChatMessageIDs(context.Background(), app.DB); err != nil {
+		t.Fatal(err)
+	}
+
+	assertOneRow(t, app.DB, "SELECT * FROM chat_messages WHERE id = chat_messages:legacy_encoded AND chat_id = chats:chat_encoded;")
+}
+
 func TestDocumentWorkflowsUseDeterministicUpsertsAndLocalUser(t *testing.T) {
 	app := openTestApp(t)
 	defer closeTestApp(t, app)

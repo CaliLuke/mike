@@ -115,7 +115,7 @@ func (db *DB) Query(ctx context.Context, query string) (json.RawMessage, error) 
 		db.handleMu.Lock()
 		defer db.handleMu.Unlock()
 
-		result, err := queryWithCString(query, "surreal query failed", func(cQuery *C.char, out **C.char, errBuf cErrorBuffer) C.int {
+		result, err := queryWithCString(query, "surreal query failed", func(cQuery *C.char, out **C.char, errBuf *cErrorBuffer) C.int {
 			return C.luke_surreal_query(db.handle, cQuery, out, errBuf.ptr(), errBuf.len())
 		})
 		if err != nil {
@@ -188,7 +188,7 @@ func (tx *Tx) Query(ctx context.Context, query string) (json.RawMessage, error) 
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return queryWithCString(query, "surreal transaction query failed", func(cQuery *C.char, out **C.char, errBuf cErrorBuffer) C.int {
+	return queryWithCString(query, "surreal transaction query failed", func(cQuery *C.char, out **C.char, errBuf *cErrorBuffer) C.int {
 		return C.luke_surreal_tx_query(tx.ptr, cQuery, out, errBuf.ptr(), errBuf.len())
 	})
 }
@@ -229,18 +229,18 @@ func (db *DB) run(ctx context.Context, fn func() error) error {
 func queryWithCString(
 	query string,
 	prefix string,
-	run func(*C.char, **C.char, cErrorBuffer) C.int,
+	run func(*C.char, **C.char, *cErrorBuffer) C.int,
 ) (json.RawMessage, error) {
 	cQuery := C.CString(query)
 	defer C.free(unsafe.Pointer(cQuery))
 
 	var out *C.char
 	var errBuf cErrorBuffer
-	rc := run(cQuery, &out, errBuf)
-	return consumeQueryResult(rc, out, errBuf, prefix)
+	rc := run(cQuery, &out, &errBuf)
+	return consumeQueryResult(rc, out, &errBuf, prefix)
 }
 
-func consumeQueryResult(rc C.int, out *C.char, errBuf cErrorBuffer, prefix string) (json.RawMessage, error) {
+func consumeQueryResult(rc C.int, out *C.char, errBuf *cErrorBuffer, prefix string) (json.RawMessage, error) {
 	if out != nil {
 		defer C.luke_surreal_free_string(out)
 	}

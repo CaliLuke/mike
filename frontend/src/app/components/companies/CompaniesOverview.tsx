@@ -1,11 +1,17 @@
 "use client";
 
-import { Building2, Plus } from "lucide-react";
+import { createColumnHelper } from "@tanstack/react-table";
+import { Building2, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { DataTable } from "@/app/components/shared/DataTable";
 import { HeaderSearchBtn } from "@/app/components/shared/HeaderSearchBtn";
 import type { LukeCompany } from "@/app/components/shared/types";
-import { createCompany, deleteCompany, listCompanies, updateCompany } from "@/app/lib/lukeApi";
+import { createCompany, deleteCompany, listCompanies } from "@/app/lib/lukeApi";
+
+import { EditCompanyModal } from "./EditCompanyModal";
+
+const columnHelper = createColumnHelper<LukeCompany>();
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -22,9 +28,7 @@ export function CompaniesOverview() {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [website, setWebsite] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState("");
-  const [editingWebsite, setEditingWebsite] = useState("");
+  const [editingCompany, setEditingCompany] = useState<LukeCompany | null>(null);
 
   useEffect(() => {
     listCompanies()
@@ -32,14 +36,6 @@ export function CompaniesOverview() {
       .catch(() => setCompanies([]))
       .finally(() => setLoading(false));
   }, []);
-
-  const q = search.toLowerCase();
-  const filtered = companies.filter(
-    (company) =>
-      !q ||
-      company.name.toLowerCase().includes(q) ||
-      (company.website ?? "").toLowerCase().includes(q),
-  );
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -50,17 +46,6 @@ export function CompaniesOverview() {
     setName("");
     setWebsite("");
     setCreating(false);
-  }
-
-  async function commitEdit(company: LukeCompany) {
-    const trimmed = editingName.trim();
-    setEditingId(null);
-    if (!trimmed) return;
-    const updated = await updateCompany(company.id, {
-      name: trimmed,
-      website: editingWebsite.trim() || undefined,
-    });
-    setCompanies((prev) => prev.map((item) => (item.id === company.id ? updated : item)));
   }
 
   return (
@@ -112,13 +97,130 @@ export function CompaniesOverview() {
         </form>
       )}
 
-      {loading ? (
+      <CompaniesTable
+        companies={companies}
+        loading={loading}
+        onEdit={(company) => setEditingCompany(company)}
+        onDelete={async (id) => {
+          await deleteCompany(id);
+          setCompanies((prev) => prev.filter((item) => item.id !== id));
+        }}
+        search={search}
+        onSearchChange={setSearch}
+      />
+
+      <EditCompanyModal
+        open={editingCompany !== null}
+        company={editingCompany}
+        onClose={() => setEditingCompany(null)}
+        onUpdated={(updated) => {
+          setCompanies((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+        }}
+      />
+    </div>
+  );
+}
+
+interface CompaniesTableProps {
+  companies: LukeCompany[];
+  loading: boolean;
+  onEdit: (company: LukeCompany) => void;
+  onDelete: (companyId: string) => Promise<void>;
+  search: string;
+  onSearchChange: (value: string) => void;
+}
+
+function CompaniesTable({
+  companies,
+  loading,
+  onEdit,
+  onDelete,
+  search,
+  onSearchChange,
+}: CompaniesTableProps) {
+  const columns = [
+    columnHelper.accessor("name", {
+      header: "Name",
+      cell: (info) => <span className="truncate text-gray-800">{info.getValue()}</span>,
+    }),
+    columnHelper.accessor("website", {
+      header: "Website",
+      size: 220,
+      cell: (info) => {
+        const website = info.getValue();
+        return website ? (
+          <span className="truncate text-gray-500">{website}</span>
+        ) : (
+          <span className="text-gray-300">-</span>
+        );
+      },
+    }),
+    columnHelper.accessor("application_count", {
+      header: "Applications",
+      size: 100,
+      cell: (info) => <span className="text-gray-500 tabular-nums">{info.getValue() ?? 0}</span>,
+    }),
+    columnHelper.accessor("created_at", {
+      header: "Created",
+      size: 110,
+      cell: (info) => <span className="text-gray-500">{formatDate(info.getValue())}</span>,
+      sortingFn: "datetime",
+    }),
+    columnHelper.display({
+      id: "actions",
+      header: "",
+      size: 88,
+      enableSorting: false,
+      cell: (info) => (
+        <div className="flex justify-end gap-1">
+          <button
+            onClick={() => onEdit(info.row.original)}
+            className="inline-flex shrink-0 items-center justify-center p-1.5 text-gray-400 transition-colors hover:text-gray-900"
+            title="Edit"
+            aria-label={`Edit ${info.row.original.name}`}
+            data-row-action
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => void onDelete(info.row.original.id)}
+            className="inline-flex shrink-0 items-center justify-center p-1.5 text-gray-400 transition-colors hover:text-red-600"
+            title="Delete"
+            aria-label={`Delete ${info.row.original.name}`}
+            data-row-action
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      ),
+    }),
+  ];
+
+  return (
+    <DataTable
+      data={companies}
+      columns={columns}
+      globalFilter={search}
+      onGlobalFilterChange={onSearchChange}
+      globalFilterFn={(row, _id, value) => {
+        const q = value.toLowerCase();
+        if (!q) return true;
+        const company = row.original;
+        return (
+          company.name.toLowerCase().includes(q) ||
+          (company.website ?? "").toLowerCase().includes(q)
+        );
+      }}
+      initialSorting={[{ id: "created_at", desc: true }]}
+      isLoading={loading}
+      loadingNode={
         <div className="space-y-2 px-8 py-5">
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-8 w-80 animate-pulse rounded bg-gray-100" />
           ))}
         </div>
-      ) : filtered.length === 0 ? (
+      }
+      emptyNode={
         <div className="mx-auto flex w-full max-w-xs flex-col items-start py-24">
           <Building2 className="mb-4 h-8 w-8 text-gray-300" />
           <p className="font-serif text-2xl font-medium text-gray-900">Companies</p>
@@ -126,79 +228,10 @@ export function CompaniesOverview() {
             Add companies, then attach each application to the company it belongs to.
           </p>
         </div>
-      ) : (
-        <div className="min-w-max">
-          <div className="flex h-8 items-center border-b border-gray-200 px-8 text-xs font-medium text-gray-500">
-            <div className="w-[360px] shrink-0">Name</div>
-            <div className="w-[300px] shrink-0">Website</div>
-            <div className="w-32 shrink-0">Applications</div>
-            <div className="w-32 shrink-0">Created</div>
-            <div className="w-24 shrink-0" />
-          </div>
-          {filtered.map((company) => (
-            <div
-              key={company.id}
-              className="flex h-10 items-center border-b border-gray-50 px-8 text-sm"
-            >
-              <div className="w-[360px] shrink-0 truncate text-gray-800">
-                {editingId === company.id ? (
-                  <input
-                    autoFocus
-                    value={editingName}
-                    onChange={(e) => setEditingName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") void commitEdit(company);
-                      if (e.key === "Escape") setEditingId(null);
-                    }}
-                    onBlur={() => void commitEdit(company)}
-                    className="w-full bg-transparent outline-none"
-                  />
-                ) : (
-                  company.name
-                )}
-              </div>
-              <div className="w-[300px] shrink-0 truncate text-gray-500">
-                {editingId === company.id ? (
-                  <input
-                    value={editingWebsite}
-                    onChange={(e) => setEditingWebsite(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") void commitEdit(company);
-                      if (e.key === "Escape") setEditingId(null);
-                    }}
-                    className="w-full bg-transparent outline-none"
-                  />
-                ) : (
-                  company.website || <span className="text-gray-300">-</span>
-                )}
-              </div>
-              <div className="w-32 shrink-0 text-gray-500">{company.application_count ?? 0}</div>
-              <div className="w-32 shrink-0 text-gray-500">{formatDate(company.created_at)}</div>
-              <div className="flex w-24 shrink-0 gap-3 text-xs">
-                <button
-                  onClick={() => {
-                    setEditingId(company.id);
-                    setEditingName(company.name);
-                    setEditingWebsite(company.website ?? "");
-                  }}
-                  className="text-gray-500 hover:text-gray-900"
-                >
-                  Rename
-                </button>
-                <button
-                  onClick={async () => {
-                    await deleteCompany(company.id);
-                    setCompanies((prev) => prev.filter((item) => item.id !== company.id));
-                  }}
-                  className="text-red-500 hover:text-red-700"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+      }
+      emptyFilteredNode={
+        <div className="px-8 py-6 text-sm text-gray-500">No companies match that search.</div>
+      }
+    />
   );
 }

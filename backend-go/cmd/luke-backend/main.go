@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"errors"
+	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -21,6 +23,19 @@ import (
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	// Mirror slog to a file alongside stderr so a separate observer (e.g. a
+	// repro script) can tail it without sharing the air terminal.
+	logPath := os.Getenv("LUKE_BACKEND_SLOG_FILE")
+	if logPath == "" {
+		logPath = "/tmp/luke-backend.log"
+	}
+	if f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644); err == nil {
+		slog.SetDefault(slog.New(slog.NewJSONHandler(io.MultiWriter(os.Stderr, f), &slog.HandlerOptions{Level: slog.LevelInfo})))
+		log.Printf("slog mirroring to %s", logPath)
+	} else {
+		log.Printf("slog mirror open failed: %v", err)
+	}
 
 	app, err := localdata.Open(ctx, localdata.Options{})
 	if err != nil {

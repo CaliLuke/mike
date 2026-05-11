@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/CaliLuke/luke/backend-go/internal/persistence"
 )
@@ -52,6 +53,37 @@ func migrateApplicationsToCompanies(ctx context.Context, db *persistence.DB) err
 	`)
 	if err != nil {
 		return fmt.Errorf("migrate applications to companies: %w", err)
+	}
+	return nil
+}
+
+func migrateEncodedChatMessageIDs(ctx context.Context, db *persistence.DB) error {
+	if err := migrateEncodedChatIDs(ctx, db, "chat_messages", "chats"); err != nil {
+		return err
+	}
+	if err := migrateEncodedChatIDs(ctx, db, "tabular_review_chat_messages", "tabular_review_chats"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func migrateEncodedChatIDs(ctx context.Context, db *persistence.DB, messageTable, chatTable string) error {
+	rows, err := queryRowsDB(ctx, db, "SELECT id, chat_id FROM "+messageTable+";")
+	if err != nil {
+		return fmt.Errorf("scan %s encoded chat IDs: %w", messageTable, err)
+	}
+	encodedPrefix := chatTable + ":" + chatTable + "_3A"
+	for _, row := range rows {
+		messageID := fmt.Sprint(row["id"])
+		chatID := fmt.Sprint(row["chat_id"])
+		if !strings.HasPrefix(chatID, encodedPrefix) {
+			continue
+		}
+		canonicalChatID := strings.TrimPrefix(chatID, encodedPrefix)
+		query := "UPDATE " + recordID(messageTable, messageID) + " SET chat_id = " + recordID(chatTable, canonicalChatID) + ";"
+		if _, err := db.Query(ctx, query); err != nil {
+			return fmt.Errorf("repair encoded chat_id for %s: %w", messageID, err)
+		}
 	}
 	return nil
 }

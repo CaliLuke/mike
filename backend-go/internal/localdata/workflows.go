@@ -5,14 +5,21 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/i2y/romancy"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 
 	"github.com/CaliLuke/luke/backend-go/internal/persistence"
 )
+
+var workflowsTracer = otel.Tracer("luke/localdata/workflows")
 
 const (
 	DocumentUploadWorkflowName         = "document_upload"
@@ -48,24 +55,47 @@ func (in DocumentOperationInput) withDefaults(ctx context.Context) DocumentOpera
 var persistDocumentOperation = romancy.DefineActivity(
 	"persist_document_operation",
 	func(ctx context.Context, input DocumentOperationInput) (DocumentOperationResult, error) {
+		ctx, span := workflowsTracer.Start(ctx, "document.workflow.persist_activity")
+		defer span.End()
+		span.SetAttributes(
+			attribute.String("workflow.name", input.WorkflowName),
+			attribute.String("workflow.target_id", input.TargetID),
+			attribute.String("workflow.app_id", input.AppID),
+		)
+		startedAt := time.Now()
 		input = input.withDefaults(ctx)
 		if input.WorkflowName == "" {
-			return DocumentOperationResult{}, fmt.Errorf("workflow_name is required")
+			err := fmt.Errorf("workflow_name is required")
+			span.SetStatus(codes.Error, err.Error())
+			return DocumentOperationResult{}, err
 		}
 		if input.TargetID == "" {
-			return DocumentOperationResult{}, fmt.Errorf("target_id is required")
+			err := fmt.Errorf("target_id is required")
+			span.SetStatus(codes.Error, err.Error())
+			return DocumentOperationResult{}, err
 		}
 		resources, ok := activeWorkflowResources(input.AppID)
 		if !ok {
-			return DocumentOperationResult{}, fmt.Errorf("workflow persistence is not initialized")
+			err := fmt.Errorf("workflow persistence is not initialized")
+			span.SetStatus(codes.Error, err.Error())
+			return DocumentOperationResult{}, err
 		}
 		operationID := workflowOperationID(input.WorkflowName, input.TargetID)
+		span.SetAttributes(attribute.String("workflow.operation_id", operationID))
 		result, err := persistDocumentWorkflowPayload(ctx, &resources, input, operationID)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			span.SetAttributes(attribute.Float64("workflow.persist_ms", float64(time.Since(startedAt).Milliseconds())))
 			return DocumentOperationResult{}, err
 		}
 		result.OperationID = operationID
 		result.UserID = input.User.UserID
+		span.SetAttributes(
+			attribute.Float64("workflow.persist_ms", float64(time.Since(startedAt).Milliseconds())),
+			attribute.String("workflow.result_document_id", result.DocumentID),
+			attribute.String("workflow.result_version_id", result.VersionID),
+		)
 		return result, nil
 	},
 )
@@ -95,7 +125,30 @@ func documentOperationWorkflow(appID, workflowName string) *romancy.WorkflowFunc
 		func(ctx *romancy.WorkflowContext, input DocumentOperationInput) (DocumentOperationResult, error) {
 			input.AppID = appID
 			input.WorkflowName = workflowName
-			return persistDocumentOperation.Execute(ctx, input, romancy.WithActivityID(persistDocumentOperationActivityID))
+			slog.Info("document.workflow.body.enter",
+				"workflow_name", workflowName,
+				"app_id", appID,
+				"target_id", input.TargetID,
+				"instance_id", ctx.InstanceID())
+			_, span := workflowsTracer.Start(ctx.Context(), "document.workflow.body")
+			span.SetAttributes(
+				attribute.String("workflow.name", workflowName),
+				attribute.String("workflow.app_id", appID),
+				attribute.String("workflow.target_id", input.TargetID),
+			)
+			span.End()
+			result, err := persistDocumentOperation.Execute(ctx, input, romancy.WithActivityID(persistDocumentOperationActivityID))
+			if err != nil {
+				slog.Error("document.workflow.body.exit_error",
+					"workflow_name", workflowName,
+					"instance_id", ctx.InstanceID(),
+					"error", err.Error())
+			} else {
+				slog.Info("document.workflow.body.exit_ok",
+					"workflow_name", workflowName,
+					"instance_id", ctx.InstanceID())
+			}
+			return result, err
 		},
 	)
 }
@@ -160,6 +213,39 @@ func persistDocumentWorkflowPayload(ctx context.Context, resources *workflowReso
 	default:
 		return DocumentOperationResult{}, fmt.Errorf("unsupported document workflow %q", input.WorkflowName)
 	}
+}
+
+// PersistDocumentOperation runs the document-upload / edit-resolution
+// persistence body directly against the App's DB and storage root, bypassing
+// romancy entirely. Replaces the StartWorkflow + poll pattern that used to
+// hold the SQLite writer lock and time out on busy chats; see
+// /Users/luca/.claude/plans/yeah-sounds-more-reasonable-shimmering-sunrise.md.
+//
+// The romancy-wrapped activity (persistDocumentOperation) now delegates to
+// this same function — both paths share the body so behavior is identical.
+func PersistDocumentOperation(ctx context.Context, app *App, input DocumentOperationInput) (DocumentOperationResult, error) {
+	if app == nil {
+		return DocumentOperationResult{}, fmt.Errorf("app is required")
+	}
+	resources := workflowResources{db: app.DB, storageRoot: app.LocalStorageRoot}
+	input = input.withDefaults(ctx)
+	if input.AppID == "" {
+		input.AppID = app.DataDir
+	}
+	if input.WorkflowName == "" {
+		return DocumentOperationResult{}, fmt.Errorf("workflow_name is required")
+	}
+	if input.TargetID == "" {
+		return DocumentOperationResult{}, fmt.Errorf("target_id is required")
+	}
+	operationID := workflowOperationID(input.WorkflowName, input.TargetID)
+	result, err := persistDocumentWorkflowPayload(ctx, &resources, input, operationID)
+	if err != nil {
+		return DocumentOperationResult{}, err
+	}
+	result.OperationID = operationID
+	result.UserID = input.User.UserID
+	return result, nil
 }
 
 func persistDocumentVersionWorkflow(ctx context.Context, resources *workflowResources, input DocumentOperationInput, operationID string) (DocumentOperationResult, error) {

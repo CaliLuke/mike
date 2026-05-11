@@ -113,6 +113,18 @@ export async function deleteAccount(): Promise<void> {
   return apiRequest<void>("/user/account", { method: "DELETE" });
 }
 
+export async function wipeTelemetry(): Promise<void> {
+  return apiRequest<void>("/v1/traces", { method: "DELETE" });
+}
+
+export async function resetUserContent(): Promise<void> {
+  return apiRequest<void>("/diagnostics/reset-content", { method: "POST" });
+}
+
+export async function listDocuments(): Promise<LukeDocument[]> {
+  return apiRequest<LukeDocument[]>("/single-documents");
+}
+
 export async function getApplication(applicationId: string): Promise<LukeApplication> {
   return apiRequest<LukeApplication>(`/applications/${applicationId}`);
 }
@@ -360,7 +372,7 @@ export async function getChat(chatId: string): Promise<LukeChatDetailOut> {
         workflow: m.workflow ?? undefined,
       };
     }
-    const events = Array.isArray(m.content) ? (m.content as AssistantEvent[]) : undefined;
+    const events = normalizeAssistantTimeline(m.content);
     return {
       role: "assistant",
       content:
@@ -373,6 +385,64 @@ export async function getChat(chatId: string): Promise<LukeChatDetailOut> {
     };
   });
   return { chat: raw.chat, messages };
+}
+
+// normalizeAssistantTimeline upgrades a stored chat_messages.content array
+// into the AssistantEvent shape the renderer understands. Today it has one
+// concrete job: V2 persists tool calls as `{ type: "tool", name,
+// tool_call_id, result, error, turn }` — that variant isn't part of the
+// AssistantEvent union, so without translation the renderer's switch
+// silently drops them. We rewrite each one as a `tool_call_start` event
+// with the matching status/summary/error so the existing renderer fires.
+function normalizeAssistantTimeline(content: unknown): AssistantEvent[] | undefined {
+  if (!Array.isArray(content)) return undefined;
+  return content
+    .map((raw) => {
+      const item = raw as Record<string, unknown> | null;
+      if (!item || typeof item !== "object") return null;
+      if (item.type === "tool") {
+        const canonical = typeof item.name === "string" ? (item.name as string) : "";
+        const dot = canonical.lastIndexOf(".");
+        const shortName = dot >= 0 ? canonical.slice(dot + 1) : canonical;
+        const errorMsg = typeof item.error === "string" ? (item.error as string) : "";
+        const summary = summarizePersistedToolResult(
+          shortName,
+          (item.result as Record<string, unknown>) ?? undefined,
+        );
+        return {
+          type: "tool_call_start",
+          name: shortName,
+          isStreaming: false,
+          status: errorMsg ? ("failed" as const) : ("done" as const),
+          summary,
+          error: errorMsg || undefined,
+        } satisfies AssistantEvent;
+      }
+      return item as unknown as AssistantEvent;
+    })
+    .filter((e): e is AssistantEvent => e !== null);
+}
+
+function summarizePersistedToolResult(
+  shortName: string,
+  result: Record<string, unknown> | undefined,
+): string | undefined {
+  if (!result) return undefined;
+  switch (shortName) {
+    case "create_company": {
+      const name = typeof result.name === "string" ? (result.name as string) : "";
+      const reused = result.reused_existing === true;
+      return name ? `${name}${reused ? " (reused)" : ""}` : undefined;
+    }
+    case "create_application":
+      return typeof result.name === "string" ? (result.name as string) : undefined;
+    case "fetch_web_page":
+      if (typeof result.title === "string" && result.title) return result.title as string;
+      if (typeof result.url === "string") return result.url as string;
+      return undefined;
+    default:
+      return undefined;
+  }
 }
 
 export async function renameChat(chatId: string, title: string): Promise<void> {

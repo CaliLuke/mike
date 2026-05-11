@@ -28,7 +28,7 @@ import (
 
 const maxToolDocumentChars = 120_000
 
-func (s *Server) persistAndStreamAssistantChat(ctx context.Context, chatID string, modelName *string, applicationID *string, tabularReviewID *string, messages []chatRequestMessage, displayedDoc *chatRequestFile, attachedDocuments []chatRequestFile, send func(map[string]any) error) (string, error) {
+func (s *Server) persistAndStreamAssistantChat(ctx context.Context, chatID string, modelName *string, applicationID *string, tabularReviewID *string, messages []chatRequestMessage, displayedDoc *chatRequestFile, attachedDocuments []chatRequestFile, userMessageID, assistantMessageID string, send func(map[string]any) error) (string, error) {
 	ctx, span := startLocalSpan(ctx, "assistant.persist_and_stream_chat",
 		attribute.String("chat.id", chatID),
 		attribute.String("assistant.model", modelOrDefault(modelName)),
@@ -43,14 +43,34 @@ func (s *Server) persistAndStreamAssistantChat(ctx context.Context, chatID strin
 		span.SetAttributes(attribute.String("tabular_review.id", *tabularReviewID))
 	}
 	defer span.End()
+	execCtx, execCancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Minute)
+	defer execCancel()
 	var lastUser string
 	var lastUserFiles []chatRequestFile
 	var toolAnnotations []map[string]any
+	if userMessageID == "" {
+		userMessageID = newID("chatmsg")
+	}
+	if assistantMessageID == "" {
+		assistantMessageID = newID("chatmsg")
+	}
+	timeline := newAssistantEventTimeline()
+	persistTimeline := func() {
+		if err := s.updateChatMessageContent(execCtx, assistantMessageID, timeline.events, toolAnnotations); err != nil {
+			recordSpanError(span, err)
+		}
+	}
 	sendWithAnnotations := func(event map[string]any) error {
 		if annotation := assistantEventAnnotation(event); annotation != nil {
 			toolAnnotations = append(toolAnnotations, annotation)
 		}
-		return send(event)
+		if timeline.apply(event) {
+			persistTimeline()
+		}
+		if err := send(event); err != nil {
+			recordSpanError(span, err)
+		}
+		return nil
 	}
 	for _, message := range messages {
 		if message.Role == "user" {
@@ -58,12 +78,19 @@ func (s *Server) persistAndStreamAssistantChat(ctx context.Context, chatID strin
 			lastUserFiles = message.Files
 		}
 	}
-	if err := send(map[string]any{"type": "chat_id", "chat_id": chatID}); err != nil {
+	if err := s.createChatMessageWithID(execCtx, userMessageID, chatID, "user", lastUser, lastUserFiles, nil); err != nil {
 		recordSpanError(span, err)
 		return "", err
 	}
+	if err := s.createChatMessageWithID(execCtx, assistantMessageID, chatID, "assistant", timeline.events, nil, toolAnnotations); err != nil {
+		recordSpanError(span, err)
+		return "", err
+	}
+	if err := send(map[string]any{"type": "chat_id", "chat_id": chatID}); err != nil {
+		recordSpanError(span, err)
+	}
 
-	text, err := s.runAssistantAgent(ctx, chatID, modelOrDefault(modelName), applicationID, tabularReviewID, messages, displayedDoc, attachedDocuments, sendWithAnnotations)
+	text, err := s.runAssistantAgent(execCtx, chatID, modelOrDefault(modelName), applicationID, tabularReviewID, messages, displayedDoc, attachedDocuments, sendWithAnnotations)
 	if err != nil {
 		recordSpanError(span, err)
 		return "", err
@@ -78,29 +105,19 @@ func (s *Server) persistAndStreamAssistantChat(ctx context.Context, chatID strin
 		attribute.Int("assistant.citation_count", len(citations)),
 		attribute.Int("assistant.tool_annotation_count", len(toolAnnotations)),
 	)
-	if err := send(map[string]any{"type": "content_delta", "text": visibleText}); err != nil {
+	annotations := append(citations, toolAnnotations...)
+	if err := sendWithAnnotations(map[string]any{"type": "content_delta", "text": visibleText}); err != nil {
+		recordSpanError(span, err)
+	}
+	if err := s.updateChatMessageContent(execCtx, assistantMessageID, timeline.events, annotations); err != nil {
 		recordSpanError(span, err)
 		return visibleText, err
 	}
 	if err := send(map[string]any{"type": "citations", "citations": citations}); err != nil {
 		recordSpanError(span, err)
-		return visibleText, err
 	}
 	if err := send(map[string]any{"type": "done"}); err != nil {
 		recordSpanError(span, err)
-		return visibleText, err
-	}
-
-	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-	defer cancel()
-	if err := s.insertChatMessageWithFiles(persistCtx, chatID, "user", lastUser, lastUserFiles, nil); err != nil {
-		recordSpanError(span, err)
-		return visibleText, err
-	}
-	annotations := append(citations, toolAnnotations...)
-	if err := s.insertChatMessage(persistCtx, chatID, "assistant", visibleText, annotations); err != nil {
-		recordSpanError(span, err)
-		return visibleText, err
 	}
 	return visibleText, nil
 }
@@ -187,7 +204,7 @@ func (s *Server) runAssistantAgent(ctx context.Context, chatID, modelName string
 	if _, err := rt.SessionStore.CreateSession(ctx, chatID, time.Now()); err != nil {
 		return "", err
 	}
-	planner := newLukeOllamaPlanner(modelName, assistantspecs.AdvertisedSpecs())
+	planner := newLukeOllamaPlanner(modelName, assistantspecs.AdvertisedSpecs(), send)
 	if err := assistantagent.RegisterAssistantAgent(ctx, rt, assistantagent.AssistantAgentConfig{Planner: planner}); err != nil {
 		return "", err
 	}
@@ -287,7 +304,13 @@ func (s *Server) availableDocumentHint(ctx context.Context, applicationID *strin
 }
 
 func (s *Server) priorAssistantEventHint(ctx context.Context, chatID string) string {
-	rows, err := queryRows(ctx, s.app.DB, "SELECT annotations FROM chat_messages WHERE chat_id = "+recordID("chats", chatID)+" AND role = "+surrealString("assistant")+" ORDER BY created_at DESC LIMIT 4;")
+	rows, err := queryRows(ctx, s.app.DB, surrealSelect{
+		Fields:  []string{"annotations"},
+		From:    "chat_messages",
+		Where:   "chat_id = " + recordID("chats", chatID) + " AND role = " + surrealString("assistant"),
+		OrderBy: []string{"created_at DESC"},
+		Limit:   4,
+	}.String())
 	if err != nil {
 		return ""
 	}
@@ -331,18 +354,239 @@ func (s *Server) priorAssistantEventHint(ctx context.Context, chatID string) str
 	return "Prior assistant tool events in this chat. Use these IDs for follow-up edits or revisions instead of recreating documents:\n" + strings.Join(lines, "\n")
 }
 
+type assistantEventTimeline struct {
+	events []map[string]any
+}
+
+func newAssistantEventTimeline() *assistantEventTimeline {
+	return &assistantEventTimeline{events: []map[string]any{{"type": "thinking", "isStreaming": true}}}
+}
+
+func (t *assistantEventTimeline) apply(event map[string]any) bool {
+	eventType, _ := event["type"].(string)
+	if t.applyReasoning(eventType, event) {
+		return true
+	}
+	switch eventType {
+	case "content_delta":
+		t.clearStreamingPlaceholders()
+		t.events = append(t.events, map[string]any{"type": "content", "text": asString(event["text"])})
+	case "doc_read_start":
+		t.events = append(t.events, map[string]any{
+			"type":        "doc_read",
+			"filename":    asString(event["filename"]),
+			"document_id": asString(event["document_id"]),
+			"isStreaming": true,
+		})
+	case "doc_read":
+		t.finishMatching(func(existing map[string]any) bool {
+			return asString(existing["type"]) == "doc_read" &&
+				asString(existing["filename"]) == asString(event["filename"]) &&
+				asBool(existing["isStreaming"])
+		}, nil)
+		t.pushThinking()
+	case "doc_find_start":
+		t.events = append(t.events, map[string]any{
+			"type":          "doc_find",
+			"filename":      asString(event["filename"]),
+			"document_id":   asString(event["document_id"]),
+			"query":         asString(event["query"]),
+			"total_matches": 0,
+			"isStreaming":   true,
+		})
+	case "doc_find":
+		t.finishMatching(func(existing map[string]any) bool {
+			return asString(existing["type"]) == "doc_find" &&
+				asString(existing["filename"]) == asString(event["filename"]) &&
+				asString(existing["query"]) == asString(event["query"]) &&
+				asBool(existing["isStreaming"])
+		}, map[string]any{"total_matches": event["total_matches"]})
+		t.pushThinking()
+	case "doc_created_start":
+		t.events = append(t.events, map[string]any{
+			"type":         "doc_created",
+			"filename":     asString(event["filename"]),
+			"download_url": "",
+			"isStreaming":  true,
+		})
+	case "doc_created":
+		t.replaceMatching(func(existing map[string]any) bool {
+			return asString(existing["type"]) == "doc_created" &&
+				asString(existing["filename"]) == asString(event["filename"]) &&
+				asBool(existing["isStreaming"])
+		}, t.copyEvent(event, "doc_created", "filename", "download_url", "document_id", "version_id", "version_number", "error"))
+		t.pushThinking()
+	case "doc_replicate_start":
+		t.events = append(t.events, map[string]any{
+			"type":        "doc_replicated",
+			"filename":    asString(event["filename"]),
+			"count":       event["count"],
+			"isStreaming": true,
+		})
+	case "doc_replicated":
+		t.replaceMatching(func(existing map[string]any) bool {
+			return asString(existing["type"]) == "doc_replicated" &&
+				asString(existing["filename"]) == asString(event["filename"]) &&
+				asBool(existing["isStreaming"])
+		}, t.copyEvent(event, "doc_replicated", "filename", "count", "copies", "error"))
+		t.pushThinking()
+	case "doc_edited_start":
+		t.events = append(t.events, map[string]any{
+			"type":         "doc_edited",
+			"filename":     asString(event["filename"]),
+			"document_id":  "",
+			"version_id":   "",
+			"download_url": "",
+			"annotations":  []any{},
+			"isStreaming":  true,
+		})
+	case "doc_edited":
+		t.replaceMatching(func(existing map[string]any) bool {
+			return asString(existing["type"]) == "doc_edited" &&
+				asString(existing["filename"]) == asString(event["filename"]) &&
+				asBool(existing["isStreaming"])
+		}, t.copyEvent(event, "doc_edited", "filename", "document_id", "version_id", "version_number", "download_url", "annotations", "error"))
+		t.pushThinking()
+	case "workflow_applied", "web_page_fetched", "company_created", "company_match_warning", "application_created", "doc_download":
+		t.events = append(t.events, t.copyEvent(event, eventType))
+		t.pushThinking()
+	default:
+		return false
+	}
+	return true
+}
+
+func (t *assistantEventTimeline) applyReasoning(eventType string, event map[string]any) bool {
+	switch eventType {
+	case "reasoning_delta":
+		t.appendReasoningDelta(asString(event["text"]))
+	case "reasoning_block_end":
+		t.finishReasoning()
+		t.pushThinking()
+	default:
+		return false
+	}
+	return true
+}
+
+func (t *assistantEventTimeline) appendReasoningDelta(delta string) {
+	if delta == "" {
+		return
+	}
+	if n := len(t.events); n > 0 {
+		last := t.events[n-1]
+		if asString(last["type"]) == "reasoning" && asBool(last["isStreaming"]) {
+			next := cloneMap(last)
+			next["text"] = asString(last["text"]) + delta
+			t.events[n-1] = next
+			return
+		}
+	}
+	t.clearStreamingPlaceholders()
+	t.events = append(t.events, map[string]any{"type": "reasoning", "text": delta, "isStreaming": true})
+}
+
+func (t *assistantEventTimeline) finishReasoning() {
+	for i := len(t.events) - 1; i >= 0; i-- {
+		if asString(t.events[i]["type"]) != "reasoning" || !asBool(t.events[i]["isStreaming"]) {
+			continue
+		}
+		next := cloneMap(t.events[i])
+		delete(next, "isStreaming")
+		t.events[i] = next
+		return
+	}
+}
+
+func (t *assistantEventTimeline) pushThinking() {
+	last := t.events[len(t.events)-1]
+	if asString(last["type"]) == "thinking" && asBool(last["isStreaming"]) {
+		return
+	}
+	t.events = append(t.events, map[string]any{"type": "thinking", "isStreaming": true})
+}
+
+func (t *assistantEventTimeline) clearStreamingPlaceholders() {
+	next := t.events[:0]
+	for _, event := range t.events {
+		eventType := asString(event["type"])
+		if eventType == "thinking" && asBool(event["isStreaming"]) {
+			continue
+		}
+		next = append(next, event)
+	}
+	t.events = next
+}
+
+func (t *assistantEventTimeline) finishMatching(match func(map[string]any) bool, patch map[string]any) {
+	for i := len(t.events) - 1; i >= 0; i-- {
+		if !match(t.events[i]) {
+			continue
+		}
+		next := cloneMap(t.events[i])
+		delete(next, "isStreaming")
+		for key, value := range patch {
+			next[key] = value
+		}
+		t.events[i] = next
+		return
+	}
+}
+
+func (t *assistantEventTimeline) replaceMatching(match func(map[string]any) bool, replacement map[string]any) {
+	for i := len(t.events) - 1; i >= 0; i-- {
+		if match(t.events[i]) {
+			t.events[i] = replacement
+			return
+		}
+	}
+	t.events = append(t.events, replacement)
+}
+
+func (t *assistantEventTimeline) copyEvent(event map[string]any, eventType string, keys ...string) map[string]any {
+	out := map[string]any{"type": eventType}
+	if len(keys) == 0 {
+		for key, value := range event {
+			if key != "type" && key != "isStreaming" {
+				out[key] = value
+			}
+		}
+		return out
+	}
+	for _, key := range keys {
+		if value, ok := event[key]; ok {
+			out[key] = value
+		}
+	}
+	return out
+}
+
+func cloneMap(in map[string]any) map[string]any {
+	out := make(map[string]any, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+func asBool(value any) bool {
+	v, _ := value.(bool)
+	return v
+}
+
 type lukeOllamaPlanner struct {
 	modelName string
 	specs     []tools.ToolSpec
 	byOllama  map[string]tools.Ident
+	send      func(map[string]any) error
 }
 
-func newLukeOllamaPlanner(modelName string, specs []tools.ToolSpec) *lukeOllamaPlanner {
+func newLukeOllamaPlanner(modelName string, specs []tools.ToolSpec, send func(map[string]any) error) *lukeOllamaPlanner {
 	byOllama := make(map[string]tools.Ident, len(specs))
 	for _, spec := range specs {
 		byOllama[ollamaToolName(spec.Name)] = spec.Name
 	}
-	return &lukeOllamaPlanner{modelName: modelName, specs: specs, byOllama: byOllama}
+	return &lukeOllamaPlanner{modelName: modelName, specs: specs, byOllama: byOllama, send: send}
 }
 
 func (p *lukeOllamaPlanner) PlanStart(ctx context.Context, input *planner.PlanInput) (*planner.PlanResult, error) {
@@ -393,7 +637,7 @@ func (p *lukeOllamaPlanner) plan(ctx context.Context, messages []*model.Message,
 	body := map[string]any{
 		"model":    p.modelName,
 		"messages": bodyMessages,
-		"stream":   false,
+		"think":    true,
 		"options": map[string]any{
 			"temperature": 0.4,
 			"top_p":       0.9,
@@ -403,8 +647,19 @@ func (p *lukeOllamaPlanner) plan(ctx context.Context, messages []*model.Message,
 		body["tools"] = p.ollamaTools()
 	}
 	var response ollamaChatResponse
-	if err := postOllama(ctx, body, &response); err != nil {
+	thinkingEmitted := false
+	onThinkingDelta := func(delta string) {
+		if p.send == nil {
+			return
+		}
+		thinkingEmitted = true
+		_ = p.send(map[string]any{"type": "reasoning_delta", "text": delta})
+	}
+	if err := streamOllamaChat(ctx, body, onThinkingDelta, nil, &response); err != nil {
 		return nil, err
+	}
+	if thinkingEmitted && p.send != nil {
+		_ = p.send(map[string]any{"type": "reasoning_block_end"})
 	}
 	if response.Error != "" {
 		return nil, fmt.Errorf("ollama error: %s", response.Error)
@@ -502,14 +757,16 @@ func (p *lukeOllamaPlanner) toolRequests(calls []ollamaToolCall) ([]planner.Tool
 }
 
 type ollamaMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role     string `json:"role"`
+	Content  string `json:"content"`
+	Thinking string `json:"thinking,omitempty"`
 }
 
 type ollamaChatResponse struct {
 	Message struct {
 		Role      string           `json:"role"`
 		Content   string           `json:"content"`
+		Thinking  string           `json:"thinking"`
 		ToolCalls []ollamaToolCall `json:"tool_calls"`
 	} `json:"message"`
 	Error string `json:"error"`
@@ -716,19 +973,16 @@ func (s *Server) executeReadDocument(ctx context.Context, call *planner.ToolRequ
 	defer span.End()
 	payload, err := careercontext.UnmarshalReadDocumentPayload([]byte(call.Payload))
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	documentID, err := requiredString(payload.DocumentID, "document_id")
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	span.SetAttributes(attribute.String("document.id", documentID))
 	doc, err := s.readAssistantDocument(ctx, documentID)
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	span.SetAttributes(attribute.String("document.filename", derefString(doc.Filename)), attribute.Int("document.text_chars", len(derefString(doc.Text))))
 	_ = send(map[string]any{"type": "doc_read_start", "filename": derefString(doc.Filename), "document_id": documentID})
@@ -741,21 +995,18 @@ func (s *Server) executeFetchDocuments(ctx context.Context, call *planner.ToolRe
 	defer span.End()
 	payload, err := careercontext.UnmarshalFetchDocumentsPayload([]byte(call.Payload))
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	docs := make([]*careercontext.AssistantDocumentText, 0, len(payload.DocumentIds))
 	span.SetAttributes(attribute.Int("document.request_count", len(payload.DocumentIds)))
 	if len(payload.DocumentIds) == 0 {
 		err := fmt.Errorf("document_ids is required")
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	for _, docID := range payload.DocumentIds {
 		doc, err := s.readAssistantDocument(ctx, docID)
 		if err != nil {
-			recordSpanError(span, err)
-			return toolError(call.Name, err), nil
+			return recordToolFailure(span, call.Name, err), nil
 		}
 		_ = send(map[string]any{"type": "doc_read_start", "filename": derefString(doc.Filename), "document_id": docID})
 		_ = send(map[string]any{"type": "doc_read", "filename": derefString(doc.Filename), "document_id": docID})
@@ -770,24 +1021,20 @@ func (s *Server) executeFindInDocument(ctx context.Context, call *planner.ToolRe
 	defer span.End()
 	payload, err := careercontext.UnmarshalFindInDocumentPayload([]byte(call.Payload))
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	documentID, err := requiredString(payload.DocumentID, "document_id")
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	query, err := requiredString(payload.Query, "query")
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	span.SetAttributes(attribute.String("document.id", documentID), attribute.Int("document.query_chars", len(query)))
 	doc, err := s.readAssistantDocument(ctx, documentID)
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	maxResults := 10
 	if payload.MaxResults != nil && *payload.MaxResults > 0 && *payload.MaxResults < 50 {
@@ -812,7 +1059,11 @@ func (s *Server) executeFindInDocument(ctx context.Context, call *planner.ToolRe
 func (s *Server) executeListWorkflows(ctx context.Context, call *planner.ToolRequest) (*planner.ToolResult, error) {
 	ctx, span := startCareerToolSpan(ctx, call)
 	defer span.End()
-	rows, err := queryRows(ctx, s.app.DB, "SELECT id, title, type, practice FROM workflows ORDER BY created_at;")
+	rows, err := queryRows(ctx, s.app.DB, surrealSelect{
+		Fields:  []string{"id", "title", "type", "practice"},
+		From:    "workflows",
+		OrderBy: []string{"created_at"},
+	}.String())
 	if err != nil {
 		recordSpanError(span, err)
 		return nil, err
@@ -837,13 +1088,11 @@ func (s *Server) executeCreateCompany(ctx context.Context, call *planner.ToolReq
 	defer span.End()
 	payload, err := careercontext.UnmarshalCreateCompanyPayload([]byte(call.Payload))
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	name, err := requiredString(payload.Name, "name")
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	span.SetAttributes(attribute.String("company.requested_name", name))
 	var website *string
@@ -934,18 +1183,15 @@ func (s *Server) executeCreateApplication(ctx context.Context, call *planner.Too
 	defer span.End()
 	payload, err := careercontext.UnmarshalCreateApplicationPayload([]byte(call.Payload))
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	name, err := requiredString(payload.Name, "name")
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	companyID, err := requiredString(payload.CompanyID, "company_id")
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	span.SetAttributes(
 		attribute.String("application.name", name),
@@ -1012,13 +1258,11 @@ func (s *Server) executeReadWorkflow(ctx context.Context, call *planner.ToolRequ
 	defer span.End()
 	payload, err := careercontext.UnmarshalReadWorkflowPayload([]byte(call.Payload))
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	workflowID, err := requiredString(payload.WorkflowID, "workflow_id")
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	span.SetAttributes(attribute.String("workflow.id", workflowID))
 	rows, err := queryRows(ctx, s.app.DB, "SELECT id, title, type, prompt_md, columns_config, practice FROM "+recordID("workflows", workflowID)+";")
@@ -1028,8 +1272,7 @@ func (s *Server) executeReadWorkflow(ctx context.Context, call *planner.ToolRequ
 	}
 	if len(rows) == 0 {
 		err := fmt.Errorf("workflow not found")
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	row := rows[0]
 	span.SetAttributes(attribute.String("workflow.title", asString(row["title"])), attribute.String("workflow.type", asString(row["type"])))
@@ -1049,8 +1292,7 @@ func (s *Server) executeGenerateDocx(ctx context.Context, call *planner.ToolRequ
 	defer span.End()
 	payload, err := careercontext.UnmarshalGenerateDocxPayload([]byte(call.Payload))
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	title := derefString(payload.Title)
 	if title == "" {
@@ -1104,13 +1346,11 @@ func (s *Server) executeReplicateDocument(ctx context.Context, call *planner.Too
 	defer span.End()
 	payload, err := careercontext.UnmarshalReplicateDocumentPayload([]byte(call.Payload))
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	documentID, err := requiredString(payload.DocumentID, "document_id")
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	span.SetAttributes(attribute.String("document.id", documentID))
 	if applicationID != nil {
@@ -1118,13 +1358,11 @@ func (s *Server) executeReplicateDocument(ctx context.Context, call *planner.Too
 	}
 	source, err := s.resolveDocumentVersion(ctx, documentID, "")
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	data, err := localdata.ReadLocalFile(s.app.LocalStorageRoot, source.StoragePath)
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	count := 1
 	if payload.Count != nil && *payload.Count > 0 {
@@ -1163,29 +1401,24 @@ func (s *Server) executeEditDocument(ctx context.Context, call *planner.ToolRequ
 	defer span.End()
 	payload, err := careercontext.UnmarshalEditDocumentPayload([]byte(call.Payload))
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	documentID, err := requiredString(payload.DocumentID, "document_id")
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	span.SetAttributes(attribute.String("document.id", documentID), attribute.Int("document.requested_edit_count", len(payload.Edits)))
 	if len(payload.Edits) == 0 {
-		err := fmt.Errorf("edits is required")
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		missingErr := fmt.Errorf("edits is required")
+		return recordToolFailure(span, call.Name, missingErr), nil
 	}
 	version, err := s.resolveDocumentVersion(ctx, documentID, "")
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	if strings.ToLower(filepath.Ext(version.Filename)) != ".docx" {
-		err := fmt.Errorf("edit_document only supports .docx files")
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		extErr := fmt.Errorf("edit_document only supports .docx files")
+		return recordToolFailure(span, call.Name, extErr), nil
 	}
 	span.SetAttributes(attribute.String("document.filename", version.Filename))
 	_ = send(map[string]any{"type": "doc_edited_start", "filename": version.Filename})
@@ -1197,8 +1430,7 @@ func (s *Server) executeEditDocument(ctx context.Context, call *planner.ToolRequ
 	}
 	data, err := localdata.ReadLocalFile(s.app.LocalStorageRoot, sourcePath)
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	requests := make([]trackedEditRequest, 0, len(payload.Edits))
 	for _, edit := range payload.Edits {
@@ -1214,8 +1446,7 @@ func (s *Server) executeEditDocument(ctx context.Context, call *planner.ToolRequ
 	}
 	editedBytes, tracked, err := applyTrackedEditsToDocx(data, requests, startChangeID)
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	span.SetAttributes(attribute.Int("document.normalized_edit_count", len(requests)), attribute.Int("document.matched_edit_count", len(tracked)))
 	if len(tracked) == 0 {
@@ -1245,16 +1476,14 @@ func (s *Server) executeEditDocument(ctx context.Context, call *planner.ToolRequ
 	if state != nil {
 		newVersion, err = s.appendEditedTrackedVersion(ctx, state.Result, editedBytes, annotations)
 		if err != nil {
-			recordSpanError(span, err)
-			return toolError(call.Name, err), nil
+			return recordToolFailure(span, call.Name, err), nil
 		}
 		state.Result = newVersion
 		state.NextChangeID += len(tracked)
 	} else {
 		newVersion, err = s.writeEditedTrackedVersion(ctx, documentID, version.Filename, editedBytes, annotations)
 		if err != nil {
-			recordSpanError(span, err)
-			return toolError(call.Name, err), nil
+			return recordToolFailure(span, call.Name, err), nil
 		}
 		editStates[documentID] = &assistantEditState{Result: newVersion, NextChangeID: startChangeID + len(tracked)}
 	}
@@ -1281,23 +1510,20 @@ func (s *Server) executeReadTableCells(ctx context.Context, call *planner.ToolRe
 	defer span.End()
 	payload, err := careercontext.UnmarshalReadTableCellsPayload([]byte(call.Payload))
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	reviewID := derefString(payload.ReviewID)
 	if reviewID == "" && tabularReviewID != nil {
 		reviewID = *tabularReviewID
 	}
 	if strings.TrimSpace(reviewID) == "" {
-		err := fmt.Errorf("review_id is required")
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		missingErr := fmt.Errorf("review_id is required")
+		return recordToolFailure(span, call.Name, missingErr), nil
 	}
 	span.SetAttributes(attribute.String("tabular_review.id", reviewID), attribute.Int("tabular.col_index_count", len(payload.ColIndices)), attribute.Int("tabular.row_index_count", len(payload.RowIndices)))
 	text, label, detailLabel, err := s.readTableCellsText(ctx, reviewID, payload.ColIndices, payload.RowIndices)
 	if err != nil {
-		recordSpanError(span, err)
-		return toolError(call.Name, err), nil
+		return recordToolFailure(span, call.Name, err), nil
 	}
 	span.SetAttributes(attribute.Int("tabular.text_chars", len(text)), attribute.String("tabular.label", label))
 	stableID := "tabular_review:" + reviewID
@@ -1400,6 +1626,26 @@ func toolError(name tools.Ident, err error) *planner.ToolResult {
 	return &planner.ToolResult{Name: name, Error: planner.NewToolError(err.Error())}
 }
 
+// recordToolFailure attaches structured failure info to the tool span (error
+// message, tool name, span status, plus a "tool.failure" event) and returns
+// the planner.ToolResult that should be propagated to the caller. Use this
+// instead of calling recordSpanError + toolError separately so every tool
+// failure gets the same structured telemetry footprint.
+func recordToolFailure(span trace.Span, name tools.Ident, err error) *planner.ToolResult {
+	if err != nil {
+		span.SetAttributes(
+			attribute.String("tool.name", string(name)),
+			attribute.String("tool.error.message", err.Error()),
+		)
+		span.AddEvent("tool.failure", trace.WithAttributes(
+			attribute.String("tool.name", string(name)),
+			attribute.String("tool.error.message", err.Error()),
+		))
+		recordSpanError(span, err)
+	}
+	return toolError(name, err)
+}
+
 func generatedSections(sections []*careercontext.AssistantDocxSection) []generatedDocxSection {
 	out := make([]generatedDocxSection, 0, len(sections))
 	for _, section := range sections {
@@ -1446,9 +1692,9 @@ func (s *Server) createAssistantDocument(ctx context.Context, filename, fileType
 		span.SetAttributes(attribute.String("document.file_type", fileType))
 	}
 	storagePath := filepath.ToSlash(filepath.Join(docID, filename))
-	workflow := s.app.Workflows.Upload
+	workflowName := localdata.DocumentUploadWorkflowName
 	if source == "generated" {
-		workflow = s.app.Workflows.Generated
+		workflowName = localdata.GeneratedDocumentWorkflowName
 	}
 	payload := map[string]any{
 		"document_id":    docID,
@@ -1460,7 +1706,15 @@ func (s *Server) createAssistantDocument(ctx context.Context, filename, fileType
 		"version_number": 1,
 		"content_base64": encodeBase64(data),
 	}
-	if err := s.runDocumentWorkflow(localdata.WithUserContext(ctx, s.app.User), workflow, docID, payload); err != nil {
+	if _, err := localdata.PersistDocumentOperation(
+		localdata.WithUserContext(ctx, s.app.User),
+		s.app,
+		localdata.DocumentOperationInput{
+			WorkflowName: workflowName,
+			TargetID:     docID,
+			Payload:      payload,
+		},
+	); err != nil {
 		recordSpanError(span, err)
 		return assistantDocumentWriteResult{}, err
 	}

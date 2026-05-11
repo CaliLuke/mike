@@ -40,8 +40,6 @@ export default function AssistantChatPage() {
       .then(({ messages: loaded }) => {
         if (loaded.length > 0) {
           setMessages(loaded);
-        } else {
-          router.replace("/assistant");
         }
       })
       .catch(() => router.replace("/assistant"));

@@ -48,6 +48,8 @@ import {
   renameApplicationFolder,
   uploadApplicationDocument,
 } from "@/app/lib/lukeApi";
+import { canonicalOwnerId, isSameOwner } from "@/app/lib/ownership";
+import { getTracer } from "@/app/lib/telemetry";
 import { LukeIcon } from "@/components/chat/luke-icon";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserProfile } from "@/contexts/UserProfileContext";
@@ -535,7 +537,24 @@ export default function ApplicationAssistantChatPage({ params }: Props) {
   }
 
   async function handleDeleteChat() {
-    if (chatOwnerId && user?.id && chatOwnerId !== user.id) {
+    const allowed = !chatOwnerId || !user?.id || isSameOwner(chatOwnerId, user.id);
+    const span = getTracer().startSpan(
+      allowed ? "chat.owner_action.allowed" : "chat.owner_action.blocked",
+      {
+        attributes: {
+          "chat.action": "delete",
+          "chat.id": chatId,
+          "chat.owner_id": chatOwnerId ?? "",
+          "chat.owner_id.normalized": canonicalOwnerId(chatOwnerId),
+          "user.id": user?.id ?? "",
+          "user.id.normalized": canonicalOwnerId(user?.id),
+          "ownership.allowed": allowed,
+          "ownership.surface": "application.chat_page",
+        },
+      },
+    );
+    span.end();
+    if (!allowed) {
       setOwnerOnlyAction("delete this chat");
       return;
     }

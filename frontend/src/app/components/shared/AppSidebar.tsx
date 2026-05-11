@@ -4,6 +4,7 @@ import {
   Building2,
   ChevronDown,
   ChevronsUpDown,
+  FileText,
   FolderOpen,
   Library,
   MessageSquare,
@@ -17,7 +18,7 @@ import { useEffect, useState } from "react";
 
 import { SidebarChatItem } from "@/app/components/shared/SidebarChatItem";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
-import { listApplications } from "@/app/lib/lukeApi";
+import { listApplications, listCompanies, listDocuments } from "@/app/lib/lukeApi";
 import { getTracer } from "@/app/lib/telemetry";
 import { LukeIcon } from "@/components/chat/luke-icon";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,6 +28,7 @@ const NAV_ITEMS = [
   { href: "/assistant", label: "Assistant", icon: MessageSquare },
   { href: "/companies", label: "Companies", icon: Building2 },
   { href: "/applications", label: "Applications", icon: FolderOpen },
+  { href: "/files", label: "Files", icon: FileText },
   { href: "/tabular-reviews", label: "Tabular Review", icon: Table2 },
   { href: "/workflows", label: "Workflows", icon: Library },
 ];
@@ -46,16 +48,35 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
   const [applicationNames, setApplicationNames] = useState<Record<string, string>>({});
+  const [applicationCount, setApplicationCount] = useState<number | null>(null);
+  const [companyCount, setCompanyCount] = useState<number | null>(null);
+  const [fileCount, setFileCount] = useState<number | null>(null);
 
   useEffect(() => {
     if (!user) return;
-    listApplications()
-      .then((applications) => {
-        const map: Record<string, string> = {};
-        for (const p of applications) map[p.id] = p.name;
-        setApplicationNames(map);
-      })
-      .catch(() => {});
+    let cancelled = false;
+    const refresh = () => {
+      Promise.all([listApplications(), listCompanies(), listDocuments()])
+        .then(([applications, companies, documents]) => {
+          if (cancelled) return;
+          const map: Record<string, string> = {};
+          for (const p of applications) map[p.id] = p.name;
+          setApplicationNames(map);
+          setApplicationCount(applications.length);
+          setCompanyCount(companies.length);
+          setFileCount(documents.length);
+        })
+        .catch(() => {});
+    };
+    refresh();
+    // Poll while the sidebar is mounted so the user sees the count tick
+    // up shortly after the assistant creates a new company / application.
+    // 5s is plenty fast for visual feedback on a local-only app.
+    const interval = window.setInterval(refresh, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
   }, [user]);
 
   useEffect(() => {
@@ -148,6 +169,10 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
       {/* Nav items */}
       {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
         const isActive = pathname === href || pathname.startsWith(href + "/");
+        let count: number | null = null;
+        if (href === "/applications") count = applicationCount;
+        else if (href === "/companies") count = companyCount;
+        else if (href === "/files") count = fileCount;
         return (
           <div key={href} className="px-2.5 py-1">
             <button
@@ -162,7 +187,7 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                 span.end();
                 router.push(href);
               }}
-              title={!isOpen ? label : ""}
+              title={!isOpen ? `${label}${count !== null ? ` (${count})` : ""}` : ""}
               className={`flex h-9 w-full items-center gap-3 rounded-md px-2.5 py-2 text-left transition-colors ${
                 isActive ? "bg-gray-100 text-gray-900" : "text-gray-700 hover:bg-gray-100"
               } ${!isOpen ? "hidden md:flex" : "flex"}`}
@@ -171,9 +196,23 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                 className={`h-4 w-4 flex-shrink-0 ${isActive ? "text-gray-900" : "text-black"}`}
               />
               {isOpen && (
-                <span className={`text-sm font-medium ${shouldAnimate ? "sidebar-fade-in-2" : ""}`}>
-                  {label}
-                </span>
+                <>
+                  <span
+                    className={`flex-1 text-sm font-medium ${shouldAnimate ? "sidebar-fade-in-2" : ""}`}
+                  >
+                    {label}
+                  </span>
+                  {count !== null && (
+                    <span
+                      className={`ml-auto inline-flex min-w-[1.5rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-medium tabular-nums ${
+                        isActive ? "bg-gray-200 text-gray-700" : "bg-gray-100 text-gray-500"
+                      }`}
+                      aria-label={`${count} ${label.toLowerCase()}`}
+                    >
+                      {count}
+                    </span>
+                  )}
+                </>
               )}
             </button>
           </div>
@@ -224,6 +263,25 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                     applicationName={
                       chat.application_id ? applicationNames[chat.application_id] : undefined
                     }
+                    onDeletedActive={() => {
+                      const destination = chat.application_id
+                        ? `/applications/${chat.application_id}?tab=assistant`
+                        : "/assistant";
+                      const span = getTracer().startSpan(
+                        "chat.delete.navigate_after_active_delete",
+                        {
+                          attributes: {
+                            "chat.id": chat.id,
+                            "chat.application_id": chat.application_id ?? "",
+                            "nav.from": pathname,
+                            "nav.href": destination,
+                            "nav.reason": "active_chat_deleted",
+                          },
+                        },
+                      );
+                      span.end();
+                      router.push(destination);
+                    }}
                     onSelect={() => {
                       setCurrentChatId(chat.id);
                       router.push(

@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import { OwnerOnlyModal } from "@/app/components/shared/OwnerOnlyModal";
 import type { LukeChat } from "@/app/components/shared/types";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
+import { canonicalOwnerId, isSameOwner } from "@/app/lib/ownership";
+import { getTracer } from "@/app/lib/telemetry";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,10 +20,17 @@ interface Props {
   chat: LukeChat;
   isActive: boolean;
   onSelect: () => void;
+  onDeletedActive?: () => void;
   applicationName?: string;
 }
 
-export function SidebarChatItem({ chat, isActive, onSelect, applicationName }: Props) {
+export function SidebarChatItem({
+  chat,
+  isActive,
+  onSelect,
+  onDeletedActive,
+  applicationName,
+}: Props) {
   const { renameChat, deleteChat } = useChatHistoryContext();
   const { user } = useAuth();
   const [isRenaming, setIsRenaming] = useState(false);
@@ -30,7 +39,7 @@ export function SidebarChatItem({ chat, isActive, onSelect, applicationName }: P
   const editInputRef = useRef<HTMLInputElement>(null);
   // Sidebar can show collaborator chats from applications the user owns;
   // rename/delete are still creator-only on the backend, so guard here.
-  const isChatOwner = !!user?.id && chat.user_id === user.id;
+  const isChatOwner = isSameOwner(chat.user_id, user?.id);
 
   useEffect(() => {
     if (isRenaming) editInputRef.current?.focus();
@@ -45,6 +54,36 @@ export function SidebarChatItem({ chat, isActive, onSelect, applicationName }: P
   const handleRenameCancel = () => {
     setIsRenaming(false);
     setEditTitle(chat.title ?? "");
+  };
+
+  const traceChatOwnershipDecision = (action: "rename" | "delete", allowed: boolean) => {
+    const span = getTracer().startSpan(
+      allowed ? "chat.owner_action.allowed" : "chat.owner_action.blocked",
+      {
+        attributes: {
+          "chat.action": action,
+          "chat.id": chat.id,
+          "chat.owner_id": chat.user_id,
+          "chat.owner_id.normalized": canonicalOwnerId(chat.user_id),
+          "user.id": user?.id ?? "",
+          "user.id.normalized": canonicalOwnerId(user?.id),
+          "ownership.allowed": allowed,
+          "ownership.surface": "sidebar",
+        },
+      },
+    );
+    span.end();
+  };
+
+  const handleDelete = async () => {
+    if (!isChatOwner) {
+      traceChatOwnershipDecision("delete", false);
+      setOwnerOnlyAction("delete this chat");
+      return;
+    }
+    traceChatOwnershipDecision("delete", true);
+    await deleteChat(chat.id);
+    if (isActive) onDeletedActive?.();
   };
 
   return (
@@ -120,9 +159,11 @@ export function SidebarChatItem({ chat, isActive, onSelect, applicationName }: P
               <DropdownMenuItem
                 onClick={() => {
                   if (!isChatOwner) {
+                    traceChatOwnershipDecision("rename", false);
                     setOwnerOnlyAction("rename this chat");
                     return;
                   }
+                  traceChatOwnershipDecision("rename", true);
                   setEditTitle(chat.title ?? "");
                   setIsRenaming(true);
                 }}
@@ -131,13 +172,7 @@ export function SidebarChatItem({ chat, isActive, onSelect, applicationName }: P
                 Rename
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => {
-                  if (!isChatOwner) {
-                    setOwnerOnlyAction("delete this chat");
-                    return;
-                  }
-                  void deleteChat(chat.id);
-                }}
+                onClick={() => void handleDelete()}
                 className="text-red-600 focus:text-red-600"
               >
                 <Trash2 className="mr-2 h-4 w-4" />

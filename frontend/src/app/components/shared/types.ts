@@ -94,10 +94,16 @@ export interface LukeEditAnnotation {
 
 export type AssistantEvent =
   | { type: "reasoning"; text: string; isStreaming?: boolean }
+  | { type: "replay_error"; message: string }
   | {
       type: "tool_call_start";
       name: string;
       isStreaming?: boolean;
+      // V2 chat path uses these to render success / failure visuals on the
+      // same placeholder once a tool_completed / tool_failed event lands.
+      status?: "running" | "done" | "failed";
+      summary?: string;
+      error?: string;
     }
   | { type: "thinking"; isStreaming?: boolean }
   | {

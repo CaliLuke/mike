@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/CaliLuke/luke/backend-go/internal/localapi/chatv2"
 	"github.com/CaliLuke/luke/backend-go/internal/localdata"
 	"github.com/CaliLuke/luke/backend-go/internal/persistence"
 	"github.com/CaliLuke/luke/backend-go/internal/telemetry"
@@ -26,12 +27,18 @@ import (
 const defaultListenAddr = "127.0.0.1:3001"
 
 type Server struct {
-	app *localdata.App
-	tel *telemetry.Telemetry
+	app             *localdata.App
+	tel             *telemetry.Telemetry
+	chatRunWorkflow *romancy.WorkflowFunc[chatExecutionInput, chatExecutionResult]
+	chatV2Registry  *chatv2.Registry
+	chatV2Service   *chatv2.Service
 }
 
 func New(app *localdata.App, tel *telemetry.Telemetry) http.Handler {
-	server := &Server{app: app, tel: tel}
+	server := &Server{app: app, tel: tel, chatV2Registry: chatv2.NewRegistry()}
+	server.registerChatExecutionWorkflow()
+	server.chatV2Service = chatv2.NewService(server.chatV2Registry, server.chatV2Deps())
+	server.chatV2Service.RegisterRomancy(app.Romancy)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", server.health)
 	mux.HandleFunc("POST /user/profile", server.profile)
@@ -117,7 +124,9 @@ func New(app *localdata.App, tel *telemetry.Telemetry) http.Handler {
 	mux.HandleFunc("GET /download/{token}", server.downloadToken)
 	if server.tel != nil {
 		mux.Handle("POST /v1/traces", server.tel.SpanIngestHandler())
+		mux.Handle("DELETE /v1/traces", server.tel.WipeHandler())
 	}
+	mux.HandleFunc("POST /diagnostics/reset-content", server.resetUserContent)
 	return localdata.LocalCORSMiddleware(localdata.LocalUserMiddleware(mux))
 }
 
@@ -154,6 +163,14 @@ func (s *Server) profile(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) deleteAccount(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (s *Server) resetUserContent(w http.ResponseWriter, r *http.Request) {
+	if err := s.app.ResetUserContent(r.Context()); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) companies(w http.ResponseWriter, r *http.Request) {
@@ -483,7 +500,12 @@ func (s *Server) renameDocumentVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) trackedChangeIDs(w http.ResponseWriter, r *http.Request) {
-	rows, err := queryRows(r.Context(), s.app.DB, "SELECT change_id FROM document_edits WHERE document_id = "+recordID("documents", r.PathValue("documentId"))+" ORDER BY created_at;")
+	rows, err := queryRows(r.Context(), s.app.DB, surrealSelect{
+		Fields:  []string{"change_id"},
+		From:    "document_edits",
+		Where:   "document_id = " + recordID("documents", r.PathValue("documentId")),
+		OrderBy: []string{"created_at"},
+	}.String())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -529,7 +551,7 @@ func (s *Server) chats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
-	chatID := r.PathValue("chatId")
+	chatID := trimRecord(recordID("chats", r.PathValue("chatId")))
 	switch r.Method {
 	case http.MethodGet:
 		detail, err := s.chatDetail(r.Context(), chatID)
@@ -551,7 +573,15 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
 		rows, err := queryRows(r.Context(), s.app.DB, chatListQuery("id = "+recordID("chats", chatID)))
 		writeFirst(w, rows, err)
 	case http.MethodDelete:
-		if _, err := s.app.DB.Query(r.Context(), "DELETE "+recordID("chats", chatID)+";"); err != nil {
+		_, deleteSpan := startLocalSpan(r.Context(), "chat.delete",
+			attribute.String("chat.id", chatID),
+			attribute.String("chat.record_id", recordID("chats", chatID)),
+			attribute.String("user.id", localdata.UserFromContext(r.Context()).UserID),
+		)
+		_, err := s.app.DB.Query(r.Context(), "DELETE "+recordID("chats", chatID)+";")
+		recordSpanError(deleteSpan, err)
+		deleteSpan.End()
+		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
@@ -837,7 +867,12 @@ func (s *Server) clearCells(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) tabularChats(w http.ResponseWriter, r *http.Request) {
-	s.writeQueryRows(w, r, "SELECT id, review_id AS application_id, user_id, title, created_at FROM tabular_review_chats WHERE review_id = "+recordID("tabular_reviews", r.PathValue("reviewId"))+" ORDER BY updated_at DESC;")
+	s.writeQueryRows(w, r, surrealSelect{
+		Fields:  []string{"id", "review_id AS application_id", "user_id", "title", "created_at"},
+		From:    "tabular_review_chats",
+		Where:   "review_id = " + recordID("tabular_reviews", r.PathValue("reviewId")),
+		OrderBy: []string{"updated_at DESC"},
+	}.String())
 }
 
 func (s *Server) deleteTabularChat(w http.ResponseWriter, r *http.Request) {
@@ -988,7 +1023,15 @@ func (s *Server) uploadFromRequest(r *http.Request, applicationID *string) (map[
 	if applicationID != nil {
 		payload["application_id"] = *applicationID
 	}
-	if err := s.runDocumentWorkflow(localdata.WithUserContext(r.Context(), s.app.User), s.app.Workflows.Upload, docID, payload); err != nil {
+	if _, err := localdata.PersistDocumentOperation(
+		localdata.WithUserContext(r.Context(), s.app.User),
+		s.app,
+		localdata.DocumentOperationInput{
+			WorkflowName: localdata.DocumentUploadWorkflowName,
+			TargetID:     docID,
+			Payload:      payload,
+		},
+	); err != nil {
 		return nil, err
 	}
 	if applicationID != nil {
@@ -997,31 +1040,6 @@ func (s *Server) uploadFromRequest(r *http.Request, applicationID *string) (map[
 		}
 	}
 	return s.getDocument(r.Context(), docID)
-}
-
-func (s *Server) runDocumentWorkflow(ctx context.Context, workflow *romancy.WorkflowFunc[localdata.DocumentOperationInput, localdata.DocumentOperationResult], targetID string, payload map[string]any) error {
-	instanceID := "api_" + workflow.Name() + "_" + targetID
-	_, err := romancy.StartWorkflow(ctx, s.app.Romancy, workflow, localdata.DocumentOperationInput{TargetID: targetID, Payload: payload}, romancy.WithInstanceID(instanceID))
-	if err != nil {
-		return err
-	}
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		result, err := romancy.GetWorkflowResult[localdata.DocumentOperationResult](ctx, s.app.Romancy, instanceID)
-		if err != nil {
-			return err
-		}
-		if result.Status == "completed" {
-			return nil
-		}
-		if result.Status == "failed" {
-			return result.Error
-		}
-		if time.Now().After(deadline) {
-			return fmt.Errorf("document workflow %s did not complete in time", workflow.Name())
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
 }
 
 func (s *Server) uploadVersionFromRequest(r *http.Request, documentID, source string) (map[string]any, error) {
@@ -1108,6 +1126,10 @@ func (s *Server) zipDocumentBytes(ctx context.Context, documentIDs []string) ([]
 }
 
 func (s *Server) chatStream(w http.ResponseWriter, r *http.Request, applicationID *string) {
+	if chatv2.Enabled() {
+		s.chatStreamV2(w, r, applicationID)
+		return
+	}
 	ctx, span := startLocalSpan(r.Context(), "api.chat_stream")
 	r = r.WithContext(ctx)
 	defer span.End()
@@ -1120,11 +1142,14 @@ func (s *Server) chatStream(w http.ResponseWriter, r *http.Request, applicationI
 	}
 	_ = decodeJSON(r, &req)
 	chatID := ""
+	requestedChatID := ""
 	if req.ChatID != nil {
-		chatID = *req.ChatID
+		requestedChatID = *req.ChatID
+		chatID = trimRecord(recordID("chats", requestedChatID))
 	}
 	span.SetAttributes(
 		attribute.Bool("chat.existing", chatID != ""),
+		attribute.String("chat.requested_id", requestedChatID),
 		attribute.Int("chat.request_message_count", len(req.Messages)),
 		attribute.Int("chat.attached_document_count", len(req.AttachedDocuments)),
 		attribute.Bool("chat.has_displayed_doc", req.DisplayedDoc != nil),
@@ -1144,10 +1169,28 @@ func (s *Server) chatStream(w http.ResponseWriter, r *http.Request, applicationI
 	}
 	span.SetAttributes(attribute.String("chat.id", chatID))
 	streamSSE(r.Context(), w, func(send func(map[string]any) error) error {
-		_, err := s.persistAndStreamAssistantChat(r.Context(), chatID, req.Model, applicationID, nil, req.Messages, req.DisplayedDoc, req.AttachedDocuments, send)
+		err := s.streamChatExecutionWorkflow(r.Context(), send, chatExecutionInput{
+			ChatID:            chatID,
+			Model:             req.Model,
+			ApplicationID:     applicationID,
+			Messages:          req.Messages,
+			DisplayedDoc:      req.DisplayedDoc,
+			AttachedDocuments: req.AttachedDocuments,
+		})
 		recordSpanError(span, err)
 		return err
 	})
+}
+
+// chatStreamV2 dispatches the chat to the V2 workflow path.
+func (s *Server) chatStreamV2(w http.ResponseWriter, r *http.Request, applicationID *string) {
+	ctx, span := startLocalSpan(r.Context(), "api.chat_stream_v2")
+	r = r.WithContext(ctx)
+	defer span.End()
+	if applicationID != nil {
+		span.SetAttributes(attribute.String("application.id", *applicationID))
+	}
+	chatv2.Handler(s.chatV2HandlerDeps(), applicationID)(w, r)
 }
 
 func streamSSE(ctx context.Context, w http.ResponseWriter, fn func(func(map[string]any) error) error) {
@@ -1188,11 +1231,13 @@ func queryRows(ctx context.Context, db *persistence.DB, query string) ([]map[str
 	defer span.End()
 	result, err := db.Query(ctx, query)
 	if err != nil {
+		span.SetAttributes(attribute.String("db.statement", truncateStatement(query)))
 		recordSpanError(span, err)
 		return nil, err
 	}
 	var statements [][]map[string]any
 	if err := json.Unmarshal(result, &statements); err != nil {
+		span.SetAttributes(attribute.String("db.statement", truncateStatement(query)))
 		recordSpanError(span, err)
 		return nil, err
 	}
@@ -1224,11 +1269,20 @@ func (s *Server) writeNoContentQuery(w http.ResponseWriter, r *http.Request, que
 	_, span := startLocalSpan(r.Context(), "surreal.exec", surrealQueryAttributes(query)...)
 	defer span.End()
 	if _, err := s.app.DB.Query(r.Context(), query); err != nil {
+		span.SetAttributes(attribute.String("db.statement", truncateStatement(query)))
 		recordSpanError(span, err)
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func truncateStatement(query string) string {
+	const max = 2000
+	if len(query) <= max {
+		return query
+	}
+	return query[:max] + "…"
 }
 
 func (s *Server) writeListOrCreate(w http.ResponseWriter, r *http.Request, listQuery string, create func() (map[string]any, error)) {

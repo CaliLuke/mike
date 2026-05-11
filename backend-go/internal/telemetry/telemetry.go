@@ -113,6 +113,36 @@ func (t *Telemetry) Shutdown(ctx context.Context) error {
 	return nil
 }
 
+// Wipe deletes all spans and reclaims disk space. Used by the diagnostics
+// UI to start a clean trace before reproducing an issue.
+func (t *Telemetry) Wipe(ctx context.Context) error {
+	if t == nil || t.processor == nil || t.processor.db == nil {
+		return nil
+	}
+	if _, err := t.processor.db.ExecContext(ctx, "DELETE FROM spans"); err != nil {
+		return fmt.Errorf("wipe spans: %w", err)
+	}
+	if _, err := t.processor.db.ExecContext(ctx, "VACUUM"); err != nil {
+		return fmt.Errorf("vacuum spans: %w", err)
+	}
+	return nil
+}
+
+// WipeHandler returns an HTTP handler that wipes the spans table.
+func (t *Telemetry) WipeHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if t == nil {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if err := t.Wipe(r.Context()); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
 // SpanIngestHandler returns an HTTP handler that accepts span batches from
 // the browser tracer. Body shape:
 //
@@ -174,6 +204,24 @@ func (p *sqliteSpanProcessor) OnEnd(s sdktrace.ReadOnlySpan) {
 		parentID = parent.SpanID().String()
 	}
 	attrs := attrsToMap(s.Attributes())
+	status := s.Status()
+	if status.Description != "" {
+		if attrs == nil {
+			attrs = map[string]any{}
+		}
+		attrs["status.description"] = status.Description
+	}
+	for _, ev := range s.Events() {
+		if ev.Name != "exception" {
+			continue
+		}
+		if attrs == nil {
+			attrs = map[string]any{}
+		}
+		for _, kv := range ev.Attributes {
+			attrs[string(kv.Key)] = kv.Value.AsInterface()
+		}
+	}
 	p.write(ingestedSpan{
 		TraceID:       sc.TraceID().String(),
 		SpanID:        sc.SpanID().String(),
@@ -184,7 +232,7 @@ func (p *sqliteSpanProcessor) OnEnd(s sdktrace.ReadOnlySpan) {
 		StartUnixNano: s.StartTime().UnixNano(),
 		EndUnixNano:   s.EndTime().UnixNano(),
 		Attributes:    attrs,
-		Status:        s.Status().Code.String(),
+		Status:        status.Code.String(),
 	})
 }
 

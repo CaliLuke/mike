@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"regexp"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -44,12 +44,13 @@ type tabularPayload struct {
 	SharedWith    []string         `json:"shared_with"`
 }
 
-var nonRecordID = regexp.MustCompile(`[^A-Za-z0-9_]+`)
-
 const applicationListQuery = `
 SELECT
 	id, user_id, true AS is_owner, company_id, company_id.name AS company_name, name, cm_number, shared_with, created_at, updated_at,
-	[] AS folders, 0 AS document_count, 0 AS chat_count, 0 AS review_count
+	(SELECT id, application_id, parent_folder_id, name, created_at, updated_at FROM application_folders WHERE application_id = $parent.id ORDER BY created_at) AS folders,
+	count(SELECT 1 FROM documents WHERE application_id = $parent.id) AS document_count,
+	count(SELECT 1 FROM chats WHERE application_id = $parent.id) AS chat_count,
+	count(SELECT 1 FROM tabular_reviews WHERE application_id = $parent.id) AS review_count
 FROM applications ORDER BY updated_at DESC;`
 
 const companyListQuery = `
@@ -244,7 +245,17 @@ func (s *Server) getApplication(ctx context.Context, applicationID string) (map[
 	rows, err := queryRows(ctx, s.app.DB, `
 SELECT
 	id, user_id, true AS is_owner, company_id, company_id.name AS company_name, name, cm_number, shared_with, created_at, updated_at,
-	[] AS folders, 0 AS document_count, 0 AS chat_count, 0 AS review_count
+	(SELECT id, application_id, parent_folder_id, name, created_at, updated_at FROM application_folders WHERE application_id = $parent.id ORDER BY created_at) AS folders,
+	(SELECT
+		id, user_id, application_id, folder_id, filename, file_type,
+		current_version_id.storage_path AS storage_path,
+		current_version_id.pdf_storage_path AS pdf_storage_path,
+		size_bytes, page_count, structure_tree.root AS structure_tree, status, created_at, updated_at,
+		current_version_id.version_number AS latest_version_number
+	 FROM documents WHERE application_id = $parent.id ORDER BY updated_at DESC) AS documents,
+	count(SELECT 1 FROM documents WHERE application_id = $parent.id) AS document_count,
+	count(SELECT 1 FROM chats WHERE application_id = $parent.id) AS chat_count,
+	count(SELECT 1 FROM tabular_reviews WHERE application_id = $parent.id) AS review_count
 FROM `+recordID("applications", applicationID)+`;`)
 	return firstRow(rows, err)
 }
@@ -507,36 +518,47 @@ func chatListQuery(where string) string {
 }
 
 func (s *Server) chatDetail(ctx context.Context, chatID string) (map[string]any, error) {
-	chats, err := queryRows(ctx, s.app.DB, chatListQuery("id = "+recordID("chats", chatID)))
+	chatRecordID := recordID("chats", chatID)
+	ctx, span := startLocalSpan(ctx, "chat.detail",
+		attribute.String("chat.id", chatID),
+		attribute.String("chat.record_id", chatRecordID),
+	)
+	defer span.End()
+	chats, err := queryRows(ctx, s.app.DB, chatListQuery("id = "+chatRecordID))
 	if err != nil || len(chats) == 0 {
+		recordSpanError(span, err)
+		span.SetAttributes(attribute.Int("chat.detail.chat_count", len(chats)))
 		return nil, err
 	}
-	messages, err := queryRows(ctx, s.app.DB, "SELECT id, chat_id, created_at, role, content, files, annotations FROM chat_messages WHERE chat_id = "+recordID("chats", chatID)+" ORDER BY created_at;")
+	messages, err := queryRows(ctx, s.app.DB, "SELECT id, chat_id, created_at, role, content, files, annotations FROM chat_messages WHERE chat_id = "+chatRecordID+" ORDER BY created_at;")
 	if err != nil {
+		recordSpanError(span, err)
 		return nil, err
 	}
+	span.SetAttributes(
+		attribute.Int("chat.detail.chat_count", len(chats)),
+		attribute.Int("chat.detail.message_count", len(messages)),
+	)
 	return map[string]any{"chat": chats[0], "messages": messages}, nil
 }
 
-func (s *Server) insertChatMessage(ctx context.Context, chatID, role, content string, annotations []map[string]any) error {
-	return s.insertChatMessageWithFiles(ctx, chatID, role, content, nil, annotations)
-}
-
-func (s *Server) insertChatMessageWithFiles(ctx context.Context, chatID, role, content string, files []chatRequestFile, annotations []map[string]any) error {
+func (s *Server) createChatMessageWithID(ctx context.Context, messageID, chatID, role string, content any, files []chatRequestFile, annotations []map[string]any) error {
+	chatRecordID := recordID("chats", chatID)
 	_, span := startLocalSpan(ctx, "chat.persist_message",
 		attribute.String("chat.id", chatID),
+		attribute.String("chat.record_id", chatRecordID),
 		attribute.String("chat.role", role),
-		attribute.Int("chat.content_chars", len(content)),
+		attribute.Int("chat.content_chars", contentCharLen(content)),
 		attribute.Int("chat.file_count", len(files)),
 		attribute.Int("chat.annotation_count", len(annotations)),
 	)
 	defer span.End()
-	if strings.TrimSpace(content) == "" {
-		span.SetAttributes(attribute.Bool("chat.persist_skipped", true))
-		return nil
+	span.SetAttributes(attribute.String("chat.message_id", messageID))
+	contentJSON, err := json.Marshal(content)
+	if err != nil {
+		recordSpanError(span, err)
+		return err
 	}
-	id := newID("chatmsg")
-	span.SetAttributes(attribute.String("chat.message_id", id))
 	annotationsJSON, err := json.Marshal(annotations)
 	if err != nil {
 		recordSpanError(span, err)
@@ -558,7 +580,7 @@ func (s *Server) insertChatMessageWithFiles(ctx context.Context, chatID, role, c
 		return err
 	}
 	_, err = s.app.DB.Query(ctx, fmt.Sprintf(`
-		CREATE %s CONTENT {
+		UPSERT %s CONTENT {
 			chat_id: %s,
 			role: %s,
 			content: %s,
@@ -566,9 +588,59 @@ func (s *Server) insertChatMessageWithFiles(ctx context.Context, chatID, role, c
 			annotations: %s,
 			created_at: time::now()
 		};
-	`, recordID("chat_messages", id), recordID("chats", chatID), surrealString(role), surrealString(content), string(filesJSON), string(annotationsJSON)))
+	`, recordID("chat_messages", messageID), chatRecordID, surrealString(role), string(contentJSON), string(filesJSON), string(annotationsJSON)))
 	recordSpanError(span, err)
 	return err
+}
+
+func (s *Server) updateChatMessageContent(ctx context.Context, messageID string, content any, annotations []map[string]any) error {
+	_, span := startLocalSpan(ctx, "chat.update_message",
+		attribute.String("chat.message_id", messageID),
+		attribute.Int("chat.content_chars", contentCharLen(content)),
+		attribute.Int("chat.annotation_count", len(annotations)),
+	)
+	defer span.End()
+	if events, ok := content.([]map[string]any); ok {
+		span.SetAttributes(
+			attribute.Int("assistant.timeline_event_count", len(events)),
+			attribute.String("assistant.timeline_last_event_type", lastTimelineEventType(events)),
+		)
+	}
+	contentJSON, err := json.Marshal(content)
+	if err != nil {
+		recordSpanError(span, err)
+		return err
+	}
+	annotationsJSON, err := json.Marshal(annotations)
+	if err != nil {
+		recordSpanError(span, err)
+		return err
+	}
+	_, err = s.app.DB.Query(ctx, fmt.Sprintf(`
+		UPDATE %s SET content = %s, annotations = %s;
+	`, recordID("chat_messages", messageID), string(contentJSON), string(annotationsJSON)))
+	recordSpanError(span, err)
+	return err
+}
+
+func lastTimelineEventType(events []map[string]any) string {
+	if len(events) == 0 {
+		return ""
+	}
+	return asString(events[len(events)-1]["type"])
+}
+
+func contentCharLen(content any) int {
+	switch value := content.(type) {
+	case string:
+		return len(value)
+	case []map[string]any:
+		data, _ := json.Marshal(value)
+		return len(data)
+	default:
+		data, _ := json.Marshal(value)
+		return len(data)
+	}
 }
 
 func (s *Server) insertTabularChatMessage(ctx context.Context, chatID, role, content string) error {
@@ -790,14 +862,13 @@ func (s *Server) peopleResponse() map[string]any {
 }
 
 func recordID(table, rawID string) string {
-	if strings.Contains(rawID, ":") {
-		parts := strings.SplitN(rawID, ":", 2)
-		rawID = parts[1]
-	}
-	return table + ":" + nonRecordID.ReplaceAllString(rawID, "_")
+	return localdata.RecordID(table, rawID)
 }
 
 func trimRecord(value string) string {
+	if decoded, err := url.PathUnescape(value); err == nil {
+		value = decoded
+	}
 	if strings.Contains(value, ":") {
 		return strings.SplitN(value, ":", 2)[1]
 	}

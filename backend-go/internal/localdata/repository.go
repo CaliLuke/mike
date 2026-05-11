@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -180,8 +181,22 @@ func queryRowsDB(ctx context.Context, db *persistence.DB, query string) ([]map[s
 	return statements[0], nil
 }
 
-func recordID(table, rawID string) string {
+// RecordID builds a SurrealDB record id (table:id) from a raw id, stripping
+// any URL escaping or pre-existing table prefix and replacing any characters
+// outside [A-Za-z0-9_] with underscore.
+func RecordID(table, rawID string) string {
+	if decoded, err := url.PathUnescape(rawID); err == nil {
+		rawID = decoded
+	}
+	if strings.Contains(rawID, ":") {
+		parts := strings.SplitN(rawID, ":", 2)
+		rawID = parts[1]
+	}
 	return table + ":" + nonRecordID.ReplaceAllString(rawID, "_")
+}
+
+func recordID(table, rawID string) string {
+	return RecordID(table, rawID)
 }
 
 func nullableJSON(data []byte) string {

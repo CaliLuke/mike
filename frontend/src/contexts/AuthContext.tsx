@@ -19,7 +19,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const LOCAL_USER: User = {
-  id: "local",
+  id: "users:local",
   email: "local@luke.local",
 };
 

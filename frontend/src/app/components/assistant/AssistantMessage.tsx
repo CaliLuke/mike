@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, XCircle } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { PreResponseWrapper } from "../shared/PreResponseWrapper";
@@ -244,17 +244,59 @@ export function AssistantMessage({
       );
     }
     if (event.type === "tool_call_start") {
+      const toolName = event.name || "tool";
+      const status = event.status ?? (event.isStreaming ? "running" : "done");
+      let icon: React.ReactNode;
+      let label: string;
+      let textCls: string;
+      switch (status) {
+        case "done":
+          icon = <Check className="h-3 w-3 shrink-0 text-green-600" />;
+          label = `Used ${toolName}`;
+          textCls = "text-gray-700";
+          break;
+        case "failed":
+          icon = <XCircle className="h-3 w-3 shrink-0 text-red-600" />;
+          label = `${toolName} failed`;
+          textCls = "text-red-700";
+          break;
+        case "running":
+        default:
+          icon = (
+            <div className="h-1.5 w-1.5 shrink-0 animate-spin rounded-full border border-gray-400 border-t-transparent" />
+          );
+          label = `Running ${toolName}…`;
+          textCls = "text-gray-500";
+          break;
+      }
       return (
         <div
           key={globalIdx}
-          className="relative flex items-center font-serif text-sm text-gray-500"
+          className={`relative flex items-start gap-2 font-serif text-sm ${textCls}`}
         >
           {showConnector && (
             <div className="absolute top-[13px] bottom-0 left-[2.5px] h-[calc(100%+11px)] w-[1px] bg-gray-300" />
           )}
-          <div className="h-1.5 w-1.5 shrink-0 animate-spin rounded-full border border-gray-400 border-t-transparent" />
-          <span className="ml-2 font-medium">Running</span>
-          <span className="ml-1">{event.name ? `${event.name}...` : "tool..."}</span>
+          <div className="mt-1 flex items-center">{icon}</div>
+          <div className="flex flex-col">
+            <span className="font-medium">{label}</span>
+            {status === "done" && event.summary && (
+              <span className="text-xs text-gray-500">{event.summary}</span>
+            )}
+            {status === "failed" && event.error && (
+              <span className="text-xs text-red-600">{event.error}</span>
+            )}
+          </div>
+        </div>
+      );
+    }
+    if (event.type === "replay_error") {
+      return (
+        <div
+          key={globalIdx}
+          className="rounded border border-amber-200 bg-amber-50 px-3 py-2 font-serif text-sm text-amber-800"
+        >
+          {event.message}
         </div>
       );
     }

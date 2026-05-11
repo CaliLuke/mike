@@ -17,6 +17,7 @@ import {
   findLastContentIndex,
 } from "./assistantChatMessages";
 import { handleAssistantSseEvent } from "./assistantSseEvents";
+import { handleAssistantSseEventV2 } from "./assistantSseEventsV2";
 import { useGenerateChatTitle } from "./useGenerateChatTitle";
 
 interface UseAssistantChatOptions {
@@ -450,6 +451,8 @@ export function useAssistantChat({
 
       const decoder = new TextDecoder();
       let buffer = "";
+      const chatVersion = response.headers.get("x-luke-chat-version");
+      const dispatch = chatVersion === "v2" ? handleAssistantSseEventV2 : handleAssistantSseEvent;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -469,7 +472,7 @@ export function useAssistantChat({
           try {
             const data = JSON.parse(dataStr);
 
-            const nextChatId = handleAssistantSseEvent(data, {
+            const nextChatId = dispatch(data, {
               setChatId,
               setCurrentChatId,
               setIsLoadingCitations,

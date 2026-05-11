@@ -63,6 +63,8 @@ import {
   updateTabularReview,
   uploadDocumentVersion,
 } from "@/app/lib/lukeApi";
+import { canonicalOwnerId, isSameOwner } from "@/app/lib/ownership";
+import { getTracer } from "@/app/lib/telemetry";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface Props {
@@ -278,6 +280,30 @@ export function ApplicationPage({ applicationId }: Props) {
   const [creatingChat, setCreatingChat] = useState(false);
   const [creatingReview, setCreatingReview] = useState(false);
   const [newTRModalOpen, setNewTRModalOpen] = useState(false);
+
+  const traceChatOwnerAction = (
+    action: "rename" | "delete",
+    chat: LukeChat | undefined,
+    surface: "application.bulk" | "application.row",
+    allowed: boolean,
+  ) => {
+    const span = getTracer().startSpan(
+      allowed ? "chat.owner_action.allowed" : "chat.owner_action.blocked",
+      {
+        attributes: {
+          "chat.action": action,
+          "chat.id": chat?.id ?? "",
+          "chat.owner_id": chat?.user_id ?? "",
+          "chat.owner_id.normalized": canonicalOwnerId(chat?.user_id),
+          "user.id": user?.id ?? "",
+          "user.id.normalized": canonicalOwnerId(user?.id),
+          "ownership.allowed": allowed,
+          "ownership.surface": surface,
+        },
+      },
+    );
+    span.end();
+  };
 
   // Per-tab selection
   const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
@@ -665,10 +691,12 @@ export function ApplicationPage({ applicationId }: Props) {
     setRenamingChatId(null);
     if (!trimmed) return;
     const chat = chats.find((c) => c.id === chatId);
-    if (chat && user?.id && chat.user_id !== user.id) {
+    if (chat && user?.id && !isSameOwner(chat.user_id, user.id)) {
+      traceChatOwnerAction("rename", chat, "application.row", false);
       setOwnerOnlyAction("rename this chat");
       return;
     }
+    traceChatOwnerAction("rename", chat, "application.row", true);
     setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, title: trimmed } : c)));
     await renameChat(chatId, trimmed);
   }
@@ -761,7 +789,9 @@ export function ApplicationPage({ applicationId }: Props) {
     setActionsOpen(false);
     const owned = ids.filter((id) => {
       const c = chats.find((cc) => cc.id === id);
-      return !c || !user?.id || c.user_id === user.id;
+      const allowed = !c || !user?.id || isSameOwner(c.user_id, user.id);
+      traceChatOwnerAction("delete", c, "application.bulk", allowed);
+      return allowed;
     });
     const blocked = ids.length - owned.length;
     setSelectedChatIds([]);
@@ -1770,18 +1800,22 @@ export function ApplicationPage({ applicationId }: Props) {
                       >
                         <RowActions
                           onRename={() => {
-                            if (user?.id && chat.user_id !== user.id) {
+                            if (user?.id && !isSameOwner(chat.user_id, user.id)) {
+                              traceChatOwnerAction("rename", chat, "application.row", false);
                               setOwnerOnlyAction("rename this chat");
                               return;
                             }
+                            traceChatOwnerAction("rename", chat, "application.row", true);
                             setRenameChatValue(chat.title ?? "Untitled Chat");
                             setRenamingChatId(chat.id);
                           }}
                           onDelete={async () => {
-                            if (user?.id && chat.user_id !== user.id) {
+                            if (user?.id && !isSameOwner(chat.user_id, user.id)) {
+                              traceChatOwnerAction("delete", chat, "application.row", false);
                               setOwnerOnlyAction("delete this chat");
                               return;
                             }
+                            traceChatOwnerAction("delete", chat, "application.row", true);
                             await deleteChat(chat.id);
                             setChats((prev) => prev.filter((c) => c.id !== chat.id));
                           }}

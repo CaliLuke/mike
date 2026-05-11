@@ -82,6 +82,58 @@ sqlite3 "$DB" \
    ORDER BY ms DESC LIMIT 20"
 ```
 
+## Debugging Chat Runs
+
+Durable assistant chat runs are owned by the Romancy `chat_execution`
+workflow. The HTTP/SSE request starts the workflow and then follows the
+persisted assistant message timeline.
+
+Useful spans:
+
+- `chat.workflow.start`: workflow instance ID, chat ID, message IDs, model, and
+  request shape.
+- `chat.workflow.follow`: SSE follower status, poll count, replayed timeline
+  slots, disconnects, and final workflow status.
+- `chat.workflow.replay_events`: persisted timeline events replayed to the
+  browser.
+- `chat.persist_message`: initial user and assistant message row creation.
+- `chat.update_message`: durable assistant timeline updates, including event
+  count and last event type.
+
+```bash
+DB="$LUKE_DATA_DIR/telemetry.sqlite"
+
+# Recent durable chat workflow state
+sqlite3 -column -header "$DB" \
+  "SELECT datetime(start_unix_nano/1000000000,'unixepoch','localtime') AS started,
+          name,
+          status,
+          attributes
+   FROM spans
+   WHERE name LIKE 'chat.workflow.%'
+      OR name IN ('chat.persist_message', 'chat.update_message')
+   ORDER BY start_unix_nano DESC
+   LIMIT 40"
+
+# Follow one chat through workflow start, replay, persistence, and LLM/tool work
+sqlite3 -column -header "$DB" \
+  "SELECT name,
+          (end_unix_nano - start_unix_nano) / 1000000 AS ms,
+          status,
+          attributes
+   FROM spans
+   WHERE attributes LIKE '%<CHAT_ID>%'
+   ORDER BY start_unix_nano"
+
+# Confirm the live SSE follower replayed thinking/tool/content timeline events
+sqlite3 -column -header "$DB" \
+  "SELECT name, attributes
+   FROM spans
+   WHERE name = 'chat.workflow.replay_events'
+   ORDER BY start_unix_nano DESC
+   LIMIT 20"
+```
+
 ## Retention
 
 - Time-based: spans older than 24h are pruned every 10 min.
