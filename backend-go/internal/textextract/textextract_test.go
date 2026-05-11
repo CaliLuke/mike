@@ -62,6 +62,34 @@ func TestExtractEmptyDocxStatusSkipped(t *testing.T) {
 	}
 }
 
+// PDF extraction frequently produces \x00 glyph-id bytes (and similar
+// C0 controls) when the producer didn't ship a ToUnicode cmap. Those
+// can't be encoded in a SurrealQL string literal (only \n \t \r \" \\
+// \uXXXX are supported), so we strip them before returning the twin.
+// Without this, upload UPSERTs hit "Parse error: Invalid escape sequence".
+func TestSanitizeStripsControlBytesExceptWhitespace(t *testing.T) {
+	// Input contains:
+	//   \x00 (NUL) and \x01 (SOH)         — must be stripped
+	//   \n \t \r                          — must be kept
+	//   \x7f (DEL)                        — must be stripped
+	//   literal letters around them       — must be kept
+	in := "ok line\n\x00garbage\x01here\ttab\rcr\x7fafter-del"
+	got := sanitizeText(in)
+	want := "ok line\ngarbagehere\ttab\rcrafter-del"
+	if got != want {
+		t.Fatalf("sanitize:\n got:  %q\n want: %q", got, want)
+	}
+}
+
+func TestSanitizePreservesUTF8(t *testing.T) {
+	in := "Élégant — 日本語\x00emoji 😀"
+	got := sanitizeText(in)
+	want := "Élégant — 日本語emoji 😀"
+	if got != want {
+		t.Fatalf("utf8:\n got:  %q\n want: %q", got, want)
+	}
+}
+
 func TestExtractDocxWithTextProducesText(t *testing.T) {
 	docx := buildDocxWith(t, "hello from docx")
 	r := Extract(context.Background(), "doc.docx", docx)

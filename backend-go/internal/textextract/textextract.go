@@ -42,6 +42,33 @@ type Result struct {
 	Error  string // non-empty when Status == StatusFailed
 }
 
+// sanitizeText strips control bytes that SurrealQL's string literal can't
+// represent (it accepts only \n \t \r \" \\ \uXXXX — not \x form). PDF
+// extraction in particular often returns 0x00 glyph-id bytes which would
+// otherwise corrupt the persisted twin and trip parse errors at upload.
+// Printable ASCII, common whitespace, and any non-ASCII byte (valid UTF-8
+// runes) all pass through unchanged.
+func sanitizeText(s string) string {
+	if s == "" {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		switch {
+		case r == '\n', r == '\r', r == '\t':
+			b.WriteRune(r)
+		case r < 0x20: // any other C0 control byte
+			continue
+		case r == 0x7f: // DEL
+			continue
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
 // Extract dispatches on filename extension and returns the plain-text
 // content of the file. Spans the operation so the upload trace shows how
 // long extraction took + how much text came out.
@@ -59,17 +86,24 @@ func Extract(ctx context.Context, filename string, data []byte) Result {
 		attribute.Int("doc.bytes", len(data)),
 	)
 
+	finish := func(text string, status Status, reason string, errMsg string) Result {
+		// Sanitize before reporting char counts so the span value matches
+		// what gets persisted. Record both raw and sanitized lengths so an
+		// outsized delta is visible (signals a glyph-id-soup PDF).
+		sanitized := sanitizeText(text)
+		span.SetAttributes(
+			attribute.Int("doc.text_raw_chars", len(text)),
+			attribute.Int("doc.text_chars", len(sanitized)),
+			attribute.Int("doc.text_chars_stripped", len(text)-len(sanitized)),
+			attribute.String("doc.extract_reason", reason),
+			attribute.String("doc.extract_status", string(status)),
+		)
+		return Result{Text: sanitized, Status: status, Reason: reason, Error: errMsg}
+	}
+
 	switch ext {
 	case ".txt", ".md", ".markdown", ".csv", ".json":
-		// Already text — use the raw bytes directly as the twin. Cheap and
-		// it means find_in_document works uniformly.
-		text := string(data)
-		span.SetAttributes(
-			attribute.Int("doc.text_chars", len(text)),
-			attribute.String("doc.extract_reason", "plain_text"),
-			attribute.String("doc.extract_status", string(StatusOK)),
-		)
-		return Result{Text: text, Status: StatusOK, Reason: "plain_text"}
+		return finish(string(data), StatusOK, "plain_text", "")
 
 	case ".pdf":
 		text, err := extractPDF(data)
@@ -89,12 +123,7 @@ func Extract(ctx context.Context, filename string, data []byte) Result {
 			)
 			return Result{Status: StatusSkipped, Reason: "empty_pdf_extraction"}
 		}
-		span.SetAttributes(
-			attribute.Int("doc.text_chars", len(text)),
-			attribute.String("doc.extract_reason", "pdf"),
-			attribute.String("doc.extract_status", string(StatusOK)),
-		)
-		return Result{Text: text, Status: StatusOK, Reason: "pdf"}
+		return finish(text, StatusOK, "pdf", "")
 
 	case ".docx":
 		text, err := extractDocx(data)
@@ -114,12 +143,7 @@ func Extract(ctx context.Context, filename string, data []byte) Result {
 			)
 			return Result{Status: StatusSkipped, Reason: "empty_docx_extraction"}
 		}
-		span.SetAttributes(
-			attribute.Int("doc.text_chars", len(text)),
-			attribute.String("doc.extract_reason", "docx"),
-			attribute.String("doc.extract_status", string(StatusOK)),
-		)
-		return Result{Text: text, Status: StatusOK, Reason: "docx"}
+		return finish(text, StatusOK, "docx", "")
 	}
 
 	span.SetAttributes(

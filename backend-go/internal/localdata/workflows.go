@@ -30,6 +30,34 @@ func optionInt(value int, emit bool) string {
 	return strconv.Itoa(value)
 }
 
+// txQuery wraps tx.Query with a span so failures inside workflow
+// transactions get the same `db.statement` / `exception.message` capture
+// that the queryRows read path produces. Without this, a parse error
+// inside a Transaction shows up only as a generic 400 response with no
+// telemetry breadcrumb.
+func txQuery(ctx context.Context, tx *persistence.Tx, label, statement string) error {
+	ctx, span := workflowsTracer.Start(ctx, "surreal.tx_query")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("db.system", "surrealdb"),
+		attribute.String("db.tx_label", label),
+	)
+	if _, err := tx.Query(ctx, statement); err != nil {
+		// Truncate the statement attribute so a 100k-char extracted-text
+		// upsert doesn't blow the span size budget.
+		const maxStatementChars = 4000
+		stmt := statement
+		if len(stmt) > maxStatementChars {
+			stmt = stmt[:maxStatementChars] + "…"
+		}
+		span.SetAttributes(attribute.String("db.statement", stmt))
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
 var workflowsTracer = otel.Tracer("luke/localdata/workflows")
 
 const (
@@ -301,7 +329,7 @@ func persistDocumentVersionWorkflow(ctx context.Context, resources *workflowReso
 		versionNumber = explicitVersion
 	}
 	err = resources.db.Transaction(ctx, func(ctx context.Context, tx *persistence.Tx) error {
-		if _, queryErr := tx.Query(ctx, fmt.Sprintf(`
+		if err := txQuery(ctx, tx, "upsert_document", fmt.Sprintf(`
 			UPSERT %s CONTENT {
 				user_id: users:local,
 				application_id: NONE,
@@ -316,10 +344,10 @@ func persistDocumentVersionWorkflow(ctx context.Context, resources *workflowReso
 				created_at: time::now(),
 				updated_at: time::now()
 			};
-		`, recordID("documents", documentID), surrealString(filename), optionString(fileType), size, recordID("document_versions", versionID))); queryErr != nil {
-			return queryErr
+		`, recordID("documents", documentID), surrealString(filename), optionString(fileType), size, recordID("document_versions", versionID))); err != nil {
+			return err
 		}
-		if _, queryErr := tx.Query(ctx, fmt.Sprintf(`
+		if err := txQuery(ctx, tx, "upsert_document_version", fmt.Sprintf(`
 			UPSERT %s CONTENT {
 				document_id: %s,
 				storage_path: %s,
@@ -344,8 +372,8 @@ func persistDocumentVersionWorkflow(ctx context.Context, resources *workflowReso
 			optionInt(len(extract.Text), extract.Text != ""),
 			optionString(string(extract.Status)),
 			optionString(extract.Error),
-		)); queryErr != nil {
-			return queryErr
+		)); err != nil {
+			return err
 		}
 		return upsertWorkflowOperation(ctx, tx, operationID, input, payloadJSON)
 	})
