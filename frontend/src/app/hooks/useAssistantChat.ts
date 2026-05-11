@@ -10,6 +10,7 @@ import type {
 } from "@/app/components/shared/types";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { streamApplicationChat, streamChat } from "@/app/lib/lukeApi";
+import { getTracer } from "@/app/lib/telemetry";
 
 import {
   appendCancelledAssistantMessage,
@@ -419,77 +420,147 @@ export function useAssistantChat({
         document_id: f.document_id as string,
       }));
 
-      const response = await (applicationId
-        ? streamApplicationChat({
-            applicationId,
-            messages: apiMessages,
-            chat_id: chatId,
-            model,
-            displayed_doc: displayedDoc
-              ? {
-                  filename: displayedDoc.filename,
-                  document_id: displayedDoc.documentId,
-                }
-              : undefined,
-            attached_documents: attachedDocs.length > 0 ? attachedDocs : undefined,
-            signal: controller.signal,
-          })
-        : streamChat({
-            messages: apiMessages,
-            chat_id: chatId,
-            model,
-            signal: controller.signal,
-          }));
+      // Per-chat client-side span: closes the browser-side blind spot.
+      // Records fetch latency, when each notable event lands relative to
+      // the start, per-event-type counts, and the exit reason. Trace
+      // context propagates via FetchInstrumentation so the server's
+      // chatv2.sse.handler span links to this one as parent.
+      const sseSpan = getTracer().startSpan("chatv2.client.sse", {
+        attributes: {
+          "chat.id": chatId ?? "",
+          "chat.application_scoped": !!applicationId,
+          "chat.request_message_count": apiMessages.length,
+          "chat.attached_document_count": attachedDocs.length,
+        },
+      });
+      const sseStartMs = performance.now();
+      let firstEventMs: number | null = null;
+      let firstContentDeltaMs: number | null = null;
+      let firstChatCompletedMs: number | null = null;
+      const typeCounts: Record<string, number> = {};
+      let bytesReceived = 0;
+      let exitReason = "unknown";
 
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errText}`);
-      }
+      try {
+        const response = await (applicationId
+          ? streamApplicationChat({
+              applicationId,
+              messages: apiMessages,
+              chat_id: chatId,
+              model,
+              displayed_doc: displayedDoc
+                ? {
+                    filename: displayedDoc.filename,
+                    document_id: displayedDoc.documentId,
+                  }
+                : undefined,
+              attached_documents: attachedDocs.length > 0 ? attachedDocs : undefined,
+              signal: controller.signal,
+            })
+          : streamChat({
+              messages: apiMessages,
+              chat_id: chatId,
+              model,
+              signal: controller.signal,
+            }));
 
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No response body");
+        sseSpan.setAttribute("chatv2.client.time_to_response_ms", performance.now() - sseStartMs);
+        sseSpan.setAttribute("chatv2.client.http_status", response.status);
 
-      const decoder = new TextDecoder();
-      let buffer = "";
-      const chatVersion = response.headers.get("x-luke-chat-version");
-      const dispatch = chatVersion === "v2" ? handleAssistantSseEventV2 : handleAssistantSseEvent;
+        if (!response.ok) {
+          const errText = await response.text();
+          exitReason = "http_error";
+          throw new Error(`HTTP ${response.status}: ${errText}`);
+        }
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        const reader = response.body?.getReader();
+        if (!reader) {
+          exitReason = "no_body";
+          throw new Error("No response body");
+        }
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
+        const decoder = new TextDecoder();
+        let buffer = "";
+        const chatVersion = response.headers.get("x-luke-chat-version");
+        sseSpan.setAttribute("chatv2.client.chat_version", chatVersion ?? "v1");
+        const dispatch = chatVersion === "v2" ? handleAssistantSseEventV2 : handleAssistantSseEvent;
 
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || !trimmed.startsWith("data:")) continue;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            exitReason = exitReason === "unknown" ? "stream_done" : exitReason;
+            break;
+          }
 
-          const dataStr = trimmed.slice(5).trim();
-          if (dataStr === "[DONE]") continue;
+          bytesReceived += value?.length ?? 0;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
 
-          try {
-            const data = JSON.parse(dataStr);
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith("data:")) continue;
 
-            const nextChatId = dispatch(data, {
-              setChatId,
-              setCurrentChatId,
-              setIsLoadingCitations,
-              startContentDelta,
-              appendReasoningDelta,
-              endReasoningBlock,
-              clearStreamingPlaceholders,
-              pushThinkingPlaceholder,
-              pushEvent,
-              updateMatchingEvent,
-              setCitations,
-            });
-            if (nextChatId) streamedChatId = nextChatId;
-          } catch (e) {
-            console.warn("[useAssistantChat] failed to parse SSE line:", trimmed, e);
+            const dataStr = trimmed.slice(5).trim();
+            if (dataStr === "[DONE]") continue;
+
+            try {
+              const data = JSON.parse(dataStr);
+              const eventType = typeof data.type === "string" ? data.type : "unknown";
+              typeCounts[eventType] = (typeCounts[eventType] ?? 0) + 1;
+              const now = performance.now();
+              if (firstEventMs === null) firstEventMs = now - sseStartMs;
+              if (firstContentDeltaMs === null && eventType === "content_delta") {
+                firstContentDeltaMs = now - sseStartMs;
+              }
+              if (firstChatCompletedMs === null && eventType === "chat_completed") {
+                firstChatCompletedMs = now - sseStartMs;
+                exitReason = "chat_completed";
+              }
+              if (eventType === "backend_error") exitReason = "backend_error";
+
+              const nextChatId = dispatch(data, {
+                setChatId,
+                setCurrentChatId,
+                setIsLoadingCitations,
+                startContentDelta,
+                appendReasoningDelta,
+                endReasoningBlock,
+                clearStreamingPlaceholders,
+                pushThinkingPlaceholder,
+                pushEvent,
+                updateMatchingEvent,
+                setCitations,
+              });
+              if (nextChatId) streamedChatId = nextChatId;
+            } catch (e) {
+              console.warn("[useAssistantChat] failed to parse SSE line:", trimmed, e);
+            }
           }
         }
+      } catch (e) {
+        if (exitReason === "unknown") {
+          exitReason = e instanceof Error && e.name === "AbortError" ? "aborted" : "thrown_error";
+        }
+        if (e instanceof Error) sseSpan.recordException(e);
+        throw e;
+      } finally {
+        sseSpan.setAttribute("chatv2.client.exit_reason", exitReason);
+        sseSpan.setAttribute("chatv2.client.bytes_received", bytesReceived);
+        sseSpan.setAttribute("chatv2.client.total_duration_ms", performance.now() - sseStartMs);
+        if (firstEventMs !== null) {
+          sseSpan.setAttribute("chatv2.client.time_to_first_event_ms", firstEventMs);
+        }
+        if (firstContentDeltaMs !== null) {
+          sseSpan.setAttribute("chatv2.client.time_to_first_content_delta_ms", firstContentDeltaMs);
+        }
+        if (firstChatCompletedMs !== null) {
+          sseSpan.setAttribute("chatv2.client.time_to_chat_completed_ms", firstChatCompletedMs);
+        }
+        for (const [t, c] of Object.entries(typeCounts)) {
+          sseSpan.setAttribute(`chatv2.client.count.${t}`, c);
+        }
+        sseSpan.end();
       }
 
       flushDrip();

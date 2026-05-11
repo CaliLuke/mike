@@ -213,6 +213,13 @@ DEFINE FIELD IF NOT EXISTS pdf_storage_path ON TABLE document_versions TYPE opti
 DEFINE FIELD IF NOT EXISTS source ON TABLE document_versions TYPE string ASSERT $value INSIDE ["upload", "user_upload", "assistant_edit", "user_accept", "user_reject", "generated"];
 DEFINE FIELD IF NOT EXISTS version_number ON TABLE document_versions TYPE option<int>;
 DEFINE FIELD IF NOT EXISTS display_name ON TABLE document_versions TYPE option<string>;
+-- Plain-text twin extracted at upload time so the LLM can read PDF /
+-- DOCX contents without re-parsing on every read. Null when the source
+-- file is already text (md/txt/csv/json) or extraction failed.
+DEFINE FIELD IF NOT EXISTS extracted_text ON TABLE document_versions TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS extracted_text_chars ON TABLE document_versions TYPE option<int>;
+DEFINE FIELD IF NOT EXISTS extraction_status ON TABLE document_versions TYPE option<string> ASSERT $value == NONE OR $value INSIDE ["ok", "skipped", "failed"];
+DEFINE FIELD IF NOT EXISTS extraction_error ON TABLE document_versions TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS created_at ON TABLE document_versions TYPE datetime;
 DEFINE INDEX IF NOT EXISTS document_versions_doc_created_idx ON TABLE document_versions FIELDS document_id, created_at;
 DEFINE INDEX IF NOT EXISTS document_versions_doc_vnum_idx ON TABLE document_versions FIELDS document_id, version_number UNIQUE;

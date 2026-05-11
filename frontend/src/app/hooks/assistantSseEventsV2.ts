@@ -59,8 +59,20 @@ export function handleAssistantSseEventV2(
     return null;
   }
 
-  if (type === "chat_completed" || type === "chat_message_persisted") {
-    // P0: nothing to render. P5 may add a "Saved." indicator.
+  if (type === "chat_completed") {
+    // Defensive: if any streaming "Thinking…" placeholder is still in the
+    // event list (e.g. the model produced reasoning but zero content_delta
+    // chunks made it through, or only reasoning_delta arrived before the
+    // stream closed), drop it so the UI doesn't sit forever on the
+    // spinner. The persisted timeline has the full message; a reconnect
+    // would replay it correctly via getChat.
+    handlers.clearStreamingPlaceholders();
+    handlers.endReasoningBlock();
+    return null;
+  }
+
+  if (type === "chat_message_persisted") {
+    // Nothing to render today; future "Saved." indicator can hook here.
     return null;
   }
 

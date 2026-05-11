@@ -17,7 +17,18 @@ import (
 	"go.opentelemetry.io/otel/codes"
 
 	"github.com/CaliLuke/luke/backend-go/internal/persistence"
+	"github.com/CaliLuke/luke/backend-go/internal/textextract"
 )
+
+// optionInt returns the SurrealQL int literal when emit is true, else
+// "NONE". Used so we only write extracted_text_chars when we actually
+// have a non-empty text twin.
+func optionInt(value int, emit bool) string {
+	if !emit {
+		return "NONE"
+	}
+	return strconv.Itoa(value)
+}
 
 var workflowsTracer = otel.Tracer("luke/localdata/workflows")
 
@@ -125,29 +136,29 @@ func documentOperationWorkflow(appID, workflowName string) *romancy.WorkflowFunc
 		func(ctx *romancy.WorkflowContext, input DocumentOperationInput) (DocumentOperationResult, error) {
 			input.AppID = appID
 			input.WorkflowName = workflowName
-			slog.Info("document.workflow.body.enter",
-				"workflow_name", workflowName,
-				"app_id", appID,
-				"target_id", input.TargetID,
-				"instance_id", ctx.InstanceID())
-			_, span := workflowsTracer.Start(ctx.Context(), "document.workflow.body")
+			spanCtx, span := workflowsTracer.Start(ctx.Context(), "document.workflow.body")
 			span.SetAttributes(
 				attribute.String("workflow.name", workflowName),
 				attribute.String("workflow.app_id", appID),
 				attribute.String("workflow.target_id", input.TargetID),
 			)
-			span.End()
+			slog.InfoContext(spanCtx, "document.workflow.body.enter",
+				"workflow_name", workflowName,
+				"app_id", appID,
+				"target_id", input.TargetID,
+				"instance_id", ctx.InstanceID())
 			result, err := persistDocumentOperation.Execute(ctx, input, romancy.WithActivityID(persistDocumentOperationActivityID))
 			if err != nil {
-				slog.Error("document.workflow.body.exit_error",
+				slog.ErrorContext(spanCtx, "document.workflow.body.exit_error",
 					"workflow_name", workflowName,
 					"instance_id", ctx.InstanceID(),
 					"error", err.Error())
 			} else {
-				slog.Info("document.workflow.body.exit_ok",
+				slog.InfoContext(spanCtx, "document.workflow.body.exit_ok",
 					"workflow_name", workflowName,
 					"instance_id", ctx.InstanceID())
 			}
+			span.End()
 			return result, err
 		},
 	)
@@ -267,6 +278,16 @@ func persistDocumentVersionWorkflow(ctx context.Context, resources *workflowReso
 			return DocumentOperationResult{}, writeErr
 		}
 	}
+	// Build the plain-text twin synchronously so the version row already
+	// carries the text by the time the upload returns. PDF + DOCX produce
+	// new text; .md/.txt/.csv/.json round-trip raw bytes for uniform
+	// consumption; anything else gets stored as a "skipped" status.
+	var extract textextract.Result
+	if content != nil {
+		extract = textextract.Extract(ctx, filename, content)
+	} else {
+		extract = textextract.Result{Status: textextract.StatusSkipped, Reason: "no_content"}
+	}
 	payloadJSON, err := json.Marshal(input.Payload)
 	if err != nil {
 		return DocumentOperationResult{}, err
@@ -306,9 +327,24 @@ func persistDocumentVersionWorkflow(ctx context.Context, resources *workflowReso
 				source: %s,
 				version_number: %d,
 				display_name: %s,
+				extracted_text: %s,
+				extracted_text_chars: %s,
+				extraction_status: %s,
+				extraction_error: %s,
 				created_at: time::now()
 			};
-		`, recordID("document_versions", versionID), recordID("documents", documentID), surrealString(storagePath), surrealString(source), versionNumber, surrealString(filename))); queryErr != nil {
+		`,
+			recordID("document_versions", versionID),
+			recordID("documents", documentID),
+			surrealString(storagePath),
+			surrealString(source),
+			versionNumber,
+			surrealString(filename),
+			optionString(extract.Text),
+			optionInt(len(extract.Text), extract.Text != ""),
+			optionString(string(extract.Status)),
+			optionString(extract.Error),
+		)); queryErr != nil {
 			return queryErr
 		}
 		return upsertWorkflowOperation(ctx, tx, operationID, input, payloadJSON)

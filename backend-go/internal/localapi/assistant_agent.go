@@ -1547,21 +1547,107 @@ func (s *Server) readAssistantDocument(ctx context.Context, documentID string) (
 		recordSpanError(span, err)
 		return nil, err
 	}
-	span.SetAttributes(attribute.String("document.filename", version.Filename), attribute.String("document.storage_path", version.StoragePath))
-	data, err := localdata.ReadLocalFile(s.app.LocalStorageRoot, version.StoragePath)
-	if err != nil {
-		recordSpanError(span, err)
-		return nil, err
+	span.SetAttributes(
+		attribute.String("document.filename", version.Filename),
+		attribute.String("document.storage_path", version.StoragePath),
+	)
+
+	// Prefer the plain-text twin captured at upload time. Falls back to
+	// re-parsing the blob from disk if the version row predates the
+	// twin (older uploads) or the upload-time extraction was skipped.
+	text, twinHit, err := s.readStoredExtractedText(ctx, version.ID)
+	if err == nil && twinHit {
+		span.SetAttributes(
+			attribute.Bool("document.twin_hit", true),
+			attribute.Int("document.text_chars", len(text)),
+		)
+	} else {
+		span.SetAttributes(attribute.Bool("document.twin_hit", false))
+		data, readErr := localdata.ReadLocalFile(s.app.LocalStorageRoot, version.StoragePath)
+		if readErr != nil {
+			recordSpanError(span, readErr)
+			return nil, readErr
+		}
+		body, _ := displayBytes(version.Filename, data)
+		text = string(body)
+		span.SetAttributes(
+			attribute.Int("document.bytes", len(data)),
+			attribute.Int("document.text_chars", len(text)),
+		)
+		// Backfill: persist the freshly-extracted twin onto the version
+		// row so subsequent reads of the same document skip extraction.
+		// Best-effort; a failure here logs but does not bubble up.
+		if text != "" {
+			if writeErr := s.backfillExtractedText(ctx, version.ID, text); writeErr != nil {
+				span.AddEvent("document.twin_backfill_failed",
+					trace.WithAttributes(attribute.String("error", writeErr.Error())))
+			} else {
+				span.SetAttributes(attribute.Bool("document.twin_backfilled", true))
+			}
+		}
 	}
-	body, _ := displayBytes(version.Filename, data)
-	text := string(body)
+
 	truncated := false
 	if len(text) > maxToolDocumentChars {
 		text = text[:maxToolDocumentChars] + "\n\n[truncated]"
 		truncated = true
 	}
-	span.SetAttributes(attribute.Int("document.bytes", len(data)), attribute.Int("document.text_chars", len(text)), attribute.Bool("document.truncated", truncated))
-	return &careercontext.AssistantDocumentText{DocumentID: stringPtr(documentID), Filename: stringPtr(version.Filename), Text: stringPtr(text)}, nil
+	span.SetAttributes(attribute.Bool("document.truncated", truncated))
+	return &careercontext.AssistantDocumentText{
+		DocumentID: stringPtr(documentID),
+		Filename:   stringPtr(version.Filename),
+		Text:       stringPtr(text),
+	}, nil
+}
+
+// backfillExtractedText writes a freshly-extracted twin back onto the
+// version row so subsequent reads avoid the parse. Idempotent.
+func (s *Server) backfillExtractedText(ctx context.Context, versionID, text string) error {
+	if versionID == "" || text == "" {
+		return nil
+	}
+	_, err := s.app.DB.Query(ctx, surrealUpdate{
+		Target: recordID("document_versions", versionID),
+		Set: map[string]string{
+			"extracted_text":       surrealString(text),
+			"extracted_text_chars": strconv.Itoa(len(text)),
+			"extraction_status":    surrealString("ok"),
+			"extraction_error":     "NONE",
+		},
+	}.String())
+	return err
+}
+
+// readStoredExtractedText pulls the upload-time twin from document_versions
+// if present. Returns (text, hit=true) when a non-empty extracted_text was
+// stored with extraction_status="ok"; otherwise (zero, false, nil) so the
+// caller falls back to on-the-fly extraction.
+func (s *Server) readStoredExtractedText(ctx context.Context, versionID string) (string, bool, error) {
+	if versionID == "" {
+		return "", false, nil
+	}
+	rows, err := queryRows(ctx, s.app.DB, surrealSelect{
+		Fields:  []string{"extracted_text", "extraction_status"},
+		From:    recordID("document_versions", versionID),
+		OrderBy: nil,
+		Limit:   1,
+	}.String())
+	if err != nil {
+		return "", false, err
+	}
+	if len(rows) == 0 {
+		return "", false, nil
+	}
+	row := rows[0]
+	status := asString(row["extraction_status"])
+	if status != "ok" {
+		return "", false, nil
+	}
+	text := asString(row["extracted_text"])
+	if text == "" {
+		return "", false, nil
+	}
+	return text, true, nil
 }
 
 func rowToDocumentRef(row map[string]any) *careercontext.AssistantDocumentRef {

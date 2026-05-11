@@ -14,11 +14,40 @@ import (
 	"time"
 
 	loomotelhttp "github.com/CaliLuke/loom/http/middleware/otel"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/CaliLuke/luke/backend-go/internal/localapi"
 	"github.com/CaliLuke/luke/backend-go/internal/localdata"
 	"github.com/CaliLuke/luke/backend-go/internal/telemetry"
 )
+
+// traceContextHandler wraps a slog.Handler so every record carries the
+// active span's trace_id / span_id when the caller passed a context. The
+// log file then becomes greppable by trace id — pick any chat from the
+// telemetry DB and find every slog line that fired during it.
+type traceContextHandler struct {
+	slog.Handler
+}
+
+func (h *traceContextHandler) Handle(ctx context.Context, r slog.Record) error {
+	if ctx != nil {
+		if sc := trace.SpanContextFromContext(ctx); sc.IsValid() {
+			r.AddAttrs(
+				slog.String("trace_id", sc.TraceID().String()),
+				slog.String("span_id", sc.SpanID().String()),
+			)
+		}
+	}
+	return h.Handler.Handle(ctx, r)
+}
+
+func (h *traceContextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &traceContextHandler{Handler: h.Handler.WithAttrs(attrs)}
+}
+
+func (h *traceContextHandler) WithGroup(name string) slog.Handler {
+	return &traceContextHandler{Handler: h.Handler.WithGroup(name)}
+}
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -31,8 +60,9 @@ func main() {
 		logPath = "/tmp/luke-backend.log"
 	}
 	if f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644); err == nil {
-		slog.SetDefault(slog.New(slog.NewJSONHandler(io.MultiWriter(os.Stderr, f), &slog.HandlerOptions{Level: slog.LevelInfo})))
-		log.Printf("slog mirroring to %s", logPath)
+		base := slog.NewJSONHandler(io.MultiWriter(os.Stderr, f), &slog.HandlerOptions{Level: slog.LevelInfo})
+		slog.SetDefault(slog.New(&traceContextHandler{Handler: base}))
+		log.Printf("slog mirroring to %s (with trace_id correlation)", logPath)
 	} else {
 		log.Printf("slog mirror open failed: %v", err)
 	}

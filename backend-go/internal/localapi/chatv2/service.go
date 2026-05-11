@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/i2y/romancy"
 	"go.opentelemetry.io/otel"
@@ -274,10 +275,28 @@ func (s *Service) RegisterRomancy(app *romancy.App) {
 	s.workflow = romancy.DefineWorkflow(
 		"chatv2_chat_execution",
 		func(ctx *romancy.WorkflowContext, in Input) (Result, error) {
+			// The workflow body itself gets its own span so per-turn pacing
+			// is direct rather than inferred from gaps between activities.
+			// Parent context is the workflow goroutine's; activities below
+			// will nest under their own spans regardless.
+			bodyCtx, bodySpan := s.tracer.Start(ctx.Context(), "chatv2.workflow.body")
+			defer bodySpan.End()
+			bodySpan.SetAttributes(
+				attribute.String("chat.id", in.ChatID),
+				attribute.String("chat.assistant_message_id", in.AssistantMessageID),
+				attribute.String("assistant.model", in.Model),
+				attribute.Bool("chat.application_scoped", in.ApplicationID != nil),
+				attribute.Int("chatv2.max_turns", MaxTurns),
+			)
+			_ = bodyCtx // body's own ctx — not threaded into activities (they go through romancy)
+			bodyStart := time.Now()
+
 			bus := s.Registry.Get(in.ChatID)
+			publishCount := 0
 			publish := func(t EventType, payload map[string]any) {
 				if bus != nil {
 					bus.Publish(NewEvent(t, payload))
+					publishCount++
 				}
 			}
 			publish(EventChatStarted, map[string]any{
@@ -292,6 +311,7 @@ func (s *Service) RegisterRomancy(app *romancy.App) {
 			if loadErr != nil {
 				publish(EventBackendError, map[string]any{"message": loadErr.Error()})
 				publish(EventChatCompleted, map[string]any{"reason": "error"})
+				finalizeBodySpan(bodySpan, bodyStart, "load_history_failed", 0, 0, 0, 0, publishCount, loadErr)
 				return Result{}, loadErr
 			}
 			if len(messages) == 0 {
@@ -306,8 +326,15 @@ func (s *Service) RegisterRomancy(app *romancy.App) {
 			timeline := []map[string]any{}
 			reason := "done"
 			finalText := ""
+			totalToolCalls := 0
+			totalReasoningChars := 0
+			totalContentChars := 0
 			turn := 1
 			for ; turn <= MaxTurns; turn++ {
+				turnStart := time.Now()
+				bodySpan.AddEvent("chatv2.workflow.turn_started", trace.WithAttributes(
+					attribute.Int("turn", turn),
+				))
 				publish(EventTurnStarted, map[string]any{"turn": turn})
 				llmIn := LLMTurnInput{
 					ChatID:             in.ChatID,
@@ -321,15 +348,25 @@ func (s *Service) RegisterRomancy(app *romancy.App) {
 				if err != nil {
 					publish(EventBackendError, map[string]any{"message": err.Error()})
 					publish(EventChatCompleted, map[string]any{"reason": "error"})
+					finalizeBodySpan(bodySpan, bodyStart, "llm_failed", turn-1, totalToolCalls, totalReasoningChars, totalContentChars, publishCount, err)
 					return Result{}, err
 				}
 				if llmOut.Thinking != "" {
 					timeline = append(timeline, map[string]any{"type": "reasoning", "text": llmOut.Thinking, "turn": turn})
+					totalReasoningChars += len(llmOut.Thinking)
 				}
 				if llmOut.Content != "" {
 					timeline = append(timeline, map[string]any{"type": "content", "text": llmOut.Content, "turn": turn})
 					finalText = llmOut.Content
+					totalContentChars += len(llmOut.Content)
 				}
+				bodySpan.AddEvent("chatv2.workflow.llm_turn_completed", trace.WithAttributes(
+					attribute.Int("turn", turn),
+					attribute.Int("llm.reasoning_chars", len(llmOut.Thinking)),
+					attribute.Int("llm.content_chars", len(llmOut.Content)),
+					attribute.Int("llm.tool_call_count", len(llmOut.ToolCalls)),
+					attribute.Float64("turn.llm_ms", float64(time.Since(turnStart).Milliseconds())),
+				))
 				// Record assistant message (with tool_calls if any) back into
 				// messages so the next LLM turn can see the tool_calls it
 				// just emitted.
@@ -357,6 +394,8 @@ func (s *Service) RegisterRomancy(app *romancy.App) {
 
 				for _, call := range llmOut.ToolCalls {
 					callID := fmt.Sprintf("toolcall_%s_%d_%s", in.ChatID, turn, call.OllamaName)
+					totalToolCalls++
+					toolStart := time.Now()
 					publish(EventToolStarted, map[string]any{
 						"turn":         turn,
 						"tool_call_id": callID,
@@ -380,6 +419,7 @@ func (s *Service) RegisterRomancy(app *romancy.App) {
 						})
 						publish(EventBackendError, map[string]any{"message": err.Error()})
 						publish(EventChatCompleted, map[string]any{"reason": "error"})
+						finalizeBodySpan(bodySpan, bodyStart, "tool_failed", turn-1, totalToolCalls, totalReasoningChars, totalContentChars, publishCount, err)
 						return Result{}, err
 					}
 					timeline = append(timeline, map[string]any{
@@ -397,12 +437,23 @@ func (s *Service) RegisterRomancy(app *romancy.App) {
 						"result":       toolOut.Summary,
 						"error":        toolOut.Error,
 					})
+					bodySpan.AddEvent("chatv2.workflow.tool_completed", trace.WithAttributes(
+						attribute.Int("turn", turn),
+						attribute.String("tool.name", toolOut.CanonicalName),
+						attribute.String("tool.ollama_name", call.OllamaName),
+						attribute.Bool("tool.failed", toolOut.Error != ""),
+						attribute.Float64("tool.duration_ms", float64(time.Since(toolStart).Milliseconds())),
+					))
 					messages = append(messages, map[string]any{
 						"role":      "tool",
 						"tool_name": call.OllamaName,
 						"content":   string(toolOut.ResultJSON),
 					})
 				}
+				bodySpan.AddEvent("chatv2.workflow.turn_completed", trace.WithAttributes(
+					attribute.Int("turn", turn),
+					attribute.Float64("turn.duration_ms", float64(time.Since(turnStart).Milliseconds())),
+				))
 				publish(EventTurnCompleted, map[string]any{"turn": turn})
 			}
 			if turn > MaxTurns {
@@ -416,10 +467,12 @@ func (s *Service) RegisterRomancy(app *romancy.App) {
 			if err != nil {
 				publish(EventBackendError, map[string]any{"message": err.Error()})
 				publish(EventChatCompleted, map[string]any{"reason": "error"})
+				finalizeBodySpan(bodySpan, bodyStart, "persist_failed", turn-1, totalToolCalls, totalReasoningChars, totalContentChars, publishCount, err)
 				return Result{}, err
 			}
 			publish(EventChatMessagePersisted, map[string]any{"message_id": in.AssistantMessageID})
 			publish(EventChatCompleted, map[string]any{"reason": reason})
+			finalizeBodySpan(bodySpan, bodyStart, reason, turn, totalToolCalls, totalReasoningChars, totalContentChars, publishCount, nil)
 			return Result{ChatID: in.ChatID, Final: finalText, Turns: turn}, nil
 		},
 	)
@@ -430,4 +483,32 @@ func (s *Service) RegisterRomancy(app *romancy.App) {
 // handler to start invocations.
 func (s *Service) Workflow() *romancy.WorkflowFunc[Input, Result] {
 	return s.workflow
+}
+
+// finalizeBodySpan stamps the totals + exit reason onto the workflow body
+// span. Called from every exit branch so we always know how a chat ended.
+func finalizeBodySpan(
+	span trace.Span,
+	start time.Time,
+	reason string,
+	completedTurns int,
+	totalToolCalls int,
+	totalReasoningChars int,
+	totalContentChars int,
+	publishCount int,
+	err error,
+) {
+	span.SetAttributes(
+		attribute.String("chatv2.workflow.exit_reason", reason),
+		attribute.Int("chatv2.workflow.completed_turns", completedTurns),
+		attribute.Int("chatv2.workflow.tool_call_count", totalToolCalls),
+		attribute.Int("chatv2.workflow.reasoning_chars", totalReasoningChars),
+		attribute.Int("chatv2.workflow.content_chars", totalContentChars),
+		attribute.Int("chatv2.workflow.bus_publish_count", publishCount),
+		attribute.Float64("chatv2.workflow.duration_ms", float64(time.Since(start).Milliseconds())),
+	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 }

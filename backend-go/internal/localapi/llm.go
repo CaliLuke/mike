@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -242,10 +243,18 @@ func streamOllamaChat(ctx context.Context, body map[string]any, onThinkingDelta,
 		return err
 	}
 	var (
-		contentBuf  strings.Builder
-		thinkingBuf strings.Builder
-		role        string
-		toolCalls   []ollamaToolCall
+		contentBuf          strings.Builder
+		thinkingBuf         strings.Builder
+		role                string
+		toolCalls           []ollamaToolCall
+		streamStart         = time.Now()
+		chunkCount          int
+		thinkingChunks      int
+		contentChunks       int
+		firstChunkAt        time.Time
+		firstContentChunkAt time.Time
+		lastChunkAt         time.Time
+		maxChunkGap         time.Duration
 	)
 	scanner := bufio.NewScanner(response.Body)
 	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
@@ -272,17 +281,33 @@ func streamOllamaChat(ctx context.Context, body map[string]any, onThinkingDelta,
 			target.Error = chunk.Error
 			return nil
 		}
+		now := time.Now()
+		if firstChunkAt.IsZero() {
+			firstChunkAt = now
+		} else {
+			gap := now.Sub(lastChunkAt)
+			if gap > maxChunkGap {
+				maxChunkGap = gap
+			}
+		}
+		lastChunkAt = now
+		chunkCount++
 		if chunk.Message.Role != "" {
 			role = chunk.Message.Role
 		}
 		if chunk.Message.Thinking != "" {
 			thinkingBuf.WriteString(chunk.Message.Thinking)
+			thinkingChunks++
 			if onThinkingDelta != nil {
 				onThinkingDelta(chunk.Message.Thinking)
 			}
 		}
 		if chunk.Message.Content != "" {
 			contentBuf.WriteString(chunk.Message.Content)
+			contentChunks++
+			if firstContentChunkAt.IsZero() {
+				firstContentChunkAt = now
+			}
 			if onContentDelta != nil {
 				onContentDelta(chunk.Message.Content)
 			}
@@ -303,7 +328,23 @@ func streamOllamaChat(ctx context.Context, body map[string]any, onThinkingDelta,
 		attribute.Int("llm.response_chars", len(target.Message.Content)),
 		attribute.Int("llm.thinking_chars", len(target.Message.Thinking)),
 		attribute.Int("llm.tool_call_count", len(toolCalls)),
+		attribute.Int("llm.stream.chunk_count", chunkCount),
+		attribute.Int("llm.stream.thinking_chunk_count", thinkingChunks),
+		attribute.Int("llm.stream.content_chunk_count", contentChunks),
+		attribute.Float64("llm.stream.max_chunk_gap_ms", float64(maxChunkGap.Milliseconds())),
 	)
+	if !firstChunkAt.IsZero() {
+		span.SetAttributes(
+			attribute.Float64("llm.stream.time_to_first_chunk_ms", float64(firstChunkAt.Sub(streamStart).Milliseconds())),
+			attribute.Float64("llm.stream.time_to_last_chunk_ms", float64(lastChunkAt.Sub(streamStart).Milliseconds())),
+		)
+	}
+	if !firstContentChunkAt.IsZero() {
+		span.SetAttributes(attribute.Float64(
+			"llm.stream.time_to_first_content_chunk_ms",
+			float64(firstContentChunkAt.Sub(streamStart).Milliseconds()),
+		))
+	}
 	return nil
 }
 

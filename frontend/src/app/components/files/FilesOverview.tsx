@@ -1,13 +1,14 @@
 "use client";
 
 import { createColumnHelper } from "@tanstack/react-table";
-import { FileText, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { FileText, Trash2, Upload } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import { DataTable } from "@/app/components/shared/DataTable";
 import { HeaderSearchBtn } from "@/app/components/shared/HeaderSearchBtn";
 import type { LukeDocument } from "@/app/components/shared/types";
-import { deleteDocument, listDocuments } from "@/app/lib/lukeApi";
+import { DOCUMENT_UPLOAD_ACCEPT } from "@/app/lib/documentTypes";
+import { deleteDocument, listDocuments, uploadStandaloneDocument } from "@/app/lib/lukeApi";
 
 function formatDate(iso: string | null | undefined) {
   if (!iso) return "—";
@@ -37,6 +38,12 @@ export function FilesOverview() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+  const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Window-level dragenter/leave fire on every child element, so track the
+  // depth ourselves to know when the cursor has truly left the page.
+  const dragDepthRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,6 +78,96 @@ export function FilesOverview() {
     } catch {
       setErrorMessage("Failed to delete the file. Try again.");
     }
+  }
+
+  // uploadFiles fires N parallel multipart POSTs to /single-documents and
+  // streams progress into local state so the user sees "Uploading 2/5…".
+  // Any failures are surfaced in the error banner without blocking the rest.
+  async function uploadFiles(files: File[]) {
+    if (files.length === 0) return;
+    setErrorMessage(null);
+    setUploading({ done: 0, total: files.length });
+    const results = await Promise.allSettled(
+      files.map(async (file) => {
+        const uploaded = await uploadStandaloneDocument(file);
+        setUploading((prev) => (prev ? { ...prev, done: prev.done + 1 } : prev));
+        return uploaded;
+      }),
+    );
+    const successes: LukeDocument[] = [];
+    const failures: string[] = [];
+    for (const [i, result] of results.entries()) {
+      if (result.status === "fulfilled") {
+        successes.push(result.value);
+      } else {
+        failures.push(files[i].name);
+      }
+    }
+    if (successes.length > 0) {
+      // Merge new docs in front, dedup by id in case the polling refresh
+      // already picked some of them up between request start and now.
+      setDocs((prev) => {
+        const byId = new Map<string, LukeDocument>();
+        for (const d of [...successes, ...prev]) byId.set(d.id, d);
+        return Array.from(byId.values());
+      });
+    }
+    setUploading(null);
+    if (failures.length > 0) {
+      setErrorMessage(
+        failures.length === files.length
+          ? "Could not upload any of those files."
+          : `Could not upload: ${failures.join(", ")}`,
+      );
+    }
+  }
+
+  // Window-scoped drag listeners so the user can drop files anywhere on the
+  // Files page — not just on a tiny dropzone. We only react to drags that
+  // actually carry files (filters out drags from within the page).
+  useEffect(() => {
+    const carriesFiles = (e: DragEvent) =>
+      Array.from(e.dataTransfer?.types ?? []).includes("Files");
+    const onEnter = (e: DragEvent) => {
+      if (!carriesFiles(e)) return;
+      e.preventDefault();
+      dragDepthRef.current += 1;
+      setDragActive(true);
+    };
+    const onOver = (e: DragEvent) => {
+      if (!carriesFiles(e)) return;
+      e.preventDefault(); // required to allow drop
+    };
+    const onLeave = (e: DragEvent) => {
+      if (!carriesFiles(e)) return;
+      dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+      if (dragDepthRef.current === 0) setDragActive(false);
+    };
+    const onDrop = (e: DragEvent) => {
+      if (!carriesFiles(e)) return;
+      e.preventDefault();
+      dragDepthRef.current = 0;
+      setDragActive(false);
+      const files = Array.from(e.dataTransfer?.files ?? []);
+      if (files.length > 0) void uploadFiles(files);
+    };
+    window.addEventListener("dragenter", onEnter);
+    window.addEventListener("dragover", onOver);
+    window.addEventListener("dragleave", onLeave);
+    window.addEventListener("drop", onDrop);
+    return () => {
+      window.removeEventListener("dragenter", onEnter);
+      window.removeEventListener("dragover", onOver);
+      window.removeEventListener("dragleave", onLeave);
+      window.removeEventListener("drop", onDrop);
+    };
+    // uploadFiles is stable enough for this scope — it only reads setters.
+  }, []);
+
+  function handleFileInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (files.length > 0) void uploadFiles(files);
   }
 
   const columns = [
@@ -159,15 +256,48 @@ export function FilesOverview() {
   ];
 
   return (
-    <div className="flex-1 overflow-y-auto bg-white">
+    <div className="relative flex-1 overflow-y-auto bg-white">
       <div className="flex items-center justify-between px-8 py-4">
         <h1 className="font-serif text-2xl font-medium text-gray-900">Files</h1>
-        <HeaderSearchBtn value={search} onChange={setSearch} placeholder="Search files..." />
+        <div className="flex items-center gap-2">
+          <HeaderSearchBtn value={search} onChange={setSearch} placeholder="Search files..." />
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept={DOCUMENT_UPLOAD_ACCEPT}
+            className="hidden"
+            onChange={handleFileInputChange}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:bg-gray-50"
+            title="Upload files"
+          >
+            <Upload className="h-3.5 w-3.5" />
+            Upload
+          </button>
+        </div>
       </div>
 
+      {uploading && (
+        <div className="mx-8 mb-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+          Uploading {uploading.done}/{uploading.total}…
+        </div>
+      )}
       {errorMessage && (
         <div className="mx-8 mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {errorMessage}
+        </div>
+      )}
+
+      {dragActive && (
+        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/10 backdrop-blur-[2px]">
+          <div className="rounded-2xl border-2 border-dashed border-gray-900 bg-white px-10 py-8 text-center shadow-2xl">
+            <Upload className="mx-auto mb-2 h-6 w-6 text-gray-900" />
+            <p className="font-serif text-xl text-gray-900">Drop files to upload</p>
+            <p className="mt-1 text-xs text-gray-500">PDF, DOCX, DOC, MD, TXT</p>
+          </div>
         </div>
       )}
 

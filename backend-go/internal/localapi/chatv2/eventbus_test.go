@@ -55,6 +55,44 @@ func TestBroadcasterCloseIsIdempotent(t *testing.T) {
 	b.Publish(NewEvent(EventChatCompleted, nil))
 }
 
+// TestBroadcasterBlocksRatherThanDropsWhenBufferFull pins the design
+// choice: publishing must apply backpressure to slow consumers instead
+// of silently dropping events. Dropping caused the "Thinking… forever"
+// bug in the browser when chat_completed got discarded.
+func TestBroadcasterBlocksRatherThanDropsWhenBufferFull(t *testing.T) {
+	b := newBroadcaster()
+	defer b.Close()
+	ch, _ := b.Subscribe()
+
+	// Fill the buffer to capacity without reading anything.
+	for i := 0; i < SubscriberBufferSize; i++ {
+		b.Publish(NewEvent(EventReasoningDelta, map[string]any{"text": "x"}))
+	}
+
+	// One more publish should now block until we drain. Run it in a
+	// goroutine and confirm it has not returned after a short pause.
+	done := make(chan struct{})
+	go func() {
+		b.Publish(NewEvent(EventChatCompleted, nil))
+		close(done)
+	}()
+	select {
+	case <-done:
+		t.Fatalf("expected Publish to block on a full buffer, but it returned")
+	case <-time.After(20 * time.Millisecond):
+		// Expected: still blocked.
+	}
+
+	// Drain one event and confirm the blocked publish unblocks.
+	<-ch
+	select {
+	case <-done:
+		// Expected.
+	case <-time.After(time.Second):
+		t.Fatalf("Publish did not unblock after the consumer drained one event")
+	}
+}
+
 func TestRegistryGetOrCreateReturnsSameInstance(t *testing.T) {
 	r := NewRegistry()
 	a := r.GetOrCreate("chat1")
