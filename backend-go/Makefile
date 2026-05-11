@@ -34,3 +34,22 @@ tools:
 
 clean:
 	rm -rf $(RUST_BRIDGE_DIR)/target
+
+# Probe runner — drives end-to-end scenarios against the running backend
+# (default LUKE_BACKEND_ADDR=127.0.0.1:3002) and asserts outcomes from
+# telemetry.sqlite. Used by the claude-code agent for autonomous test loops.
+.PHONY: probe probe-list probe-build
+
+probe-build: $(RUST_BRIDGE_LIB)
+	go build -o ../.tmp/probe ./cmd/probe
+
+probe-list: probe-build
+	../.tmp/probe list
+
+# Run a scenario:  make probe SCENARIO=accomplishments
+probe: probe-build
+	@if [ -z "$(SCENARIO)" ]; then \
+		echo "usage: make probe SCENARIO=<name>  (try: make probe-list)"; \
+		exit 2; \
+	fi
+	../.tmp/probe run $(SCENARIO)

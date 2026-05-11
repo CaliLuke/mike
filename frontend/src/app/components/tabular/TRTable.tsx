@@ -1,25 +1,26 @@
 "use client";
 
-import { Plus, Table2 } from "lucide-react";
-import { forwardRef, useImperativeHandle, useRef } from "react";
+import { createColumnHelper } from "@tanstack/react-table";
+import { Plus, Table2 } from "lucide-react"; // Plus used in empty state's Add Documents button
+import { forwardRef, useImperativeHandle, useMemo, useRef } from "react";
 
+import { DataTable } from "../shared/DataTable";
 import type { ColumnConfig, LukeDocument, TabularCell } from "../shared/types";
 import { TabularCell as TabularCellComponent } from "./TabularCell";
 import { TREditColumnMenu } from "./TREditColumnMenu";
 
-const SKELETON_COLS = 4;
-const SKELETON_ROWS = 5;
-
-const COL_W = "w-[300px] shrink-0";
-const CHECK_W = "w-8 shrink-0";
-
-// Pixel widths matching the CSS constants above
-const CHECK_W_PX = 32; // w-8 = 2rem = 32px
-const DOC_COL_W_PX = 300;
-const DATA_COL_W_PX = 300;
-const STICKY_LEFT_PX = CHECK_W_PX + DOC_COL_W_PX; // 332px
+// Width hints. DataTable lays out via <colgroup>, so these flow through
+// directly to the th/td widths.
+const CHECK_COL_PX = 32;
+const DOC_COL_PX = 300;
+const DATA_COL_PX = 300;
 
 export interface TRTableHandle {
+  /**
+   * Scroll the table so the cell at (colIdx, rowIdx) is visible.
+   * `colIdx` is the position within the sorted column list (0-based);
+   * `rowIdx` is the document position within the rendered table.
+   */
   scrollToCell: (colIdx: number, rowIdx: number) => void;
 }
 
@@ -41,6 +42,8 @@ interface Props {
   onAddDocuments: () => void;
 }
 
+const columnHelper = createColumnHelper<LukeDocument>();
+
 export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
   {
     loading,
@@ -61,233 +64,193 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
   },
   ref,
 ) {
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const sortedColumns = [...columns].sort((a, b) => a.index - b.index);
-  const totalContentWidth = CHECK_W_PX + DOC_COL_W_PX + sortedColumns.length * DATA_COL_W_PX + 32;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const sortedColumns = useMemo(() => [...columns].sort((a, b) => a.index - b.index), [columns]);
 
-  useImperativeHandle(ref, () => ({
-    scrollToCell(colIdx: number, rowIdx: number) {
-      const container = scrollContainerRef.current;
-      if (!container) return;
-
-      // Vertical: find actual row via DOM (handles variable row heights)
-      const allRows = container.querySelectorAll<HTMLElement>(":scope > div.flex.min-w-full");
-      const targetRow = allRows[rowIdx];
-      if (targetRow) {
-        container.scrollTo({
-          top: Math.max(0, targetRow.offsetTop - 40),
+  // Expose imperative scrolling. The actual scroll happens on whichever
+  // descendant of `containerRef` is the horizontally-scrollable element
+  // (DataTable wraps its table in `overflow-x-auto`). We locate cells by the
+  // data-row/col attrs we set on the rendered td below.
+  useImperativeHandle(
+    ref,
+    () => ({
+      scrollToCell(colIdx, rowIdx) {
+        const root = containerRef.current;
+        if (!root) return;
+        const cell = root.querySelector<HTMLElement>(
+          `[data-tr-row="${rowIdx}"][data-tr-col="${colIdx}"]`,
+        );
+        if (!cell) return;
+        // Vertical scroll happens on the page; horizontal scroll on the
+        // table's own overflow container. Compute both.
+        const verticalContainer = root.closest<HTMLElement>(".overflow-y-auto") ?? root;
+        const horizontalContainer = cell.closest<HTMLElement>(".overflow-x-auto") ?? root;
+        const rect = cell.getBoundingClientRect();
+        const hostRect = verticalContainer.getBoundingClientRect();
+        verticalContainer.scrollTo({
+          top: verticalContainer.scrollTop + (rect.top - hostRect.top) - 40,
           behavior: "smooth",
         });
-      }
+        const hRect = horizontalContainer.getBoundingClientRect();
+        horizontalContainer.scrollTo({
+          left:
+            horizontalContainer.scrollLeft +
+            (rect.left - hRect.left) -
+            horizontalContainer.clientWidth / 2 +
+            cell.clientWidth / 2,
+          behavior: "smooth",
+        });
+      },
+    }),
+    [],
+  );
 
-      // Horizontal: fixed column widths — center the target column in view
-      const targetScrollLeft =
-        STICKY_LEFT_PX + colIdx * DATA_COL_W_PX - container.clientWidth / 2 + DATA_COL_W_PX / 2;
-      container.scrollLeft = Math.max(0, targetScrollLeft);
-    },
-  }));
+  // ---------------------------------------------------------------------------
+  // Selection state plumbing — convert between the parent's string[] and the
+  // RowSelectionState shape DataTable expects.
+  // ---------------------------------------------------------------------------
+  const rowSelection = useMemo(() => {
+    const out: Record<string, boolean> = {};
+    for (const id of selectedDocIds) out[id] = true;
+    return out;
+  }, [selectedDocIds]);
 
-  function getCell(docId: string, colIdx: number) {
-    return cells.find((c) => c.document_id === docId && c.column_index === colIdx);
-  }
-
-  const allSelected = documents.length > 0 && documents.every((d) => selectedDocIds.includes(d.id));
-  const someSelected = !allSelected && documents.some((d) => selectedDocIds.includes(d.id));
-
-  function toggleAll() {
-    if (allSelected) {
-      onSelectionChange([]);
-    } else {
-      onSelectionChange(documents.map((d) => d.id));
+  // ---------------------------------------------------------------------------
+  // Columns
+  // ---------------------------------------------------------------------------
+  const tableColumns = useMemo(() => {
+    const cellsByKey = new Map<string, TabularCell>();
+    for (const c of cells) {
+      cellsByKey.set(`${c.document_id}|${c.column_index}`, c);
     }
-  }
 
-  function toggleDoc(id: string) {
-    if (selectedDocIds.includes(id)) {
-      onSelectionChange(selectedDocIds.filter((x) => x !== id));
-    } else {
-      onSelectionChange([...selectedDocIds, id]);
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex-1 overflow-hidden">
-        {/* Header */}
-        <div className="flex border-b border-gray-200">
-          <div className={`${CHECK_W} border-r border-gray-200 p-2`} />
-          <div
-            className={`${COL_W} border-r border-gray-200 p-2 text-xs font-medium text-gray-500`}
-          >
-            Document
+    const userCols = sortedColumns.map((col, colPos) =>
+      columnHelper.display({
+        id: `tr-col-${col.index}`,
+        size: DATA_COL_PX,
+        enableSorting: false,
+        header: () => (
+          <div className="flex items-center justify-between gap-3 text-left text-xs font-medium text-gray-500 normal-case">
+            <span className="truncate" title={col.name}>
+              {col.name}
+            </span>
+            <TREditColumnMenu
+              column={col}
+              disabled={savingColumn || savingColumnsConfig}
+              onSave={onUpdateColumn}
+              onDelete={onDeleteColumn}
+            />
           </div>
-          {Array.from({ length: SKELETON_COLS }).map((_, i) => (
-            <div key={i} className={`${COL_W} border-r border-gray-200 p-2`}>
-              <div className="h-4 w-28 animate-pulse rounded bg-gray-100" />
+        ),
+        cell: (info) => {
+          const doc = info.row.original;
+          const cell = cellsByKey.get(`${doc.id}|${col.index}`);
+          const rowIdx = info.row.index;
+          const isHighlighted =
+            highlightedCell?.colIdx === colPos && highlightedCell?.rowIdx === rowIdx;
+          return (
+            <div
+              data-tr-row={rowIdx}
+              data-tr-col={colPos}
+              className={`-mx-2 -my-2 transition-colors ${isHighlighted ? "bg-blue-200" : ""}`}
+            >
+              {cell && (
+                <TabularCellComponent
+                  cell={cell}
+                  column={col}
+                  onExpand={() => onExpand(cell)}
+                  onCitationClick={(page, quote) => onCitationClick(cell, page, quote)}
+                />
+              )}
             </div>
-          ))}
-          <div className="flex-1" />
-        </div>
-        {/* Rows */}
-        {Array.from({ length: SKELETON_ROWS }).map((_, row) => (
-          <div
-            key={row}
-            className={`flex border-b border-gray-50 ${row % 2 === 0 ? "bg-white" : "bg-gray-50/50"}`}
-          >
-            <div className={`${CHECK_W} p-2`} />
-            <div className={`${COL_W} p-2`}>
-              <div className="h-4 w-32 animate-pulse rounded bg-gray-100" />
-            </div>
-            {Array.from({ length: SKELETON_COLS }).map((_, col) => (
-              <div key={col} className={`${COL_W} p-2`}>
-                <div className="h-4 animate-pulse rounded bg-gray-100" />
-              </div>
-            ))}
-            <div className="flex-1" />
-          </div>
-        ))}
-      </div>
+          );
+        },
+      }),
     );
-  }
 
-  if (columns.length === 0 && documents.length === 0) {
+    return [
+      columnHelper.accessor("filename", {
+        header: () => <span className="normal-case">Document</span>,
+        id: "doc",
+        size: DOC_COL_PX,
+        enableSorting: false,
+        meta: { stickyLeft: CHECK_COL_PX },
+        cell: (info) => (
+          <span className="line-clamp-1 text-sm text-gray-800" title={info.getValue()}>
+            {info.getValue()}
+          </span>
+        ),
+      }),
+      ...userCols,
+    ];
+  }, [
+    sortedColumns,
+    cells,
+    highlightedCell,
+    savingColumn,
+    savingColumnsConfig,
+    onUpdateColumn,
+    onDeleteColumn,
+    onExpand,
+    onCitationClick,
+  ]);
+
+  // ---------------------------------------------------------------------------
+  // Empty state — landing card with Add Columns + Add Documents buttons.
+  // ---------------------------------------------------------------------------
+  if (!loading && columns.length === 0 && documents.length === 0) {
     return (
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="flex items-center border-b border-gray-200">
-          <div className={`${CHECK_W} border-r border-gray-200`} />
-          <div
-            className={`${COL_W} border-r border-gray-200 p-2 text-xs font-medium text-gray-500 select-none`}
+      <div className="mx-auto flex w-full max-w-xs flex-1 flex-col items-start justify-center py-16">
+        <Table2 className="mb-4 h-8 w-8 text-gray-300" />
+        <p className="font-serif text-2xl font-medium text-gray-900">Tabular Review</p>
+        <p className="mt-1 text-left text-xs text-gray-400">
+          Add columns and documents to get started.
+        </p>
+        <div className="mt-4 flex items-center gap-2">
+          <button
+            onClick={onAddColumn}
+            className="inline-flex items-center gap-1 rounded-full bg-gray-900 px-3 py-1 text-xs font-medium text-white shadow-md transition-colors hover:bg-gray-700"
           >
-            Document
-          </div>
-          <div className="flex-1" />
-        </div>
-        <div className="mx-auto flex w-full max-w-xs flex-1 flex-col items-start justify-center">
-          <Table2 className="mb-4 h-8 w-8 text-gray-300" />
-          <p className="font-serif text-2xl font-medium text-gray-900">Tabular Review</p>
-          <p className="mt-1 text-left text-xs text-gray-400">
-            Add columns and documents to get started.
-          </p>
-          <div className="mt-4 flex items-center gap-2">
-            <button
-              onClick={onAddColumn}
-              className="inline-flex items-center gap-1 rounded-full bg-gray-900 px-3 py-1 text-xs font-medium text-white shadow-md transition-colors hover:bg-gray-700"
-            >
-              + Add Columns
-            </button>
-            <button
-              onClick={onAddDocuments}
-              className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-50"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add Documents
-            </button>
-          </div>
+            + Add Columns
+          </button>
+          <button
+            onClick={onAddDocuments}
+            className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-50"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add Documents
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 overflow-auto" ref={scrollContainerRef}>
-      {/* Header */}
-      <div className="sticky top-0 z-20 flex h-8 bg-white" style={{ minWidth: totalContentWidth }}>
-        <div
-          className={`sticky left-0 z-30 ${CHECK_W} flex items-center justify-center border-r border-b border-gray-200 bg-white select-none`}
-        >
-          <input
-            type="checkbox"
-            checked={allSelected}
-            ref={(el) => {
-              if (el) el.indeterminate = someSelected;
-            }}
-            onChange={toggleAll}
-            className="h-2.5 w-2.5 cursor-pointer rounded border-gray-200 accent-black"
-          />
-        </div>
-        <div
-          className={`sticky left-8 z-30 ${COL_W} border-r border-b border-gray-200 bg-white p-2 text-left text-xs font-medium text-gray-500 select-none`}
-        >
-          Document
-        </div>
-        {columns.map((col) => (
-          <div
-            key={col.index}
-            className={`${COL_W} border-r border-b border-gray-200 p-2 text-left text-xs font-medium text-gray-500 select-none`}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <span className="truncate">{col.name}</span>
-              <TREditColumnMenu
-                column={col}
-                disabled={savingColumn || savingColumnsConfig}
-                onSave={onUpdateColumn}
-                onDelete={onDeleteColumn}
-              />
-            </div>
+    <div ref={containerRef} className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+      <DataTable
+        data={documents}
+        columns={tableColumns}
+        widthMode="fixed"
+        getRowId={(row) => row.id}
+        enableRowSelection
+        rowSelection={rowSelection}
+        onRowSelectionChange={(next) => {
+          onSelectionChange(Object.keys(next).filter((id) => next[id]));
+        }}
+        isLoading={loading}
+        loadingNode={
+          <div className="space-y-2 px-8 py-5">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="h-8 w-full max-w-3xl animate-pulse rounded bg-gray-100" />
+            ))}
           </div>
-        ))}
-        <div className="flex min-w-8 flex-1 items-center justify-start border-b border-gray-200 p-2">
-          <button
-            onClick={onAddColumn}
-            disabled={savingColumn || savingColumnsConfig}
-            className="flex items-center justify-center text-gray-400 transition-colors hover:text-gray-700 disabled:text-gray-200"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Rows */}
-      {documents.map((doc, docIdx) => {
-        const rowBg = selectedDocIds.includes(doc.id)
-          ? "bg-gray-100"
-          : docIdx % 2 === 0
-            ? "bg-white"
-            : "bg-gray-50";
-        return (
-          <div key={doc.id} className={`flex ${rowBg}`} style={{ minWidth: totalContentWidth }}>
-            <div
-              className={`sticky left-0 z-[60] ${CHECK_W} flex items-center justify-center border-r border-b border-gray-200 p-2 ${rowBg}`}
-            >
-              <input
-                type="checkbox"
-                checked={selectedDocIds.includes(doc.id)}
-                onChange={() => toggleDoc(doc.id)}
-                className="h-2.5 w-2.5 shrink-0 cursor-pointer rounded border-gray-200 accent-black"
-              />
-            </div>
-            <div
-              className={`sticky left-8 z-[60] ${COL_W} flex items-center border-r border-b border-gray-200 p-2 text-xs text-gray-800 ${rowBg}`}
-            >
-              <span className="line-clamp-1" title={doc.filename}>
-                {doc.filename}
-              </span>
-            </div>
-            {columns.map((col) => {
-              const cell = getCell(doc.id, col.index);
-              const colPos = sortedColumns.findIndex((c) => c.index === col.index);
-              const isHighlighted =
-                highlightedCell?.colIdx === colPos && highlightedCell?.rowIdx === docIdx;
-              return (
-                <div
-                  key={col.index}
-                  className={`${COL_W} border-r border-b border-gray-200 transition-colors ${isHighlighted ? "bg-blue-200" : ""}`}
-                >
-                  {cell && (
-                    <TabularCellComponent
-                      cell={cell}
-                      column={col}
-                      onExpand={() => onExpand(cell)}
-                      onCitationClick={(page, quote) => onCitationClick(cell, page, quote)}
-                    />
-                  )}
-                </div>
-              );
-            })}
-            <div className="min-h-8 min-w-8 flex-1 border-b border-gray-200" />
+        }
+        emptyNode={
+          <div className="px-8 py-12 text-center text-sm text-gray-400">
+            No documents in this review yet.
           </div>
-        );
-      })}
+        }
+      />
     </div>
   );
 });

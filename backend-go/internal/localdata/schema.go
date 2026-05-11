@@ -251,6 +251,8 @@ DEFINE FIELD IF NOT EXISTS columns_config ON TABLE workflows TYPE any;
 DEFINE FIELD IF NOT EXISTS practice ON TABLE workflows TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS is_system ON TABLE workflows TYPE bool;
 DEFINE FIELD IF NOT EXISTS created_at ON TABLE workflows TYPE datetime;
+DEFINE FIELD IF NOT EXISTS row_mode ON TABLE workflows TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS anchor_extractor ON TABLE workflows TYPE option<object> FLEXIBLE;
 DEFINE INDEX IF NOT EXISTS workflows_user_idx ON TABLE workflows FIELDS user_id;
 
 DEFINE TABLE IF NOT EXISTS hidden_workflows SCHEMAFULL;
@@ -297,14 +299,34 @@ DEFINE FIELD IF NOT EXISTS practice ON TABLE tabular_reviews TYPE option<string>
 DEFINE FIELD IF NOT EXISTS shared_with ON TABLE tabular_reviews TYPE array<string>;
 DEFINE FIELD IF NOT EXISTS created_at ON TABLE tabular_reviews TYPE datetime;
 DEFINE FIELD IF NOT EXISTS updated_at ON TABLE tabular_reviews TYPE datetime;
+DEFINE FIELD IF NOT EXISTS row_mode ON TABLE tabular_reviews TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS anchor_extractor ON TABLE tabular_reviews TYPE option<object> FLEXIBLE;
 DEFINE INDEX IF NOT EXISTS tabular_reviews_user_idx ON TABLE tabular_reviews FIELDS user_id;
 DEFINE INDEX IF NOT EXISTS tabular_reviews_application_idx ON TABLE tabular_reviews FIELDS application_id;
+
+DEFINE TABLE IF NOT EXISTS tabular_review_rows SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS review_id ON TABLE tabular_review_rows TYPE record<tabular_reviews>;
+DEFINE FIELD IF NOT EXISTS document_id ON TABLE tabular_review_rows TYPE record<documents>;
+DEFINE FIELD IF NOT EXISTS row_index ON TABLE tabular_review_rows TYPE int ASSERT $value >= 0;
+DEFINE FIELD IF NOT EXISTS anchor ON TABLE tabular_review_rows TYPE object FLEXIBLE;
+DEFINE FIELD IF NOT EXISTS created_at ON TABLE tabular_review_rows TYPE datetime;
+DEFINE INDEX IF NOT EXISTS tabular_review_rows_review_idx ON TABLE tabular_review_rows FIELDS review_id, row_index UNIQUE;
+DEFINE INDEX IF NOT EXISTS tabular_review_rows_review_doc_idx ON TABLE tabular_review_rows FIELDS review_id, document_id;
+
+DEFINE TABLE IF NOT EXISTS tabular_row_cells SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS row_id ON TABLE tabular_row_cells TYPE record<tabular_review_rows>;
+DEFINE FIELD IF NOT EXISTS column_index ON TABLE tabular_row_cells TYPE int ASSERT $value >= 0;
+DEFINE FIELD IF NOT EXISTS content ON TABLE tabular_row_cells TYPE option<object> FLEXIBLE;
+DEFINE FIELD IF NOT EXISTS citations ON TABLE tabular_row_cells TYPE option<object> FLEXIBLE;
+DEFINE FIELD IF NOT EXISTS status ON TABLE tabular_row_cells TYPE string ASSERT $value INSIDE ["pending", "generating", "done", "error"];
+DEFINE FIELD IF NOT EXISTS created_at ON TABLE tabular_row_cells TYPE datetime;
+DEFINE INDEX IF NOT EXISTS tabular_row_cells_row_col_idx ON TABLE tabular_row_cells FIELDS row_id, column_index UNIQUE;
 
 DEFINE TABLE IF NOT EXISTS tabular_cells SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS review_id ON TABLE tabular_cells TYPE record<tabular_reviews>;
 DEFINE FIELD IF NOT EXISTS document_id ON TABLE tabular_cells TYPE record<documents>;
 DEFINE FIELD IF NOT EXISTS column_index ON TABLE tabular_cells TYPE int ASSERT $value >= 0;
-DEFINE FIELD IF NOT EXISTS content ON TABLE tabular_cells TYPE option<string>;
+DEFINE FIELD OVERWRITE content ON TABLE tabular_cells TYPE option<object> FLEXIBLE;
 DEFINE FIELD IF NOT EXISTS citations ON TABLE tabular_cells TYPE option<object> FLEXIBLE;
 DEFINE FIELD IF NOT EXISTS status ON TABLE tabular_cells TYPE string ASSERT $value INSIDE ["pending", "generating", "done", "error"];
 DEFINE FIELD IF NOT EXISTS created_at ON TABLE tabular_cells TYPE datetime;
@@ -370,6 +392,11 @@ DEFINE EVENT IF NOT EXISTS cascade_document_delete ON TABLE documents WHEN $even
 	DELETE document_versions WHERE document_id = $before.id;
 	DELETE document_edits WHERE document_id = $before.id;
 	DELETE tabular_cells WHERE document_id = $before.id;
+	DELETE tabular_review_rows WHERE document_id = $before.id;
+};
+
+DEFINE EVENT IF NOT EXISTS cascade_tabular_review_row_delete ON TABLE tabular_review_rows WHEN $event = "DELETE" THEN {
+	DELETE tabular_row_cells WHERE row_id = $before.id;
 };
 
 DEFINE EVENT IF NOT EXISTS cascade_document_version_delete ON TABLE document_versions WHEN $event = "DELETE" THEN {
@@ -392,6 +419,7 @@ DEFINE EVENT IF NOT EXISTS cascade_workflow_delete ON TABLE workflows WHEN $even
 
 DEFINE EVENT IF NOT EXISTS cascade_tabular_review_delete ON TABLE tabular_reviews WHEN $event = "DELETE" THEN {
 	DELETE tabular_cells WHERE review_id = $before.id;
+	DELETE tabular_review_rows WHERE review_id = $before.id;
 	DELETE tabular_review_chat_messages WHERE chat_id IN (SELECT VALUE id FROM tabular_review_chats WHERE review_id = $before.id);
 	DELETE tabular_review_chats WHERE review_id = $before.id;
 };

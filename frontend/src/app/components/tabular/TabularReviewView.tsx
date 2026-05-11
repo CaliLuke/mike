@@ -1,3 +1,6 @@
+/* eslint-disable max-lines -- entity-row support in P3 pushes this over the
+   default cap; we'll split TRView into header/table/sidepanel containers
+   alongside the chat-v2 frontend cleanup. */
 "use client";
 
 import { ChevronDown, Download, Loader2, MessageSquare, Play, Plus } from "lucide-react";
@@ -18,6 +21,7 @@ import {
   isModelAvailable,
   type ModelProvider,
 } from "@/app/lib/modelAvailability";
+import { getTracer } from "@/app/lib/telemetry";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserProfile } from "@/contexts/UserProfileContext";
 
@@ -33,10 +37,13 @@ import type {
   LukeDocument,
   TabularCell,
   TabularReview,
+  TabularReviewRow,
+  TabularRowCell,
 } from "../shared/types";
 import { AddColumnModal } from "./AddColumnModal";
 import { exportTabularReviewToExcel } from "./exportToExcel";
 import { TRChatPanel } from "./TRChatPanel";
+import { TREntityTable } from "./TREntityTable";
 import { TRSidePanel } from "./TRSidePanel";
 import type { TRTableHandle } from "./TRTable";
 import { TRTable } from "./TRTable";
@@ -51,8 +58,11 @@ export function TRView({ reviewId, applicationId }: Props) {
   const [review, setReview] = useState<TabularReview | null>(null);
   const [application, setApplication] = useState<LukeApplication | null>(null);
   const [cells, setCells] = useState<TabularCell[]>([]);
+  const [entityRows, setEntityRows] = useState<TabularReviewRow[]>([]);
+  const [entityRowCells, setEntityRowCells] = useState<TabularRowCell[]>([]);
   const [documents, setDocuments] = useState<LukeDocument[]>([]);
   const [columns, setColumns] = useState<ColumnConfig[]>([]);
+  const isEntityMode = review?.row_mode === "entity";
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [savingColumn, setSavingColumn] = useState(false);
@@ -112,9 +122,11 @@ export function TRView({ reviewId, applicationId }: Props) {
 
   useEffect(() => {
     const fetches: Promise<unknown>[] = [
-      getTabularReview(reviewId).then(({ review, cells, documents }) => {
+      getTabularReview(reviewId).then(({ review, cells, rows, row_cells, documents }) => {
         setReview(review);
         setCells(cells);
+        setEntityRows(rows ?? []);
+        setEntityRowCells(row_cells ?? []);
         setDocuments(documents);
         setColumns(review.columns_config || []);
       }),
@@ -224,6 +236,21 @@ export function TRView({ reviewId, applicationId }: Props) {
 
     setGenerating(true);
 
+    const span = getTracer().startSpan("tabular.client.generate", {
+      attributes: {
+        "tabular_review.id": reviewId,
+        "tabular.documents.count": documents.length,
+        "tabular.columns.count": columns.length,
+        "tabular.cells.expected": documents.length * columns.length,
+        "tabular.model": tabularModel ?? "",
+      },
+    });
+    const startedAt = performance.now();
+    let cellUpdates = 0;
+    let bytesReceived = 0;
+    let firstEventMs: number | null = null;
+    let exitReason = "done";
+
     // Optimistically set empty/pending/error cells to generating (skip done cells)
     setCells((prev) =>
       documents.flatMap((doc) =>
@@ -268,6 +295,7 @@ export function TRView({ reviewId, applicationId }: Props) {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
+        if (value) bytesReceived += value.byteLength;
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() ?? "";
@@ -276,27 +304,65 @@ export function TRView({ reviewId, applicationId }: Props) {
           if (!line.startsWith("data:")) continue;
           const dataStr = line.slice(5).trim();
           if (dataStr === "[DONE]") break;
+          if (firstEventMs === null) firstEventMs = performance.now() - startedAt;
           try {
             const data = JSON.parse(dataStr);
             if (data.type === "cell_update") {
-              setCells((prev) =>
-                prev.map((c) =>
-                  c.document_id === data.document_id && c.column_index === data.column_index
-                    ? {
-                        ...c,
-                        content: data.content,
-                        status: data.status,
-                      }
-                    : c,
-                ),
-              );
+              cellUpdates++;
+              if (data.row_id) {
+                // Entity-mode cell update — match by row_id + column_index.
+                setEntityRowCells((prev) => {
+                  const idx = prev.findIndex(
+                    (c) => c.row_id === data.row_id && c.column_index === data.column_index,
+                  );
+                  if (idx >= 0) {
+                    const next = prev.slice();
+                    next[idx] = {
+                      ...next[idx],
+                      content: data.content,
+                      status: data.status,
+                    };
+                    return next;
+                  }
+                  return [...prev, data.cell as TabularRowCell];
+                });
+              } else {
+                setCells((prev) =>
+                  prev.map((c) =>
+                    c.document_id === data.document_id && c.column_index === data.column_index
+                      ? {
+                          ...c,
+                          content: data.content,
+                          status: data.status,
+                        }
+                      : c,
+                  ),
+                );
+              }
+            } else if (data.type === "row_created") {
+              setEntityRows((prev) => {
+                if (prev.some((r) => r.id === data.row_id)) return prev;
+                return [...prev, data.row as TabularReviewRow];
+              });
+            } else if (data.type === "row_extract_failed") {
+              console.warn("Anchor extraction failed for", data.document_id, data.error);
             }
           } catch {}
         }
       }
     } catch (err) {
+      exitReason = "exception";
       console.error("Generation failed", err);
+      span.recordException(err as Error);
     } finally {
+      span.setAttributes({
+        "tabular.cells.received": cellUpdates,
+        "tabular.bytes_received": bytesReceived,
+        "tabular.time_to_first_event_ms": firstEventMs ?? -1,
+        "tabular.duration_ms": performance.now() - startedAt,
+        "tabular.exit_reason": exitReason,
+      });
+      span.end();
       setGenerating(false);
     }
   }
@@ -629,30 +695,39 @@ export function TRView({ reviewId, applicationId }: Props) {
               onChatIdChange={setSelectedChatId}
             />
           )}
-          <TRTable
-            ref={tableRef}
-            loading={loading}
-            columns={columns}
-            documents={filteredDocuments}
-            cells={cells}
-            highlightedCell={highlightedCell}
-            savingColumn={savingColumn}
-            savingColumnsConfig={savingColumnsConfig}
-            selectedDocIds={selectedDocIds}
-            onSelectionChange={setSelectedDocIds}
-            onExpand={(cell) => {
-              setExpandedCell(cell);
-              setExpandedCellCitation(undefined);
-            }}
-            onCitationClick={(cell, page, quote) => {
-              setExpandedCell(cell);
-              setExpandedCellCitation({ quote, page });
-            }}
-            onUpdateColumn={handleUpdateColumn}
-            onDeleteColumn={handleDeleteColumn}
-            onAddColumn={() => setAddColOpen(true)}
-            onAddDocuments={() => setAddDocsOpen(true)}
-          />
+          {isEntityMode ? (
+            <TREntityTable
+              columns={columns}
+              rows={entityRows}
+              rowCells={entityRowCells}
+              documents={documents}
+            />
+          ) : (
+            <TRTable
+              ref={tableRef}
+              loading={loading}
+              columns={columns}
+              documents={filteredDocuments}
+              cells={cells}
+              highlightedCell={highlightedCell}
+              savingColumn={savingColumn}
+              savingColumnsConfig={savingColumnsConfig}
+              selectedDocIds={selectedDocIds}
+              onSelectionChange={setSelectedDocIds}
+              onExpand={(cell) => {
+                setExpandedCell(cell);
+                setExpandedCellCitation(undefined);
+              }}
+              onCitationClick={(cell, page, quote) => {
+                setExpandedCell(cell);
+                setExpandedCellCitation({ quote, page });
+              }}
+              onUpdateColumn={handleUpdateColumn}
+              onDeleteColumn={handleDeleteColumn}
+              onAddColumn={() => setAddColOpen(true)}
+              onAddDocuments={() => setAddDocsOpen(true)}
+            />
+          )}
         </div>
       </div>
 

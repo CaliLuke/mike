@@ -28,20 +28,24 @@ type documentVersionRef struct {
 }
 
 type workflowPayload struct {
-	Title         string           `json:"title"`
-	Type          string           `json:"type"`
-	PromptMd      *string          `json:"prompt_md"`
-	ColumnsConfig []map[string]any `json:"columns_config"`
-	Practice      *string          `json:"practice"`
+	Title           string           `json:"title"`
+	Type            string           `json:"type"`
+	PromptMd        *string          `json:"prompt_md"`
+	ColumnsConfig   []map[string]any `json:"columns_config"`
+	Practice        *string          `json:"practice"`
+	RowMode         *string          `json:"row_mode"`         // "document" | "entity"
+	AnchorExtractor map[string]any   `json:"anchor_extractor"` // { prompt, anchor_schema? }
 }
 
 type tabularPayload struct {
-	Title         *string          `json:"title"`
-	DocumentIDs   []string         `json:"document_ids"`
-	ColumnsConfig []map[string]any `json:"columns_config"`
-	WorkflowID    *string          `json:"workflow_id"`
-	ApplicationID *string          `json:"application_id"`
-	SharedWith    []string         `json:"shared_with"`
+	Title           *string          `json:"title"`
+	DocumentIDs     []string         `json:"document_ids"`
+	ColumnsConfig   []map[string]any `json:"columns_config"`
+	WorkflowID      *string          `json:"workflow_id"`
+	ApplicationID   *string          `json:"application_id"`
+	SharedWith      []string         `json:"shared_with"`
+	RowMode         *string          `json:"row_mode"`         // copied from workflow at create
+	AnchorExtractor map[string]any   `json:"anchor_extractor"` // copied from workflow at create
 }
 
 const applicationListQuery = `
@@ -684,6 +688,14 @@ func (s *Server) upsertWorkflow(ctx context.Context, workflowID string, req work
 	if err != nil {
 		return nil, err
 	}
+	anchorJSON := "NONE"
+	if req.AnchorExtractor != nil {
+		b, err := json.Marshal(req.AnchorExtractor)
+		if err != nil {
+			return nil, err
+		}
+		anchorJSON = string(b)
+	}
 	query := fmt.Sprintf(`
 		CREATE %s CONTENT {
 			user_id: users:local,
@@ -692,10 +704,12 @@ func (s *Server) upsertWorkflow(ctx context.Context, workflowID string, req work
 			prompt_md: %s,
 			columns_config: %s,
 			practice: %s,
+			row_mode: %s,
+			anchor_extractor: %s,
 			is_system: false,
 			created_at: time::now()
 		};
-	`, recordID("workflows", workflowID), surrealString(req.Title), surrealString(req.Type), optionStringPtr(req.PromptMd), string(columnsJSON), optionStringPtr(req.Practice))
+	`, recordID("workflows", workflowID), surrealString(req.Title), surrealString(req.Type), optionStringPtr(req.PromptMd), string(columnsJSON), optionStringPtr(req.Practice), optionStringPtr(req.RowMode), anchorJSON)
 	if !isNew {
 		query = fmt.Sprintf(`
 		UPDATE %s SET
@@ -705,14 +719,16 @@ func (s *Server) upsertWorkflow(ctx context.Context, workflowID string, req work
 			prompt_md = %s,
 			columns_config = %s,
 			practice = %s,
+			row_mode = %s,
+			anchor_extractor = %s,
 			is_system = false;
-	`, recordID("workflows", workflowID), surrealString(req.Title), surrealString(req.Type), optionStringPtr(req.PromptMd), string(columnsJSON), optionStringPtr(req.Practice))
+	`, recordID("workflows", workflowID), surrealString(req.Title), surrealString(req.Type), optionStringPtr(req.PromptMd), string(columnsJSON), optionStringPtr(req.Practice), optionStringPtr(req.RowMode), anchorJSON)
 	}
 	_, err = s.app.DB.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := queryRows(ctx, s.app.DB, "SELECT id, user_id, title, type, prompt_md, columns_config, is_system, created_at, practice, true AS is_owner FROM "+recordID("workflows", workflowID)+";")
+	rows, err := queryRows(ctx, s.app.DB, "SELECT id, user_id, title, type, prompt_md, columns_config, is_system, created_at, practice, row_mode, anchor_extractor, true AS is_owner FROM "+recordID("workflows", workflowID)+";")
 	if len(rows) == 0 && !isNew {
 		_, err = s.app.DB.Query(ctx, fmt.Sprintf(`
 		UPSERT %s CONTENT {
@@ -722,14 +738,16 @@ func (s *Server) upsertWorkflow(ctx context.Context, workflowID string, req work
 			prompt_md: %s,
 			columns_config: %s,
 			practice: %s,
+			row_mode: %s,
+			anchor_extractor: %s,
 			is_system: false,
 			created_at: time::now()
 		};
-	`, recordID("workflows", workflowID), surrealString(req.Title), surrealString(req.Type), optionStringPtr(req.PromptMd), string(columnsJSON), optionStringPtr(req.Practice)))
+	`, recordID("workflows", workflowID), surrealString(req.Title), surrealString(req.Type), optionStringPtr(req.PromptMd), string(columnsJSON), optionStringPtr(req.Practice), optionStringPtr(req.RowMode), anchorJSON))
 		if err != nil {
 			return nil, err
 		}
-		rows, err = queryRows(ctx, s.app.DB, "SELECT id, user_id, title, type, prompt_md, columns_config, is_system, created_at, practice, true AS is_owner FROM "+recordID("workflows", workflowID)+";")
+		rows, err = queryRows(ctx, s.app.DB, "SELECT id, user_id, title, type, prompt_md, columns_config, is_system, created_at, practice, row_mode, anchor_extractor, true AS is_owner FROM "+recordID("workflows", workflowID)+";")
 	}
 	if err != nil || len(rows) == 0 {
 		return nil, err
@@ -738,48 +756,113 @@ func (s *Server) upsertWorkflow(ctx context.Context, workflowID string, req work
 }
 
 func (s *Server) upsertTabularReview(ctx context.Context, reviewID string, req tabularPayload) (map[string]any, error) {
-	if reviewID == "" {
+	creating := reviewID == ""
+	if creating {
 		reviewID = newID("review")
 	}
-	title := "Untitled Review"
-	if req.Title != nil && *req.Title != "" {
-		title = *req.Title
+	recID := recordID("tabular_reviews", reviewID)
+
+	// Build a partial MERGE payload so PATCH preserves fields the caller did
+	// not specify. Only fields the request explicitly carries are touched.
+	merge := map[string]string{
+		"updated_at": "time::now()",
 	}
-	columnsJSON, err := json.Marshal(req.ColumnsConfig)
-	if err != nil {
+	if req.Title != nil {
+		title := *req.Title
+		if title == "" {
+			title = "Untitled Review"
+		}
+		merge["title"] = surrealString(title)
+	} else if creating {
+		merge["title"] = surrealString("Untitled Review")
+	}
+	if req.ColumnsConfig != nil {
+		columnsJSON, err := json.Marshal(req.ColumnsConfig)
+		if err != nil {
+			return nil, err
+		}
+		merge["columns_config"] = string(columnsJSON)
+	}
+	if req.ApplicationID != nil {
+		merge["application_id"] = optionRecord("applications", req.ApplicationID)
+	}
+	if req.WorkflowID != nil {
+		merge["workflow_id"] = optionRecord("workflows", req.WorkflowID)
+	}
+	if req.SharedWith != nil {
+		sharedJSON, err := json.Marshal(req.SharedWith)
+		if err != nil {
+			return nil, err
+		}
+		merge["shared_with"] = string(sharedJSON)
+	}
+	if req.RowMode != nil {
+		merge["row_mode"] = surrealString(*req.RowMode)
+	}
+	if req.AnchorExtractor != nil {
+		anchorJSON, err := json.Marshal(req.AnchorExtractor)
+		if err != nil {
+			return nil, err
+		}
+		merge["anchor_extractor"] = string(anchorJSON)
+	}
+	if creating {
+		merge["user_id"] = "users:local"
+		merge["created_at"] = "time::now()"
+		if _, hasTitle := merge["title"]; !hasTitle {
+			merge["title"] = surrealString("Untitled Review")
+		}
+		// Schema requires shared_with to be an array; ensure it defaults on
+		// fresh creates even when the caller omitted the field.
+		if _, has := merge["shared_with"]; !has {
+			merge["shared_with"] = "[]"
+		}
+	}
+
+	var b strings.Builder
+	b.WriteString("UPSERT ")
+	b.WriteString(recID)
+	b.WriteString(" MERGE {")
+	first := true
+	for k, v := range merge {
+		if !first {
+			b.WriteString(",")
+		}
+		first = false
+		b.WriteString("\n\t")
+		b.WriteString(k)
+		b.WriteString(": ")
+		b.WriteString(v)
+	}
+	b.WriteString("\n};")
+	if _, err := s.app.DB.Query(ctx, b.String()); err != nil {
 		return nil, err
 	}
-	if req.SharedWith == nil {
-		req.SharedWith = []string{}
+
+	// Resolve effective row_mode (request → persisted) for cell seeding.
+	effectiveRowMode := ""
+	if req.RowMode != nil {
+		effectiveRowMode = *req.RowMode
+	} else {
+		rows, err := queryRows(ctx, s.app.DB, "SELECT row_mode FROM "+recID+";")
+		if err == nil && len(rows) > 0 {
+			effectiveRowMode = asString(rows[0]["row_mode"])
+		}
 	}
-	sharedJSON, err := json.Marshal(req.SharedWith)
-	if err != nil {
-		return nil, err
-	}
-	_, err = s.app.DB.Query(ctx, fmt.Sprintf(`
-		UPSERT %s CONTENT {
-			application_id: %s,
-			user_id: users:local,
-			title: %s,
-			columns_config: %s,
-			workflow_id: %s,
-			practice: NONE,
-			shared_with: %s,
-			created_at: time::now(),
-			updated_at: time::now()
-		};
-	`, recordID("tabular_reviews", reviewID), optionRecord("applications", req.ApplicationID), surrealString(title), string(columnsJSON), optionRecord("workflows", req.WorkflowID), string(sharedJSON)))
-	if err != nil {
-		return nil, err
-	}
-	for _, docID := range req.DocumentIDs {
-		for index := range req.ColumnsConfig {
-			if _, cellErr := s.upsertCell(ctx, reviewID, docID, index, "pending"); cellErr != nil {
-				return nil, cellErr
+
+	// Seed pending tabular_cells only in document-row mode. Entity-row reviews
+	// create cells lazily, one row at a time, after anchor extraction.
+	if effectiveRowMode != "entity" {
+		for _, docID := range req.DocumentIDs {
+			for index := range req.ColumnsConfig {
+				if _, cellErr := s.upsertCell(ctx, reviewID, docID, index, "pending"); cellErr != nil {
+					return nil, cellErr
+				}
 			}
 		}
 	}
-	rows, err := queryRows(ctx, s.app.DB, "SELECT id, application_id, user_id, title, columns_config, workflow_id, practice, shared_with, true AS is_owner, created_at, updated_at, 0 AS document_count FROM "+recordID("tabular_reviews", reviewID)+";")
+
+	rows, err := queryRows(ctx, s.app.DB, "SELECT id, application_id, user_id, title, columns_config, workflow_id, practice, shared_with, row_mode, anchor_extractor, true AS is_owner, created_at, updated_at, 0 AS document_count FROM "+recID+";")
 	if err != nil || len(rows) == 0 {
 		return nil, err
 	}
@@ -787,19 +870,51 @@ func (s *Server) upsertTabularReview(ctx context.Context, reviewID string, req t
 }
 
 func (s *Server) tabularDetail(ctx context.Context, reviewID string) (map[string]any, error) {
-	reviews, err := queryRows(ctx, s.app.DB, "SELECT id, application_id, user_id, title, columns_config, workflow_id, practice, shared_with, true AS is_owner, created_at, updated_at FROM "+recordID("tabular_reviews", reviewID)+";")
+	recID := recordID("tabular_reviews", reviewID)
+	reviews, err := queryRows(ctx, s.app.DB, "SELECT id, application_id, user_id, title, columns_config, workflow_id, practice, shared_with, row_mode, anchor_extractor, true AS is_owner, created_at, updated_at FROM "+recID+";")
 	if err != nil || len(reviews) == 0 {
 		return nil, err
 	}
-	cells, err := queryRows(ctx, s.app.DB, "SELECT id, review_id, document_id, column_index, content, status, created_at FROM tabular_cells WHERE review_id = "+recordID("tabular_reviews", reviewID)+" ORDER BY document_id, column_index;")
+	rowMode := asString(reviews[0]["row_mode"])
+
+	// Document-row payload — cells keyed by (document, column).
+	cells, err := queryRows(ctx, s.app.DB, "SELECT id, review_id, document_id, column_index, content, status, created_at FROM tabular_cells WHERE review_id = "+recID+" ORDER BY document_id, column_index;")
 	if err != nil {
 		return nil, err
 	}
-	docs, err := queryRows(ctx, s.app.DB, documentListQuery("id IN (SELECT VALUE document_id FROM tabular_cells WHERE review_id = "+recordID("tabular_reviews", reviewID)+")"))
+
+	// Entity-row payload — rows + row_cells keyed by (row, column). Empty
+	// arrays in document-row reviews; clients ignore them.
+	rows, err := queryRows(ctx, s.app.DB, "SELECT id, review_id, document_id, row_index, anchor, created_at FROM tabular_review_rows WHERE review_id = "+recID+" ORDER BY row_index;")
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"review": reviews[0], "cells": cells, "documents": docs}, nil
+	rowCells, err := queryRows(ctx, s.app.DB, "SELECT id, row_id, column_index, content, status, created_at FROM tabular_row_cells WHERE row_id IN (SELECT VALUE id FROM tabular_review_rows WHERE review_id = "+recID+") ORDER BY row_id, column_index;")
+	if err != nil {
+		return nil, err
+	}
+
+	// Document list: in document-row mode use the docs referenced by cells; in
+	// entity-row mode use the source documents referenced by rows. Both sets
+	// surface a uniform "documents" array to the frontend.
+	var docsWhere string
+	if rowMode == "entity" {
+		docsWhere = "id IN (SELECT VALUE document_id FROM tabular_review_rows WHERE review_id = " + recID + ")"
+	} else {
+		docsWhere = "id IN (SELECT VALUE document_id FROM tabular_cells WHERE review_id = " + recID + ")"
+	}
+	docs, err := queryRows(ctx, s.app.DB, documentListQuery(docsWhere))
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]any{
+		"review":    reviews[0],
+		"cells":     cells,
+		"rows":      rows,
+		"row_cells": rowCells,
+		"documents": docs,
+	}, nil
 }
 
 func (s *Server) upsertCell(ctx context.Context, reviewID, documentID string, columnIndex int, status string) (map[string]any, error) {
@@ -807,22 +922,58 @@ func (s *Server) upsertCell(ctx context.Context, reviewID, documentID string, co
 }
 
 func (s *Server) upsertCellWithContent(ctx context.Context, reviewID, documentID string, columnIndex int, content string, status string) (map[string]any, error) {
-	id := reviewID + "_" + documentID + "_" + strconv.Itoa(columnIndex)
-	_, err := s.app.DB.Query(ctx, fmt.Sprintf(`
-		UPSERT %s CONTENT {
-			review_id: %s,
-			document_id: %s,
-			column_index: %d,
-			content: %s,
-			citations: {},
-			status: %s,
-			created_at: time::now()
-		};
-	`, recordID("tabular_cells", id), recordID("tabular_reviews", reviewID), recordID("documents", documentID), columnIndex, surrealString(content), surrealString(status)))
+	// Look up the existing cell by the natural key (review_id, document_id,
+	// column_index) — the unique index guarantees at most one match. If found,
+	// UPDATE in place to preserve the original record ID (which may pre-date
+	// the current ID scheme); otherwise CREATE a fresh cell with the canonical
+	// composite ID. This avoids UPSERT-with-a-specific-ID hitting the index
+	// when an older record satisfies the same natural key under a different
+	// primary key.
+	existingRows, err := queryRows(ctx, s.app.DB, fmt.Sprintf(
+		"SELECT id FROM tabular_cells WHERE review_id = %s AND document_id = %s AND column_index = %d LIMIT 1;",
+		recordID("tabular_reviews", reviewID), recordID("documents", documentID), columnIndex,
+	))
 	if err != nil {
 		return nil, err
 	}
-	rows, err := queryRows(ctx, s.app.DB, "SELECT id, review_id, document_id, column_index, content, status, created_at FROM "+recordID("tabular_cells", id)+";")
+
+	var cellRecordRef string
+	if len(existingRows) > 0 {
+		if rawID, ok := existingRows[0]["id"].(string); ok && rawID != "" {
+			cellRecordRef = rawID
+		}
+	}
+	if cellRecordRef == "" {
+		cellRecordRef = recordID("tabular_cells", reviewID+"_"+documentID+"_"+strconv.Itoa(columnIndex))
+	}
+
+	if len(existingRows) > 0 {
+		_, err = s.app.DB.Query(ctx, fmt.Sprintf(`
+			UPDATE %s SET
+				review_id = %s,
+				document_id = %s,
+				column_index = %d,
+				content = { summary: %s },
+				citations = {},
+				status = %s;
+		`, cellRecordRef, recordID("tabular_reviews", reviewID), recordID("documents", documentID), columnIndex, surrealString(content), surrealString(status)))
+	} else {
+		_, err = s.app.DB.Query(ctx, fmt.Sprintf(`
+			CREATE %s CONTENT {
+				review_id: %s,
+				document_id: %s,
+				column_index: %d,
+				content: { summary: %s },
+				citations: {},
+				status: %s,
+				created_at: time::now()
+			};
+		`, cellRecordRef, recordID("tabular_reviews", reviewID), recordID("documents", documentID), columnIndex, surrealString(content), surrealString(status)))
+	}
+	if err != nil {
+		return nil, err
+	}
+	rows, err := queryRows(ctx, s.app.DB, "SELECT id, review_id, document_id, column_index, content, status, created_at FROM "+cellRecordRef+";")
 	if err != nil || len(rows) == 0 {
 		return nil, err
 	}

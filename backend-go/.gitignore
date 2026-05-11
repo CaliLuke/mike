@@ -3,3 +3,4 @@ coverage.out
 *.a
 *.dylib
 *.so
+/luke-backend

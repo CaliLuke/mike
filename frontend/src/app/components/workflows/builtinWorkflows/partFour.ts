@@ -279,4 +279,69 @@ export const BUILT_IN_WORKFLOWS_PART_FOUR: LukeWorkflow[] = [
       },
     ],
   },
+
+  // ─── Accomplishments by Company ─────────────────────────────────────────────
+  // Entity-row workflow: one extracted accomplishment per row, with the
+  // company and date attached as columns. The anchor extractor identifies
+  // the accomplishment anchors; columns then ask about each one individually.
+  {
+    id: "builtin-accomplishments-by-company",
+    user_id: null,
+    is_system: true,
+    created_at: "",
+    title: "Accomplishments by Company",
+    type: "tabular",
+    practice: "Talent",
+    prompt_md: null,
+    row_mode: "entity",
+    anchor_extractor: {
+      prompt:
+        "Identify every concrete accomplishment, achievement, or notable contribution attributable to the subject of this document. " +
+        "An accomplishment is an OUTCOME (shipped a product, led a team, won an award, closed a deal, published a paper, grew a metric, was promoted), NOT a mere responsibility or job duty.\n\n" +
+        "For each accomplishment, return one anchor with:\n" +
+        '- "label": a short sentence describing the accomplishment (max ~120 chars)\n' +
+        '- "summary": the verbatim sentence(s) from the document that ground the accomplishment\n' +
+        '- "metadata": { "company": <string|null>, "role": <string|null>, "start_date": <"Mon YYYY"|null>, "end_date": <"Mon YYYY"|"Present"|null> }\n\n' +
+        "Match each accomplishment to the company where it was achieved using the document's employment dates. " +
+        'If the accomplishment is not tied to any company (personal project, education, independent work), set "company" to "Independent". ' +
+        "If a date is missing or ambiguous, use null. Do not invent companies, roles, dates, or accomplishments not supported by the document.",
+    },
+    columns_config: [
+      {
+        index: 0,
+        name: "Company",
+        format: "text",
+        prompt:
+          'Which company is associated with this accomplishment? Return only the company name, e.g. "Acme Corp". If the accomplishment is personal or unaffiliated, return "Independent". If the document does not state a company, return "Not addressed".',
+      },
+      {
+        index: 1,
+        name: "Role",
+        format: "text",
+        prompt:
+          'What role did the subject hold when this accomplishment was achieved? Return the most specific title supported by the document. If unstated, return "Not addressed".',
+      },
+      {
+        index: 2,
+        name: "Date",
+        format: "date",
+        prompt:
+          'When did this accomplishment occur? Return a single date or short range in "Mon YYYY" form (e.g. "Mar 2022" or "Mar 2022 – Jun 2022"). If only an employment range is known, return that range. If unknown, return "Unknown".',
+      },
+      {
+        index: 3,
+        name: "Impact",
+        format: "text",
+        prompt:
+          'Quantify the impact of this accomplishment using the document\'s own language: growth %, dollars, headcount, customers, time saved, etc. If no quantitative result is stated, return one sentence describing the qualitative impact. If the document offers neither, return "Not addressed".',
+      },
+      {
+        index: 4,
+        name: "Evidence",
+        format: "text",
+        prompt:
+          "Quote the verbatim sentence(s) from the document that establish this accomplishment. Do not paraphrase. If no single sentence captures it, quote the smallest contiguous span that does.",
+      },
+    ],
+  },
 ];

@@ -1,9 +1,11 @@
 "use client";
 
+import { createColumnHelper } from "@tanstack/react-table";
 import { Check, ChevronDown, Loader2, Plus, Table2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { DataTable } from "@/app/components/shared/DataTable";
 import { HeaderSearchBtn } from "@/app/components/shared/HeaderSearchBtn";
 import { OwnerOnlyModal } from "@/app/components/shared/OwnerOnlyModal";
 import { RowActions } from "@/app/components/shared/RowActions";
@@ -21,9 +23,6 @@ import { useAuth } from "@/contexts/AuthContext";
 
 type Tab = "all" | "in-application" | "standalone";
 
-const CHECK_W = "w-8 shrink-0";
-const NAME_COL_W = "w-[300px] shrink-0";
-
 const TABS: { id: Tab; label: string }[] = [
   { id: "all", label: "All Reviews" },
   { id: "in-application", label: "In Application" },
@@ -38,6 +37,8 @@ function formatDate(iso: string) {
   });
 }
 
+const columnHelper = createColumnHelper<TabularReview>();
+
 export default function TabularReviewsPage() {
   const [reviews, setReviews] = useState<TabularReview[]>([]);
   const [applications, setApplications] = useState<LukeApplication[]>([]);
@@ -50,7 +51,7 @@ export default function TabularReviewsPage() {
   const [applicationFilter, setApplicationFilter] = useState<string | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
   const [actionsOpen, setActionsOpen] = useState(false);
   const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
   const filterRef = useRef<HTMLDivElement>(null);
@@ -85,28 +86,22 @@ export default function TabularReviewsPage() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [actionsOpen]);
 
-  const q = search.toLowerCase();
+  // Tab + application filtering happens here so DataTable receives the
+  // already-filtered slice; the table itself handles the search filter via
+  // its globalFilter prop.
   const filtered = reviews
     .filter((r) => {
       if (activeTab === "in-application") return !!r.application_id;
       if (activeTab === "standalone") return !r.application_id;
       return true;
     })
-    .filter((r) => !applicationFilter || r.application_id === applicationFilter)
-    .filter((r) => !q || (r.title ?? "").toLowerCase().includes(q));
+    .filter((r) => !applicationFilter || r.application_id === applicationFilter);
 
-  const allSelected = filtered.length > 0 && filtered.every((r) => selectedIds.includes(r.id));
-  const someSelected = !allSelected && filtered.some((r) => selectedIds.includes(r.id));
+  const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id]);
+  // Only count selections for rows currently visible — switching tabs leaves
+  // hidden selections in state but bulk actions should target what the user
+  // can see.
   const visibleSelectedIds = selectedIds.filter((id) => filtered.some((r) => r.id === id));
-
-  function toggleAll() {
-    if (allSelected) setSelectedIds([]);
-    else setSelectedIds(filtered.map((r) => r.id));
-  }
-
-  function toggleOne(id: string) {
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  }
 
   const selectedApplication = applications.find((p) => p.id === applicationFilter);
 
@@ -163,7 +158,7 @@ export default function TabularReviewsPage() {
       return !r || !user?.id || r.user_id === user.id;
     });
     const blocked = ids.length - owned.length;
-    setSelectedIds([]);
+    setRowSelection({});
     await Promise.all(owned.map((id) => deleteTabularReview(id).catch(() => {})));
     setReviews((prev) => prev.filter((r) => !owned.includes(r.id)));
     if (blocked > 0) {
@@ -172,6 +167,115 @@ export default function TabularReviewsPage() {
       );
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Columns
+  // ---------------------------------------------------------------------------
+
+  const columns = [
+    columnHelper.accessor("title", {
+      header: "Name",
+      size: 320,
+      meta: { stickyLeft: 32 },
+      cell: (info) => {
+        const review = info.row.original;
+        const isRenaming = renamingId === review.id;
+        if (isRenaming) {
+          return (
+            <input
+              autoFocus
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void handleRenameSubmit(review.id);
+                if (e.key === "Escape") setRenamingId(null);
+              }}
+              onBlur={() => void handleRenameSubmit(review.id)}
+              onClick={(e) => e.stopPropagation()}
+              data-row-action
+              className="w-full bg-transparent text-sm text-gray-800 outline-none"
+            />
+          );
+        }
+        return (
+          <span className="block truncate text-sm text-gray-800">
+            {review.title ?? "Untitled Review"}
+          </span>
+        );
+      },
+    }),
+    columnHelper.accessor((row) => row.columns_config?.length ?? 0, {
+      id: "columns_count",
+      header: "Columns",
+      size: 96,
+      cell: (info) => <span className="text-gray-500 tabular-nums">{info.getValue()}</span>,
+    }),
+    columnHelper.accessor((row) => row.document_count ?? 0, {
+      id: "document_count",
+      header: "Documents",
+      size: 96,
+      cell: (info) => <span className="text-gray-500 tabular-nums">{info.getValue()}</span>,
+    }),
+    columnHelper.accessor("application_id", {
+      header: "Application",
+      size: 180,
+      cell: (info) => {
+        const app = applications.find((p) => p.id === info.getValue());
+        return app ? (
+          <span className="truncate text-gray-500">{app.name}</span>
+        ) : (
+          <span className="text-gray-300">—</span>
+        );
+      },
+    }),
+    columnHelper.accessor("created_at", {
+      header: "Created",
+      size: 120,
+      cell: (info) => {
+        const v = info.getValue();
+        return v ? (
+          <span className="text-gray-500">{formatDate(v)}</span>
+        ) : (
+          <span className="text-gray-300">—</span>
+        );
+      },
+      sortingFn: "datetime",
+    }),
+    columnHelper.display({
+      id: "actions",
+      header: "",
+      size: 56,
+      enableSorting: false,
+      cell: (info) => (
+        <div className="flex justify-end" data-row-action onClick={(e) => e.stopPropagation()}>
+          <RowActions
+            onRename={() => {
+              const review = info.row.original;
+              if (user?.id && review.user_id !== user.id) {
+                setOwnerOnlyAction("rename this tabular review");
+                return;
+              }
+              setRenameValue(review.title ?? "Untitled Review");
+              setRenamingId(review.id);
+            }}
+            onDelete={async () => {
+              const review = info.row.original;
+              if (user?.id && review.user_id !== user.id) {
+                setOwnerOnlyAction("delete this tabular review");
+                return;
+              }
+              await deleteTabularReview(review.id);
+              setReviews((prev) => prev.filter((r) => r.id !== review.id));
+            }}
+          />
+        </div>
+      ),
+    }),
+  ];
+
+  // ---------------------------------------------------------------------------
+  // Toolbar bits (application filter dropdown + bulk-action menu)
+  // ---------------------------------------------------------------------------
 
   const applicationFilterButton = (
     <div className="relative" ref={filterRef}>
@@ -246,6 +350,30 @@ export default function TabularReviewsPage() {
     </div>
   );
 
+  // The empty state has two flavours: a rich "Tabular Reviews" landing card
+  // when the user has nothing to show at the top level, and a quieter
+  // "No reviews found" message when filters/tabs/search hide all rows.
+  const showRichEmpty = activeTab === "all" && !applicationFilter && !search;
+  const richEmpty = (
+    <div className="mx-auto flex w-full max-w-xs flex-col items-start py-24">
+      <Table2 className="mb-4 h-8 w-8 text-gray-300" />
+      <p className="font-serif text-2xl font-medium text-gray-900">Tabular Reviews</p>
+      <p className="mt-1 max-w-xs text-left text-xs text-gray-400">
+        Extract data from documents into tables using AI.
+      </p>
+      <button
+        onClick={() => setNewTROpen(true)}
+        disabled={creating}
+        className="mt-4 inline-flex items-center gap-1 rounded-full bg-gray-900 px-3 py-1 text-xs font-medium text-white shadow-md transition-colors hover:bg-gray-700 disabled:opacity-40"
+      >
+        + Create New
+      </button>
+    </div>
+  );
+  const quietEmpty = (
+    <div className="px-8 py-16 text-center text-sm text-gray-400">No reviews found</div>
+  );
+
   return (
     <div className="flex-1 overflow-y-auto bg-white">
       {/* Page header */}
@@ -270,175 +398,47 @@ export default function TabularReviewsPage() {
         actions={toolbarActions}
       />
 
-      {/* Table */}
-      <div className="w-full overflow-x-auto">
-        <div className="min-w-max">
-          <div className="flex h-8 items-center border-b border-gray-200 pr-8 text-xs font-medium text-gray-500 select-none">
-            <div
-              className={`sticky left-0 z-[60] ${CHECK_W} relative flex items-center justify-center self-stretch bg-white before:absolute before:inset-x-0 before:bottom-0 before:h-px before:bg-white`}
-            >
-              {!loading && (
-                <input
-                  type="checkbox"
-                  checked={allSelected}
-                  ref={(el) => {
-                    if (el) el.indeterminate = someSelected;
-                  }}
-                  onChange={toggleAll}
-                  className="h-2.5 w-2.5 cursor-pointer rounded border-gray-200 accent-black"
-                />
-              )}
-            </div>
-            <div className={`sticky left-8 z-[60] ${NAME_COL_W} bg-white pl-2 text-left`}>Name</div>
-            <div className="ml-auto w-24 shrink-0">Columns</div>
-            <div className="w-24 shrink-0">Documents</div>
-            <div className="w-40 shrink-0">Application</div>
-            <div className="w-32 shrink-0">Created</div>
-            <div className="w-8 shrink-0" />
+      <DataTable
+        data={filtered}
+        columns={columns}
+        globalFilter={search}
+        onGlobalFilterChange={setSearch}
+        globalFilterFn={(row, _id, value) => {
+          const q = value.toLowerCase();
+          if (!q) return true;
+          const review = row.original;
+          const haystack = [
+            review.title ?? "",
+            applications.find((p) => p.id === review.application_id)?.name ?? "",
+          ]
+            .join(" ")
+            .toLowerCase();
+          return haystack.includes(q);
+        }}
+        getRowId={(row) => row.id}
+        initialSorting={[{ id: "created_at", desc: true }]}
+        enableRowSelection
+        rowSelection={rowSelection}
+        onRowSelectionChange={setRowSelection}
+        onRowClick={(review) => {
+          if (renamingId === review.id) return;
+          router.push(
+            review.application_id
+              ? `/applications/${review.application_id}/tabular-reviews/${review.id}`
+              : `/tabular-reviews/${review.id}`,
+          );
+        }}
+        isLoading={loading}
+        loadingNode={
+          <div className="space-y-2 px-8 py-5">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-8 w-80 animate-pulse rounded bg-gray-100" />
+            ))}
           </div>
-
-          {loading ? (
-            <div>
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="flex h-10 items-center border-b border-gray-50 pr-8">
-                  <div className="w-8 shrink-0" />
-                  <div className="min-w-0 flex-1 pr-4 pl-3">
-                    <div className="h-3.5 w-48 animate-pulse rounded bg-gray-100" />
-                  </div>
-                  <div className="w-24 shrink-0">
-                    <div className="h-3 w-8 animate-pulse rounded bg-gray-100" />
-                  </div>
-                  <div className="w-24 shrink-0">
-                    <div className="h-3 w-8 animate-pulse rounded bg-gray-100" />
-                  </div>
-                  <div className="w-40 shrink-0">
-                    <div className="h-3 w-24 animate-pulse rounded bg-gray-100" />
-                  </div>
-                  <div className="w-32 shrink-0">
-                    <div className="h-3 w-20 animate-pulse rounded bg-gray-100" />
-                  </div>
-                  <div className="w-8 shrink-0" />
-                </div>
-              ))}
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="mx-auto flex w-full max-w-xs flex-col items-start py-24">
-              {activeTab === "all" && !applicationFilter ? (
-                <>
-                  <Table2 className="mb-4 h-8 w-8 text-gray-300" />
-                  <p className="font-serif text-2xl font-medium text-gray-900">Tabular Reviews</p>
-                  <p className="mt-1 max-w-xs text-left text-xs text-gray-400">
-                    Extract data from documents into tables using AI.
-                  </p>
-                  <button
-                    onClick={() => setNewTROpen(true)}
-                    disabled={creating}
-                    className="mt-4 inline-flex items-center gap-1 rounded-full bg-gray-900 px-3 py-1 text-xs font-medium text-white shadow-md transition-colors hover:bg-gray-700 disabled:opacity-40"
-                  >
-                    + Create New
-                  </button>
-                </>
-              ) : (
-                <p className="text-sm text-gray-400">No reviews found</p>
-              )}
-            </div>
-          ) : (
-            <div>
-              {filtered.map((review) => {
-                const application = applications.find((p) => p.id === review.application_id);
-                const rowBg = selectedIds.includes(review.id) ? "bg-gray-50" : "bg-white";
-                return (
-                  <div
-                    key={review.id}
-                    onClick={() => {
-                      if (renamingId === review.id) return;
-                      router.push(
-                        review.application_id
-                          ? `/applications/${review.application_id}/tabular-reviews/${review.id}`
-                          : `/tabular-reviews/${review.id}`,
-                      );
-                    }}
-                    className="group flex h-10 cursor-pointer items-center border-b border-gray-50 pr-8 transition-colors hover:bg-gray-50"
-                  >
-                    <div
-                      className={`sticky left-0 z-[60] ${CHECK_W} flex items-center justify-center p-2 ${rowBg} group-hover:bg-gray-50`}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(review.id)}
-                        onChange={() => toggleOne(review.id)}
-                        className="h-2.5 w-2.5 cursor-pointer rounded border-gray-200 accent-black"
-                      />
-                    </div>
-                    <div
-                      className={`sticky left-8 z-[60] ${NAME_COL_W} p-2 ${rowBg} group-hover:bg-gray-50`}
-                    >
-                      {renamingId === review.id ? (
-                        <input
-                          autoFocus
-                          value={renameValue}
-                          onChange={(e) => setRenameValue(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") handleRenameSubmit(review.id);
-                            if (e.key === "Escape") setRenamingId(null);
-                          }}
-                          onBlur={() => handleRenameSubmit(review.id)}
-                          onClick={(e) => e.stopPropagation()}
-                          className="w-full bg-transparent text-sm text-gray-800 outline-none"
-                        />
-                      ) : (
-                        <span className="block truncate text-sm text-gray-800">
-                          {review.title ?? "Untitled Review"}
-                        </span>
-                      )}
-                    </div>
-                    <div className="ml-auto w-24 shrink-0 truncate text-sm text-gray-500">
-                      {review.columns_config?.length ?? 0}
-                    </div>
-                    <div className="w-24 shrink-0 truncate text-sm text-gray-500">
-                      {review.document_count ?? 0}
-                    </div>
-                    <div className="w-40 shrink-0 truncate pr-2 text-sm text-gray-500">
-                      {application ? application.name : <span className="text-gray-300">—</span>}
-                    </div>
-                    <div className="w-32 shrink-0 truncate text-sm text-gray-500">
-                      {review.created_at ? (
-                        formatDate(review.created_at)
-                      ) : (
-                        <span className="text-gray-300">—</span>
-                      )}
-                    </div>
-                    <div
-                      className="flex w-8 shrink-0 justify-end"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <RowActions
-                        onRename={() => {
-                          if (user?.id && review.user_id !== user.id) {
-                            setOwnerOnlyAction("rename this tabular review");
-                            return;
-                          }
-                          setRenameValue(review.title ?? "Untitled Review");
-                          setRenamingId(review.id);
-                        }}
-                        onDelete={async () => {
-                          if (user?.id && review.user_id !== user.id) {
-                            setOwnerOnlyAction("delete this tabular review");
-                            return;
-                          }
-                          await deleteTabularReview(review.id);
-                          setReviews((prev) => prev.filter((r) => r.id !== review.id));
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
+        }
+        emptyNode={showRichEmpty ? richEmpty : quietEmpty}
+        emptyFilteredNode={quietEmpty}
+      />
 
       <AddNewTRModal
         open={newTROpen}

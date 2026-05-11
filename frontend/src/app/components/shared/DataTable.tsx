@@ -46,9 +46,22 @@ declare module "@tanstack/react-table" {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyColumnDef<TData> = ColumnDef<TData, any>;
 
+/**
+ * "fit": table fills its parent (min-w-full). A column without an explicit
+ *   `size` absorbs leftover horizontal space. Use for list pages.
+ * "fixed": each column is rendered at its exact `size` and the table is the
+ *   sum of those sizes. Short tables leave white space to the right; wide
+ *   tables overflow into the wrapper's horizontal scroll. Use for tables
+ *   where each column represents a user-defined entity (e.g. tabular
+ *   reviews) and column widths should not vary with viewport size.
+ */
+export type DataTableWidthMode = "fit" | "fixed";
+
 export interface DataTableProps<TData> {
   data: TData[];
   columns: AnyColumnDef<TData>[];
+  /** How the table chooses its own width relative to its parent. Defaults to "fit". */
+  widthMode?: DataTableWidthMode;
   /** Optional controlled global filter. If omitted, the component manages it internally. */
   globalFilter?: string;
   onGlobalFilterChange?: (value: string) => void;
@@ -81,6 +94,7 @@ const SELECT_COL_WIDTH = 32;
 export function DataTable<TData>({
   data,
   columns,
+  widthMode = "fit",
   globalFilter,
   onGlobalFilterChange,
   globalFilterFn,
@@ -173,131 +187,199 @@ export function DataTable<TData>({
 
   const rows = table.getRowModel().rows;
 
+  // Width strategy is determined by the `widthMode` prop:
+  //
+  // - "fit" (default): the table fills the parent with `min-w-full`. One
+  //   or more columns without an explicit `size` absorb leftover width.
+  //   Use this on list pages where a primary column (e.g. Name) should
+  //   stretch and you don't expect horizontal scroll.
+  // - "fixed": each column is exactly its declared `size`. The table is
+  //   `width = sum-of-sizes` (no min-width: 100%), so short tables show
+  //   a clean right-hand white margin and wide tables overflow into
+  //   horizontal scroll. Use this for tables where every column is a
+  //   user-defined entity and widths shouldn't change with viewport.
+  const totalColWidth = table.getVisibleLeafColumns().reduce((sum, col) => {
+    return sum + (typeof col.columnDef.size === "number" ? col.columnDef.size : 0);
+  }, 0);
+  const tableStyle =
+    widthMode === "fixed"
+      ? { tableLayout: "fixed" as const, width: `${totalColWidth}px` }
+      : { tableLayout: "fixed" as const };
+  const tableClass = widthMode === "fixed" ? "text-sm" : "min-w-full text-sm";
+
+  // All return paths render inside the same `h-full flex-col` shell so
+  // pages can rely on the table area filling the available vertical space.
+  // Without that, a 2-row table would shrink to ~80px tall and any header
+  // popovers (e.g. column-edit menus) would hang into the surrounding
+  // white space and get clipped by the parent's overflow rules.
+  //
+  // min-w-0 is load-bearing too: every flex item defaults to
+  // `min-width: auto`, which lets a wide table push its parent wider than
+  // the available area and defeats overflow-x scrolling. Forcing the shell
+  // to be allowed to shrink keeps the inner scroll container effective.
+  const shellClass = "flex h-full min-h-0 w-full min-w-0 flex-col";
+
   if (isLoading) {
-    return <>{loadingNode ?? <div className="px-8 py-6 text-sm text-gray-500">Loading…</div>}</>;
+    return (
+      <div className={shellClass}>
+        {loadingNode ?? <div className="px-8 py-6 text-sm text-gray-500">Loading…</div>}
+      </div>
+    );
   }
   if (data.length === 0) {
     return (
-      <>{emptyNode ?? <div className="px-8 py-6 text-sm text-gray-500">No records yet.</div>}</>
+      <div className={shellClass}>
+        {emptyNode ?? <div className="px-8 py-6 text-sm text-gray-500">No records yet.</div>}
+      </div>
     );
   }
   if (rows.length === 0) {
     return (
-      <>
+      <div className={shellClass}>
         {emptyFilteredNode ?? (
           <div className="px-8 py-6 text-sm text-gray-500">No records match that filter.</div>
         )}
-      </>
+      </div>
     );
   }
 
   // Wrap the table in its own horizontal scroller so a wide table doesn't
   // force the whole page (and its sticky header) to scroll sideways. The
   // sticky thead stays pinned to the top of the page scroll container.
+  // Outer shell fills vertical space; the trailing spacer below the table
+  // extends the visible "table area" to the bottom of the parent so header
+  // popovers have room to render and short tables don't shrink-wrap.
   return (
-    <div className="w-full overflow-x-auto">
-      <table className="w-full text-sm">
-        <colgroup>
-          {table.getVisibleLeafColumns().map((col) => (
-            <col
-              key={col.id}
-              style={col.columnDef.size ? { width: `${col.columnDef.size}px` } : undefined}
-            />
-          ))}
-        </colgroup>
-        <thead className="sticky top-0 z-20 border-b border-gray-200 bg-white text-left text-xs font-medium tracking-wider text-gray-500 uppercase">
-          {table.getHeaderGroups().map((headerGroup) => (
-            <tr key={headerGroup.id}>
-              {headerGroup.headers.map((header, idx) => {
-                const sortDir = header.column.getIsSorted();
-                const canSort = header.column.getCanSort();
-                const isLast = idx === headerGroup.headers.length - 1;
-                const stickyLeft = header.column.columnDef.meta?.stickyLeft;
-                const stickyStyle =
-                  stickyLeft !== undefined
-                    ? { position: "sticky" as const, left: `${stickyLeft}px`, zIndex: 30 }
-                    : undefined;
-                return (
-                  <th
-                    key={header.id}
-                    style={stickyStyle}
-                    className={`${idx === 0 ? "pl-8" : "px-2"} ${
-                      isLast ? "pr-8" : ""
-                    } py-2 ${canSort ? "cursor-pointer select-none" : ""} ${
-                      stickyLeft !== undefined ? "bg-white" : ""
-                    }`}
-                    onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      {flexRender(header.column.columnDef.header, header.getContext())}
-                      {canSort &&
-                        (sortDir === "asc" ? (
-                          <ArrowUp className="h-3 w-3 text-gray-400" />
-                        ) : sortDir === "desc" ? (
-                          <ArrowDown className="h-3 w-3 text-gray-400" />
-                        ) : (
-                          <ArrowUpDown className="h-3 w-3 text-gray-300" />
-                        ))}
-                    </span>
-                  </th>
-                );
-              })}
-            </tr>
-          ))}
-        </thead>
-        <tbody>
-          {rows.map((row) => {
-            const rowSelected = row.getIsSelected();
-            // Sticky-left cells need an opaque background or scrolled
-            // content shows through. Match the row tint so it stays
-            // consistent on hover/select.
-            const stickyBgClass = rowSelected
-              ? "bg-gray-50 group-hover:bg-gray-50"
-              : "bg-white group-hover:bg-gray-50";
-            return (
-              <tr
-                key={row.id}
-                className={`group border-b border-gray-100 hover:bg-gray-50 ${
-                  rowSelected ? "bg-gray-50" : ""
-                } ${onRowClick ? "cursor-pointer" : ""}`}
-                onClick={
-                  onRowClick
-                    ? (e) => {
-                        const target = e.target as HTMLElement;
-                        if (
-                          target.closest("a, button, input, select, textarea, [data-row-action]")
-                        ) {
-                          return;
-                        }
-                        onRowClick(row.original);
-                      }
-                    : undefined
-                }
-              >
-                {row.getVisibleCells().map((cell, idx) => {
-                  const isLast = idx === row.getVisibleCells().length - 1;
-                  const stickyLeft = cell.column.columnDef.meta?.stickyLeft;
+    <div className={shellClass}>
+      {/*
+        flex-1 on the scroll wrapper is load-bearing for header popovers
+        (e.g. the column-edit menu). overflow-x: auto coerces overflow-y
+        to non-visible per the CSS spec; if the wrapper is content-height,
+        a popover opening downward from the header gets clipped where the
+        last row ends. Letting the wrapper fill remaining vertical space
+        gives popovers somewhere to render and also makes short tables
+        present a continuous white surface.
+      */}
+      <div className="block w-full flex-1 overflow-x-auto bg-white">
+        {/*
+          table-layout: fixed is load-bearing here. Without it, the browser
+          recomputes column widths from cell content on every render, so
+          content-driven changes (a header dropdown opening, a hover state
+          flickering, a cell finishing generation) make adjacent columns
+          jiggle horizontally. With fixed layout, the <colgroup> sizes are
+          authoritative and the table is visually stable.
+        */}
+        <table className={tableClass} style={tableStyle}>
+          <colgroup>
+            {table.getVisibleLeafColumns().map((col) => (
+              <col
+                key={col.id}
+                style={col.columnDef.size ? { width: `${col.columnDef.size}px` } : undefined}
+              />
+            ))}
+          </colgroup>
+          <thead className="sticky top-0 z-20 border-b border-gray-200 bg-white text-left text-xs font-medium tracking-wider text-gray-500 uppercase">
+            {table.getHeaderGroups().map((headerGroup) => (
+              <tr key={headerGroup.id}>
+                {headerGroup.headers.map((header, idx) => {
+                  const sortDir = header.column.getIsSorted();
+                  const canSort = header.column.getCanSort();
+                  const isLast = idx === headerGroup.headers.length - 1;
+                  const isSelect = header.column.id === "_select";
+                  // The first non-select column gets pl-8. With table-layout:
+                  // fixed, applying pl-8 to the 32px-wide select column would
+                  // push its checkbox out of its own cell and behind the next
+                  // sticky column.
+                  const firstDataIdx = enableRowSelection ? 1 : 0;
+                  const stickyLeft = header.column.columnDef.meta?.stickyLeft;
                   const stickyStyle =
                     stickyLeft !== undefined
-                      ? { position: "sticky" as const, left: `${stickyLeft}px`, zIndex: 10 }
+                      ? { position: "sticky" as const, left: `${stickyLeft}px`, zIndex: 30 }
                       : undefined;
                   return (
-                    <td
-                      key={cell.id}
+                    <th
+                      key={header.id}
                       style={stickyStyle}
-                      className={`${idx === 0 ? "pl-8" : "px-2"} ${
+                      className={`${isSelect ? "px-1" : idx === firstDataIdx ? "pl-8" : "px-2"} ${
                         isLast ? "pr-8" : ""
-                      } py-2 align-middle ${stickyLeft !== undefined ? stickyBgClass : ""}`}
+                      } py-2 ${canSort ? "cursor-pointer select-none" : ""} ${
+                        stickyLeft !== undefined ? "bg-white" : ""
+                      } ${isSelect ? "text-center" : ""}`}
+                      onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
                     >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
+                      <span className="inline-flex items-center gap-1">
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        {canSort &&
+                          (sortDir === "asc" ? (
+                            <ArrowUp className="h-3 w-3 text-gray-400" />
+                          ) : sortDir === "desc" ? (
+                            <ArrowDown className="h-3 w-3 text-gray-400" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 text-gray-300" />
+                          ))}
+                      </span>
+                    </th>
                   );
                 })}
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            ))}
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const rowSelected = row.getIsSelected();
+              // Sticky-left cells need an opaque background or scrolled
+              // content shows through. Match the row tint so it stays
+              // consistent on hover/select.
+              const stickyBgClass = rowSelected
+                ? "bg-gray-50 group-hover:bg-gray-50"
+                : "bg-white group-hover:bg-gray-50";
+              return (
+                <tr
+                  key={row.id}
+                  className={`group border-b border-gray-100 hover:bg-gray-50 ${
+                    rowSelected ? "bg-gray-50" : ""
+                  } ${onRowClick ? "cursor-pointer" : ""}`}
+                  onClick={
+                    onRowClick
+                      ? (e) => {
+                          const target = e.target as HTMLElement;
+                          if (
+                            target.closest("a, button, input, select, textarea, [data-row-action]")
+                          ) {
+                            return;
+                          }
+                          onRowClick(row.original);
+                        }
+                      : undefined
+                  }
+                >
+                  {row.getVisibleCells().map((cell, idx) => {
+                    const isLast = idx === row.getVisibleCells().length - 1;
+                    const isSelect = cell.column.id === "_select";
+                    const firstDataIdx = enableRowSelection ? 1 : 0;
+                    const stickyLeft = cell.column.columnDef.meta?.stickyLeft;
+                    const stickyStyle =
+                      stickyLeft !== undefined
+                        ? { position: "sticky" as const, left: `${stickyLeft}px`, zIndex: 10 }
+                        : undefined;
+                    return (
+                      <td
+                        key={cell.id}
+                        style={stickyStyle}
+                        className={`${isSelect ? "px-1 text-center" : idx === firstDataIdx ? "pl-8" : "px-2"} ${
+                          isLast ? "pr-8" : ""
+                        } py-2 align-middle ${stickyLeft !== undefined ? stickyBgClass : ""}`}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

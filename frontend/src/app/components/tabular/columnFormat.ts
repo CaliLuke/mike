@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   AlignLeft,
   Banknote,
+  Building2,
   Calendar,
   DollarSign,
   Hash,
@@ -16,6 +17,7 @@ import type { ColumnFormat } from "../shared/types";
 export const FORMAT_OPTIONS: Array<{ value: ColumnFormat; label: string; icon: LucideIcon }> = [
   { value: "text", label: "Free Text", icon: AlignLeft },
   { value: "bulleted_list", label: "Bulleted list", icon: List },
+  { value: "company", label: "Companies", icon: Building2 },
   { value: "number", label: "Number", icon: Hash },
   { value: "percentage", label: "Percentage", icon: Percent },
   { value: "monetary_amount", label: "Monetary Amount", icon: Banknote },

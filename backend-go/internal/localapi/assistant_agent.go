@@ -1265,7 +1265,7 @@ func (s *Server) executeReadWorkflow(ctx context.Context, call *planner.ToolRequ
 		return recordToolFailure(span, call.Name, err), nil
 	}
 	span.SetAttributes(attribute.String("workflow.id", workflowID))
-	rows, err := queryRows(ctx, s.app.DB, "SELECT id, title, type, prompt_md, columns_config, practice FROM "+recordID("workflows", workflowID)+";")
+	rows, err := queryRows(ctx, s.app.DB, "SELECT id, title, type, prompt_md, columns_config, practice, row_mode, anchor_extractor FROM "+recordID("workflows", workflowID)+";")
 	if err != nil {
 		recordSpanError(span, err)
 		return nil, err

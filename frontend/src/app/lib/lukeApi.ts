@@ -535,6 +535,8 @@ export async function createTabularReview(payload: {
   columns_config: { index: number; name: string; prompt: string }[];
   workflow_id?: string;
   application_id?: string;
+  row_mode?: "document" | "entity";
+  anchor_extractor?: { prompt: string; anchor_schema?: string } | null;
 }): Promise<TabularReview> {
   return apiRequest<TabularReview>("/tabular-review", {
     method: "POST",

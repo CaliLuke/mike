@@ -257,7 +257,12 @@ export type ColumnFormat =
   | "date"
   | "tag"
   | "percentage"
-  | "monetary_amount";
+  | "monetary_amount"
+  // Company: structured list of employers/companies the document mentions,
+  // each rendered as "Company — Role (date range)". Backed by a bulleted
+  // markdown list at the model level; the dedicated format value lets the
+  // UI surface a Building icon + offer a tuned prompt preset.
+  | "company";
 
 export interface ColumnConfig {
   index: number;
@@ -265,6 +270,13 @@ export interface ColumnConfig {
   prompt: string;
   format?: ColumnFormat;
   tags?: string[];
+}
+
+export type TabularRowMode = "document" | "entity";
+
+export interface TabularAnchorExtractor {
+  prompt: string;
+  anchor_schema?: ColumnFormat;
 }
 
 export interface TabularReview {
@@ -277,6 +289,8 @@ export interface TabularReview {
   columns_config: ColumnConfig[] | null;
   workflow_id: string | null;
   practice?: string | null;
+  row_mode?: TabularRowMode | null;
+  anchor_extractor?: TabularAnchorExtractor | null;
   created_at: string;
   updated_at: string;
   document_count?: number;
@@ -286,6 +300,34 @@ export interface TabularCell {
   id: string;
   review_id: string;
   document_id: string;
+  column_index: number;
+  content: {
+    summary: string;
+    flag?: "green" | "grey" | "yellow" | "red";
+    reasoning?: string;
+  } | null;
+  status: "pending" | "generating" | "done" | "error";
+  created_at: string;
+}
+
+// Entity-row tabular reviews — one row per extracted entity (e.g. one
+// accomplishment, one company-tenure) rather than one row per source document.
+export interface TabularReviewRow {
+  id: string;
+  review_id: string;
+  document_id: string;
+  row_index: number;
+  anchor: {
+    label?: string;
+    summary?: string;
+    metadata?: Record<string, unknown>;
+  };
+  created_at: string;
+}
+
+export interface TabularRowCell {
+  id: string;
+  row_id: string;
   column_index: number;
   content: {
     summary: string;
@@ -311,6 +353,8 @@ export interface LukeWorkflow {
   shared_by_name?: string | null;
   allow_edit?: boolean;
   is_owner?: boolean;
+  row_mode?: TabularRowMode | null;
+  anchor_extractor?: TabularAnchorExtractor | null;
 }
 
 // API helpers
@@ -323,5 +367,7 @@ export interface LukeChatDetailOut {
 export interface TabularReviewDetailOut {
   review: TabularReview;
   cells: TabularCell[];
+  rows?: TabularReviewRow[];
+  row_cells?: TabularRowCell[];
   documents: LukeDocument[];
 }

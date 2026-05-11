@@ -624,7 +624,7 @@ func (s *Server) generateChatTitle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) workflows(w http.ResponseWriter, r *http.Request) {
-	listQuery := "SELECT id, user_id, title, type, prompt_md, columns_config, is_system, created_at, practice, true AS is_owner FROM workflows"
+	listQuery := "SELECT id, user_id, title, type, prompt_md, columns_config, is_system, created_at, practice, row_mode, anchor_extractor, true AS is_owner FROM workflows"
 	if workflowType := strings.TrimSpace(r.URL.Query().Get("type")); workflowType != "" {
 		listQuery += " WHERE type = " + surrealString(workflowType)
 	}
@@ -638,7 +638,7 @@ func (s *Server) workflow(w http.ResponseWriter, r *http.Request) {
 	workflowID := r.PathValue("workflowId")
 	switch r.Method {
 	case http.MethodGet:
-		rows, err := queryRows(r.Context(), s.app.DB, "SELECT id, user_id, title, type, prompt_md, columns_config, is_system, created_at, practice, true AS is_owner FROM "+recordID("workflows", workflowID)+";")
+		rows, err := queryRows(r.Context(), s.app.DB, "SELECT id, user_id, title, type, prompt_md, columns_config, is_system, created_at, practice, row_mode, anchor_extractor, true AS is_owner FROM "+recordID("workflows", workflowID)+";")
 		writeFirst(w, rows, err)
 	case http.MethodPut, http.MethodPatch:
 		var req workflowPayload
@@ -730,7 +730,7 @@ func (s *Server) deleteWorkflowShare(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) tabularReviews(w http.ResponseWriter, r *http.Request) {
-	s.writeListOrCreate(w, r, "SELECT id, application_id, user_id, title, columns_config, workflow_id, practice, created_at, updated_at, 0 AS document_count FROM tabular_reviews ORDER BY updated_at DESC;", func() (map[string]any, error) {
+	s.writeListOrCreate(w, r, "SELECT id, application_id, user_id, title, columns_config, workflow_id, practice, row_mode, anchor_extractor, created_at, updated_at, 0 AS document_count FROM tabular_reviews ORDER BY updated_at DESC;", func() (map[string]any, error) {
 		return decodeAndCreate(r, s.upsertTabularReview, "")
 	})
 }
@@ -801,68 +801,348 @@ func (s *Server) tabularGenerate(w http.ResponseWriter, r *http.Request) {
 	if len(req.ColumnIndices) == 0 {
 		req.ColumnIndices = []int{0}
 	}
+
+	ctx, span := startLocalSpan(r.Context(), "tabular.generate",
+		attribute.String("tabular_review.id", reviewID),
+		attribute.Int("tabular.documents.count", len(req.DocumentIDs)),
+		attribute.Int("tabular.columns.count", len(req.ColumnIndices)),
+		attribute.Int("tabular.cells.expected", len(req.DocumentIDs)*len(req.ColumnIndices)),
+	)
+	defer span.End()
+
 	if len(req.DocumentIDs) == 0 {
-		writeError(w, http.StatusBadRequest, fmt.Errorf("document_ids is required"))
+		err := fmt.Errorf("document_ids is required")
+		recordSpanError(span, err)
+		span.SetAttributes(attribute.String("tabular.exit_reason", "bad_request"))
+		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	streamSSE(r.Context(), w, func(send func(map[string]any) error) error {
+
+	var (
+		cellsDone   int
+		cellsFailed int
+	)
+
+	// Load review meta (row_mode + anchor extractor + columns) in one go.
+	meta, metaErr := s.loadTabularReviewMeta(ctx, reviewID)
+	if metaErr != nil {
+		recordSpanError(span, metaErr)
+		span.SetAttributes(attribute.String("tabular.exit_reason", "columns_load_failed"))
+		writeError(w, http.StatusInternalServerError, metaErr)
+		return
+	}
+	columnSpecs := meta.ColumnSpecs
+	span.SetAttributes(
+		attribute.Int("tabular.columns.loaded", len(columnSpecs)),
+		attribute.String("tabular.row_mode", meta.RowMode),
+	)
+
+	// Entity-row mode runs its own pipeline: per-document anchor extraction →
+	// row creation → per-row column generation. Filter cellsDone/cellsFailed
+	// updates flow through the closure variables below.
+	if meta.RowMode == "entity" {
+		s.runEntityModeGenerate(ctx, w, span, reviewID, req.DocumentIDs, req.ColumnIndices, meta, &cellsDone, &cellsFailed)
+		return
+	}
+
+	var streamErr error
+	streamSSE(ctx, w, func(send func(map[string]any) error) error {
 		for _, docID := range req.DocumentIDs {
+			// One text load per document, reused across columns.
+			docText, docFilename, docErr := s.loadDocumentForTabular(ctx, docID)
+			if docErr != nil {
+				// Don't abort the whole stream — emit error cells for this doc and continue.
+				for _, column := range req.ColumnIndices {
+					_, cellSpan := startLocalSpan(ctx, "tabular.cell.generate",
+						attribute.String("tabular_review.id", reviewID),
+						attribute.String("tabular.document.id", docID),
+						attribute.Int("tabular.column.index", column),
+						attribute.String("tabular.cell.status", "document_load_failed"),
+					)
+					recordSpanError(cellSpan, docErr)
+					cellSpan.End()
+					cellsFailed++
+				}
+				continue
+			}
 			for _, column := range req.ColumnIndices {
-				summary, err := s.completeText(r.Context(), completionRequest{
-					Model: defaultMainModel,
-					User:  fmt.Sprintf("Generate a concise tabular review answer for document %s column %d.", docID, column),
+				cellCtx, cellSpan := startLocalSpan(ctx, "tabular.cell.generate",
+					attribute.String("tabular_review.id", reviewID),
+					attribute.String("tabular.document.id", docID),
+					attribute.Int("tabular.column.index", column),
+					attribute.Int("tabular.document.text_chars", len(docText)),
+					attribute.String("tabular.document.filename", docFilename),
+				)
+				spec, hasSpec := columnSpecs[column]
+				if !hasSpec || strings.TrimSpace(spec.Prompt) == "" {
+					cellSpan.SetAttributes(attribute.String("tabular.cell.status", "no_column_prompt"))
+					cellSpan.End()
+					cellsFailed++
+					continue
+				}
+				cellSpan.SetAttributes(
+					attribute.String("tabular.column.name", spec.Name),
+					attribute.String("tabular.column.format", spec.Format),
+					attribute.Int("tabular.column.prompt_chars", len(spec.Prompt)),
+				)
+				summary, err := s.completeText(cellCtx, completionRequest{
+					Model:        defaultMainModel,
+					SystemPrompt: tabularCellSystemPrompt(),
+					User:         tabularCellUserPrompt(spec, docFilename, docText),
 				})
 				if err != nil {
+					cellsFailed++
+					cellSpan.SetAttributes(attribute.String("tabular.cell.status", "llm_failed"))
+					recordSpanError(cellSpan, err)
+					cellSpan.End()
+					streamErr = err
 					return err
 				}
-				if strings.TrimSpace(summary) == "" {
-					summary = "Local mock answer"
+				trimmed := strings.TrimSpace(summary)
+				if trimmed == "" {
+					trimmed = "Not addressed"
+					cellSpan.SetAttributes(attribute.Bool("tabular.cell.fell_back_to_default", true))
 				}
-				cell, err := s.upsertCellWithContent(r.Context(), reviewID, docID, column, strings.TrimSpace(summary), "done")
+				cellSpan.SetAttributes(attribute.Int("tabular.cell.summary_chars", len(trimmed)))
+				cell, err := s.upsertCellWithContent(cellCtx, reviewID, docID, column, trimmed, "done")
 				if err != nil {
+					cellsFailed++
+					cellSpan.SetAttributes(attribute.String("tabular.cell.status", "persist_failed"))
+					recordSpanError(cellSpan, err)
+					cellSpan.End()
+					streamErr = err
 					return err
 				}
 				if err := send(map[string]any{
 					"type":         "cell_update",
 					"document_id":  docID,
 					"column_index": column,
-					"content":      strings.TrimSpace(summary),
+					"content":      map[string]any{"summary": trimmed},
 					"status":       "done",
 					"cell":         cell,
 				}); err != nil {
+					cellsFailed++
+					cellSpan.SetAttributes(attribute.String("tabular.cell.status", "send_failed"))
+					recordSpanError(cellSpan, err)
+					cellSpan.End()
+					streamErr = err
 					return err
 				}
+				cellsDone++
+				cellSpan.SetAttributes(attribute.String("tabular.cell.status", "done"))
+				cellSpan.End()
 			}
 		}
 		return send(map[string]any{"type": "done"})
 	})
+	span.SetAttributes(
+		attribute.Int("tabular.cells.done", cellsDone),
+		attribute.Int("tabular.cells.failed", cellsFailed),
+	)
+	if streamErr != nil {
+		recordSpanError(span, streamErr)
+		span.SetAttributes(attribute.String("tabular.exit_reason", "stream_failed"))
+	} else {
+		span.SetAttributes(attribute.String("tabular.exit_reason", "done"))
+	}
+}
+
+type tabularColumnSpec struct {
+	Index  int
+	Name   string
+	Prompt string
+	Format string
+}
+
+func (s *Server) loadTabularColumnSpecs(ctx context.Context, reviewID string) (map[int]tabularColumnSpec, error) {
+	rows, err := queryRows(ctx, s.app.DB, "SELECT columns_config FROM "+recordID("tabular_reviews", reviewID)+";")
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return nil, fmt.Errorf("tabular review not found: %s", reviewID)
+	}
+	out := map[int]tabularColumnSpec{}
+	items, _ := rows[0]["columns_config"].([]any)
+	for i, item := range items {
+		m, _ := item.(map[string]any)
+		idx := asInt(m["index"])
+		if idx == 0 && i != 0 {
+			idx = i
+		}
+		out[idx] = tabularColumnSpec{
+			Index:  idx,
+			Name:   asString(m["name"]),
+			Prompt: asString(m["prompt"]),
+			Format: asString(m["format"]),
+		}
+	}
+	return out, nil
+}
+
+func (s *Server) loadDocumentForTabular(ctx context.Context, documentID string) (string, string, error) {
+	doc, err := s.readAssistantDocument(ctx, documentID)
+	if err != nil {
+		return "", "", err
+	}
+	text := ""
+	filename := ""
+	if doc != nil {
+		if doc.Text != nil {
+			text = *doc.Text
+		}
+		if doc.Filename != nil {
+			filename = *doc.Filename
+		}
+	}
+	return text, filename, nil
+}
+
+func tabularCellSystemPrompt() string {
+	return "You are a precise document-analysis assistant filling one cell of a tabular review. " +
+		"Use ONLY the document text provided to answer. " +
+		"If the document does not contain the requested information, respond exactly with \"Not addressed\". " +
+		"Do not speculate, do not invent facts, and do not add commentary. " +
+		"Return the answer in the requested format with no preamble."
+}
+
+func tabularCellUserPrompt(spec tabularColumnSpec, filename, text string) string {
+	formatHint := tabularFormatHint(spec.Format)
+	var b strings.Builder
+	b.WriteString("Column: ")
+	if spec.Name != "" {
+		b.WriteString(spec.Name)
+	} else {
+		b.WriteString("Column " + strconv.Itoa(spec.Index))
+	}
+	b.WriteString("\nFormat: ")
+	b.WriteString(formatHint)
+	b.WriteString("\n\nTask:\n")
+	b.WriteString(spec.Prompt)
+	b.WriteString("\n\n--- Document")
+	if filename != "" {
+		b.WriteString(": ")
+		b.WriteString(filename)
+	}
+	b.WriteString(" ---\n")
+	if text == "" {
+		b.WriteString("(document has no extractable text)")
+	} else {
+		b.WriteString(text)
+	}
+	b.WriteString("\n--- End of document ---\n\nAnswer:")
+	return b.String()
+}
+
+func tabularFormatHint(format string) string {
+	switch format {
+	case "bulleted_list":
+		return "Bulleted list. One bullet per line starting with \"• \"."
+	case "company":
+		return "Bulleted list, one company per line in the shape: \"• <Company> — <Role> (<Start Mon YYYY> – <End Mon YYYY or 'Present'>)\"."
+	case "number":
+		return "A single numeric value, no units."
+	case "currency":
+		return "ISO-style short currency code only, e.g. USD, EUR, GBP."
+	case "yes_no":
+		return "Exactly \"Yes\" or \"No\" (or \"Not addressed\" if unknown)."
+	case "date":
+		return "A single date in \"DD Mon YYYY\" form."
+	case "tag":
+		return "A short tag value, no sentence."
+	case "percentage":
+		return "A single percentage, e.g. \"12.5%\"."
+	case "monetary_amount":
+		return "A single monetary amount with currency and amount, e.g. \"USD 10,000\"."
+	default:
+		return "Free text. Be concise."
+	}
 }
 
 func (s *Server) regenerateCell(w http.ResponseWriter, r *http.Request) {
+	reviewID := r.PathValue("reviewId")
+	ctx, span := startLocalSpan(r.Context(), "tabular.cell.regenerate",
+		attribute.String("tabular_review.id", reviewID),
+	)
+	defer span.End()
 	var req struct {
 		DocumentID  string `json:"document_id"`
 		ColumnIndex int    `json:"column_index"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
+		recordSpanError(span, err)
+		span.SetAttributes(attribute.String("tabular.exit_reason", "bad_request"))
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	summary, err := s.completeText(r.Context(), completionRequest{
-		Model: defaultMainModel,
-		User:  "Generate a concise tabular review answer for the selected document cell.",
-	})
-	if err != nil || strings.TrimSpace(summary) == "" {
-		summary = "Local mock answer"
-	}
-	_, err = s.upsertCellWithContent(r.Context(), r.PathValue("reviewId"), req.DocumentID, req.ColumnIndex, strings.TrimSpace(summary), "done")
+	span.SetAttributes(
+		attribute.String("tabular.document.id", req.DocumentID),
+		attribute.Int("tabular.column.index", req.ColumnIndex),
+	)
+	columnSpecs, err := s.loadTabularColumnSpecs(ctx, reviewID)
 	if err != nil {
+		recordSpanError(span, err)
+		span.SetAttributes(attribute.String("tabular.exit_reason", "columns_load_failed"))
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"summary": strings.TrimSpace(summary)})
+	spec, hasSpec := columnSpecs[req.ColumnIndex]
+	if !hasSpec || strings.TrimSpace(spec.Prompt) == "" {
+		err := fmt.Errorf("column %d has no prompt configured", req.ColumnIndex)
+		recordSpanError(span, err)
+		span.SetAttributes(attribute.String("tabular.exit_reason", "no_column_prompt"))
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	span.SetAttributes(
+		attribute.String("tabular.column.name", spec.Name),
+		attribute.String("tabular.column.format", spec.Format),
+	)
+	docText, docFilename, err := s.loadDocumentForTabular(ctx, req.DocumentID)
+	if err != nil {
+		recordSpanError(span, err)
+		span.SetAttributes(attribute.String("tabular.exit_reason", "document_load_failed"))
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	span.SetAttributes(
+		attribute.String("tabular.document.filename", docFilename),
+		attribute.Int("tabular.document.text_chars", len(docText)),
+	)
+	summary, err := s.completeText(ctx, completionRequest{
+		Model:        defaultMainModel,
+		SystemPrompt: tabularCellSystemPrompt(),
+		User:         tabularCellUserPrompt(spec, docFilename, docText),
+	})
+	if err != nil {
+		recordSpanError(span, err)
+		span.SetAttributes(attribute.String("tabular.exit_reason", "llm_failed"))
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if strings.TrimSpace(summary) == "" {
+		summary = "Not addressed"
+		span.SetAttributes(attribute.Bool("tabular.cell.fell_back_to_default", true))
+	}
+	trimmed := strings.TrimSpace(summary)
+	span.SetAttributes(attribute.Int("tabular.cell.summary_chars", len(trimmed)))
+	_, err = s.upsertCellWithContent(ctx, reviewID, req.DocumentID, req.ColumnIndex, trimmed, "done")
+	if err != nil {
+		recordSpanError(span, err)
+		span.SetAttributes(attribute.String("tabular.exit_reason", "persist_failed"))
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	span.SetAttributes(attribute.String("tabular.exit_reason", "done"))
+	writeJSON(w, http.StatusOK, map[string]any{"summary": trimmed})
 }
 
 func (s *Server) clearCells(w http.ResponseWriter, r *http.Request) {
+	ctx, span := startLocalSpan(r.Context(), "tabular.cells.clear",
+		attribute.String("tabular_review.id", r.PathValue("reviewId")),
+	)
+	defer span.End()
+	*r = *r.WithContext(ctx)
 	s.writeNoContentQuery(w, r, "DELETE tabular_cells WHERE review_id = "+recordID("tabular_reviews", r.PathValue("reviewId"))+";")
 }
 

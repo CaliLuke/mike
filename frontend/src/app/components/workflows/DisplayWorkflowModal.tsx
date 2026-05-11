@@ -328,6 +328,8 @@ export function DisplayWorkflowModal({ workflows, workflow, onClose }: Props) {
         columns_config: wf.columns_config || [],
         workflow_id: wf.is_system ? undefined : wf.id,
         application_id: applicationId,
+        row_mode: wf.row_mode ?? undefined,
+        anchor_extractor: wf.anchor_extractor ?? undefined,
       });
       handleClose();
       router.push(

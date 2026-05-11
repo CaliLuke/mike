@@ -7,7 +7,7 @@ var ColumnConfig = Type("ColumnConfig", func() {
 	Attribute("name", String)
 	Attribute("prompt", String)
 	Attribute("format", String, func() {
-		Enum("text", "bulleted_list", "number", "currency", "yes_no", "date", "tag", "percentage", "monetary_amount")
+		Enum("text", "bulleted_list", "number", "currency", "yes_no", "date", "tag", "percentage", "monetary_amount", "company")
 	})
 	Attribute("tags", ArrayOf(String))
 	Required("index", "name", "prompt")
