@@ -79,11 +79,6 @@ export function ApplicationPicker({ applications, loading, selectedId, onSelect 
                       className={`flex-1 truncate ${isSelected ? "font-medium text-gray-900" : "text-gray-700"}`}
                     >
                       {application.name}
-                      {application.cm_number && (
-                        <span className="ml-1 font-normal text-gray-400">
-                          (#{application.cm_number})
-                        </span>
-                      )}
                     </span>
                     <span className="shrink-0 text-gray-400">
                       {application.document_count ?? 0}

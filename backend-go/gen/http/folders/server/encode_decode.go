@@ -216,3 +216,17 @@ func marshalFoldersStructureNodeToStructureNodeResponseBody(v *folders.Structure
 
 	return res
 }
+
+// marshalFoldersPersonRefToPersonRefResponseBody builds a value of type
+// *PersonRefResponseBody from a value of type *folders.PersonRef.
+func marshalFoldersPersonRefToPersonRefResponseBody(v *folders.PersonRef) *PersonRefResponseBody {
+	if v == nil {
+		return nil
+	}
+	res := &PersonRefResponseBody{
+		Name: v.Name,
+		Role: v.Role,
+	}
+
+	return res
+}

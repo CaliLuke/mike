@@ -1,16 +1,6 @@
 "use client";
 
-import {
-  Download,
-  Eye,
-  EyeOff,
-  FolderMinus,
-  Hash,
-  History,
-  Pencil,
-  Trash2,
-  Upload,
-} from "lucide-react";
+import { Download, Eye, EyeOff, FolderMinus, History, Pencil, Trash2, Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 interface Props {
@@ -23,7 +13,6 @@ interface Props {
   onUploadNewVersion?: () => void;
   deleting?: boolean;
   onRename?: () => void;
-  onUpdateCmNumber?: () => void;
 }
 
 export function RowActions({
@@ -36,7 +25,6 @@ export function RowActions({
   onUploadNewVersion,
   deleting,
   onRename,
-  onUpdateCmNumber,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState({ top: 0, right: 0 });
@@ -89,18 +77,6 @@ export function RowActions({
             >
               <Pencil className="h-3.5 w-3.5" />
               Rename
-            </button>
-          )}
-          {onUpdateCmNumber && (
-            <button
-              onClick={() => {
-                setOpen(false);
-                onUpdateCmNumber();
-              }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-xs text-gray-600 transition-colors hover:bg-gray-50"
-            >
-              <Hash className="h-3.5 w-3.5" />
-              Edit CM No.
             </button>
           )}
           {onDownload && (

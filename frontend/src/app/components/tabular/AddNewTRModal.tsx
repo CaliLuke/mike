@@ -39,7 +39,6 @@ interface Props {
   /** When provided, skip the application/directory picker and show only these docs */
   applicationDocs?: LukeDocument[];
   applicationName?: string;
-  applicationCmNumber?: string | null;
 }
 
 export function AddNewTRModal({
@@ -49,7 +48,6 @@ export function AddNewTRModal({
   applications = [],
   applicationDocs: fixedApplicationDocs,
   applicationName,
-  applicationCmNumber,
 }: Props) {
   const invalidateDirectory = useInvalidateDirectory();
   const isApplicationMode = fixedApplicationDocs !== undefined;
@@ -155,10 +153,12 @@ export function AddNewTRModal({
     try {
       const createdApplication =
         underApplication && !selectedApplicationId
-          ? await createApplication(
-              newApplicationName.trim(),
-              newApplicationCompanyId || (await createCompany(newApplicationCompanyName.trim())).id,
-            )
+          ? await createApplication({
+              name: newApplicationName.trim(),
+              company_id:
+                newApplicationCompanyId ||
+                (await createCompany(newApplicationCompanyName.trim())).id,
+            })
           : undefined;
       if (createdApplication) invalidateDirectory();
       const applicationId = createdApplication?.id ?? selectedApplicationId;
@@ -268,10 +268,7 @@ export function AddNewTRModal({
               <>
                 <span>Applications</span>
                 <span>›</span>
-                <span>
-                  {applicationName}
-                  {applicationCmNumber ? ` (#${applicationCmNumber})` : ""}
-                </span>
+                <span>{applicationName}</span>
                 <span>›</span>
                 <span>Tabular Reviews</span>
                 <span>›</span>
@@ -412,10 +409,7 @@ export function AddNewTRModal({
                         {creatingApplicationInline
                           ? trimmedNewApplicationName || "New application…"
                           : selectedApplication
-                            ? selectedApplication.name +
-                              (selectedApplication.cm_number
-                                ? ` (#${selectedApplication.cm_number})`
-                                : "")
+                            ? selectedApplication.name
                             : "Select application…"}
                       </span>
                       <ChevronDown className="h-3.5 w-3.5 shrink-0 text-gray-400" />
@@ -440,15 +434,7 @@ export function AddNewTRModal({
                             onClick={() => handleSelectApplication(p.id)}
                             className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50 ${selectedApplicationId === p.id ? "bg-gray-50 text-gray-900" : "text-gray-700"}`}
                           >
-                            <span className="truncate">
-                              {p.name}
-                              {p.cm_number && (
-                                <span className="ml-1 text-gray-400">
-                                  (#
-                                  {p.cm_number})
-                                </span>
-                              )}
-                            </span>
+                            <span className="truncate">{p.name}</span>
                             {selectedApplicationId === p.id && (
                               <Check className="h-3.5 w-3.5 shrink-0 text-gray-500" />
                             )}

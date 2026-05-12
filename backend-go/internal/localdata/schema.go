@@ -50,9 +50,26 @@ func migrateApplicationsToCompanies(ctx context.Context, db *persistence.DB) err
 			updated_at: time::now()
 		};
 		UPDATE applications SET company_id = companies:migrated_unknown, updated_at = time::now() WHERE company_id = NONE;
+		UPDATE applications SET status = "in_progress" WHERE status = NONE OR status = "" OR status IS NONE;
 	`)
 	if err != nil {
 		return fmt.Errorf("migrate applications to companies: %w", err)
+	}
+	return nil
+}
+
+func migrateDocumentsLibraryFlag(ctx context.Context, db *persistence.DB) error {
+	// Mark every legacy document row as needing classification. We do NOT
+	// pre-classify library / library_kind here — the classifier in
+	// internal/localapi/document_metadata.go decides those at user-triggered
+	// processing time. Idempotent: WHERE metadata_status = NONE skips rows
+	// already touched by a prior migration or by classifier runs.
+	_, err := db.Query(ctx, `
+		UPDATE documents SET metadata_status = "unprocessed", updated_at = time::now()
+		WHERE metadata_status = NONE;
+	`)
+	if err != nil {
+		return fmt.Errorf("backfill documents.metadata_status: %w", err)
 	}
 	return nil
 }
@@ -164,9 +181,11 @@ DEFINE TABLE IF NOT EXISTS companies SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS user_id ON TABLE companies TYPE record<users>;
 DEFINE FIELD IF NOT EXISTS name ON TABLE companies TYPE string;
 DEFINE FIELD IF NOT EXISTS website ON TABLE companies TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS job_board_identities ON TABLE companies TYPE option<array<string>>;
 DEFINE FIELD IF NOT EXISTS created_at ON TABLE companies TYPE datetime;
 DEFINE FIELD IF NOT EXISTS updated_at ON TABLE companies TYPE datetime;
 DEFINE INDEX IF NOT EXISTS companies_user_idx ON TABLE companies FIELDS user_id;
+DEFINE INDEX IF NOT EXISTS companies_job_board_idx ON TABLE companies FIELDS job_board_identities;
 DEFINE ANALYZER IF NOT EXISTS company_name_analyzer TOKENIZERS blank, class, camel, punct FILTERS lowercase, ascii;
 DEFINE INDEX IF NOT EXISTS companies_name_search ON TABLE companies FIELDS name FULLTEXT ANALYZER company_name_analyzer BM25;
 
@@ -174,7 +193,9 @@ DEFINE TABLE IF NOT EXISTS applications SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS user_id ON TABLE applications TYPE record<users>;
 DEFINE FIELD IF NOT EXISTS company_id ON TABLE applications TYPE record<companies>;
 DEFINE FIELD IF NOT EXISTS name ON TABLE applications TYPE string;
-DEFINE FIELD IF NOT EXISTS cm_number ON TABLE applications TYPE option<string>;
+REMOVE FIELD IF EXISTS cm_number ON TABLE applications;
+DEFINE FIELD IF NOT EXISTS job_description_url ON TABLE applications TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS status ON TABLE applications TYPE string DEFAULT "in_progress" ASSERT $value INSIDE ["in_progress", "closed"];
 DEFINE FIELD IF NOT EXISTS visibility ON TABLE applications TYPE string ASSERT $value INSIDE ["private", "shared"];
 DEFINE FIELD IF NOT EXISTS shared_with ON TABLE applications TYPE array<string>;
 DEFINE FIELD IF NOT EXISTS created_at ON TABLE applications TYPE datetime;
@@ -204,7 +225,51 @@ DEFINE FIELD IF NOT EXISTS folder_id ON TABLE documents TYPE option<record<appli
 DEFINE FIELD IF NOT EXISTS current_version_id ON TABLE documents TYPE option<record<document_versions>>;
 DEFINE FIELD IF NOT EXISTS created_at ON TABLE documents TYPE datetime;
 DEFINE FIELD IF NOT EXISTS updated_at ON TABLE documents TYPE datetime;
+-- Metadata enrichment fields populated by the deferred classifier
+-- (internal/localapi/document_metadata.go). All NONE on legacy rows
+-- until the user triggers POST /single-documents/{id}/process-metadata.
+DEFINE FIELD IF NOT EXISTS library ON TABLE documents TYPE option<bool>;
+DEFINE FIELD IF NOT EXISTS library_kind ON TABLE documents TYPE option<string>
+	ASSERT $value == NONE OR $value INSIDE ["shared", "reference"];
+DEFINE FIELD IF NOT EXISTS kind ON TABLE documents TYPE option<string>
+	ASSERT $value == NONE OR $value INSIDE [
+		"resume", "resume_baseline", "job_description", "interview_transcript",
+		"recruiter_notes", "prep_packet", "cheatsheet", "interviewer_bio", "schedule",
+		"story", "about_me", "answer_bank", "framework", "references",
+		"cover_letter", "writing_sample", "coaching_state", "unclassified"
+	];
+DEFINE FIELD IF NOT EXISTS interview_stage ON TABLE documents TYPE option<string>
+	ASSERT $value == NONE OR $value INSIDE [
+		"recruiter", "hiring_manager", "peer", "tech", "panel", "onsite", "other"
+	];
+DEFINE FIELD IF NOT EXISTS topics ON TABLE documents TYPE option<array<string>>;
+DEFINE FIELD IF NOT EXISTS company_refs ON TABLE documents TYPE option<array<string>>;
+DEFINE FIELD IF NOT EXISTS people_refs ON TABLE documents TYPE option<array<object>> FLEXIBLE;
+DEFINE FIELD IF NOT EXISTS summary ON TABLE documents TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS dated_event_at ON TABLE documents TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS derived_from_id ON TABLE documents TYPE option<record<documents>>;
+DEFINE FIELD IF NOT EXISTS metadata_status ON TABLE documents TYPE option<string>
+	ASSERT $value == NONE OR $value INSIDE [
+		"unprocessed", "queued", "processing", "ready", "error", "user_confirmed"
+	];
+DEFINE FIELD IF NOT EXISTS metadata_processed_at ON TABLE documents TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS metadata_error ON TABLE documents TYPE option<string>;
 DEFINE INDEX IF NOT EXISTS documents_application_folder_idx ON TABLE documents FIELDS application_id, folder_id;
+DEFINE INDEX IF NOT EXISTS documents_metadata_status_idx ON TABLE documents FIELDS metadata_status;
+DEFINE INDEX IF NOT EXISTS documents_kind_idx ON TABLE documents FIELDS kind;
+
+DEFINE TABLE IF NOT EXISTS document_application_links SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS document_id ON TABLE document_application_links TYPE record<documents>;
+DEFINE FIELD IF NOT EXISTS application_id ON TABLE document_application_links TYPE record<applications>;
+DEFINE FIELD IF NOT EXISTS relation ON TABLE document_application_links TYPE string
+	ASSERT $value INSIDE ["referenced", "derived_into"];
+DEFINE FIELD IF NOT EXISTS created_at ON TABLE document_application_links TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS created_by ON TABLE document_application_links TYPE string
+	ASSERT $value INSIDE ["classifier_suggested", "user_confirmed"];
+DEFINE INDEX IF NOT EXISTS document_application_links_doc_app_idx ON TABLE document_application_links
+	FIELDS document_id, application_id UNIQUE;
+DEFINE INDEX IF NOT EXISTS document_application_links_app_created_idx ON TABLE document_application_links
+	FIELDS application_id, created_at;
 
 DEFINE TABLE IF NOT EXISTS document_versions SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS document_id ON TABLE document_versions TYPE record<documents>;

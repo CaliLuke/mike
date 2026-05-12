@@ -40,6 +40,10 @@ var _ = Service("chat", func() {
 				Args(AssistantCreateApplicationArgs)
 				Return(AssistantCreatedApplication)
 			})
+			Tool("set_application_company", "Move an existing application onto a different (usually newly identified) company. Use after reading the job description to swap the application off the Unknown placeholder.", func() {
+				Args(AssistantSetApplicationCompanyArgs)
+				Return(AssistantSetApplicationCompanyResult)
+			})
 			Tool("read_workflow", "Read one saved local workflow", func() {
 				Args(AssistantReadWorkflowArgs)
 				Return(AssistantWorkflowText)

@@ -191,7 +191,7 @@ export function TabularCell({ cell, column, onExpand, onCitationClick }: Props) 
     <div ref={containerRef} className="relative">
       {/* Normal cell row — always visible, preserves table layout */}
       <div
-        className="group relative flex h-10 cursor-pointer items-center px-2 text-xs leading-relaxed text-gray-800 transition-colors hover:bg-gray-50"
+        className="group relative flex h-10 cursor-pointer items-center px-2 leading-relaxed transition-colors hover:bg-gray-50"
         onClick={() => setInlineExpanded((v) => !v)}
       >
         {cell.content.flag && (
@@ -216,7 +216,7 @@ export function TabularCell({ cell, column, onExpand, onCitationClick }: Props) 
       {/* Inline expanded overlay — absolutely positioned so it overlays without disrupting table layout */}
       {inlineExpanded && (
         <div className="absolute top-0 left-0 z-50 w-full rounded-sm border border-gray-200 bg-white shadow-lg">
-          <div className="relative p-2 pr-4 text-xs leading-relaxed text-gray-800">
+          <div className="relative p-2 pr-4 leading-relaxed">
             {cell.content.flag && (
               <span
                 className={`absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full ${FLAG_STYLES[cell.content.flag]}`}

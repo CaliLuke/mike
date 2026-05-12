@@ -2,13 +2,15 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createColumnHelper, type RowSelectionState } from "@tanstack/react-table";
-import { ChevronDown, FolderOpen, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ExternalLink, FolderOpen, Pencil, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { DataTable } from "@/app/components/shared/DataTable";
 import { HeaderSearchBtn } from "@/app/components/shared/HeaderSearchBtn";
+import { RowMenu } from "@/app/components/shared/RowMenu";
 import type { LukeApplication } from "@/app/components/shared/types";
+import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { deleteApplication, listApplications } from "@/app/lib/lukeApi";
 import { trackClick } from "@/app/lib/telemetry";
 import { useAuth } from "@/contexts/AuthContext";
@@ -29,13 +31,22 @@ const columnHelper = createColumnHelper<LukeApplication>();
 // The select column is 32px (DataTable injects it at offset 0). The name
 // column sits sticky right after it.
 const NAME_STICKY_OFFSET = 32;
-const NAME_COL_WIDTH = 300;
 
 const APPLICATIONS_KEY = ["applications"] as const;
+
+function buildApplicationGreeting(application: LukeApplication): string {
+  const name = application.name?.trim() || "your new application";
+  const ingested = application.job_description_ingested === true;
+  const opener = ingested
+    ? `I've started **${name}** and pulled the job description into the Explorer for you.`
+    : `I've started **${name}**.`;
+  return `${opener} Want to work on it together? Drop your resume in the Explorer on the left, or tell me what you'd like to do first.`;
+}
 
 export function ApplicationsOverview() {
   const queryClient = useQueryClient();
   const { authLoading, user } = useAuth();
+  const { saveChat } = useChatHistoryContext();
   const { data: applications = [], isLoading } = useQuery<LukeApplication[]>({
     queryKey: APPLICATIONS_KEY,
     queryFn: listApplications,
@@ -89,84 +100,86 @@ export function ApplicationsOverview() {
   const columns = [
     columnHelper.accessor("name", {
       header: "Name",
-      size: NAME_COL_WIDTH,
       meta: { stickyLeft: NAME_STICKY_OFFSET },
-      cell: (info) => (
-        <span className="block truncate text-sm text-gray-800">{info.getValue()}</span>
-      ),
+      cell: (info) => {
+        const url = info.row.original.job_description_url;
+        return (
+          <div className="flex items-center gap-1.5">
+            <span className="truncate">{info.getValue()}</span>
+            {url && (
+              <a
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="shrink-0 text-gray-300 transition-colors hover:text-gray-600"
+                title="Open job description"
+                aria-label="Open job description"
+                data-row-action
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            )}
+          </div>
+        );
+      },
+    }),
+    columnHelper.accessor("status", {
+      header: "Status",
+      size: 112,
+      cell: (info) => {
+        const status = info.getValue() ?? "in_progress";
+        const label = status === "closed" ? "Closed" : "In progress";
+        const cls =
+          status === "closed" ? "bg-gray-100 text-gray-500" : "bg-emerald-50 text-emerald-700";
+        return (
+          <span
+            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}
+          >
+            {label}
+          </span>
+        );
+      },
     }),
     columnHelper.accessor("company_name", {
       header: "Company",
       size: 176,
       cell: (info) =>
         info.getValue() ? (
-          <span className="truncate text-sm text-gray-500">{info.getValue()}</span>
+          <span className="truncate text-gray-500">{info.getValue()}</span>
         ) : (
           <span className="text-gray-300">-</span>
         ),
     }),
-    columnHelper.accessor("cm_number", {
-      header: "CM",
-      size: 128,
-      cell: (info) =>
-        info.getValue() ? (
-          <span className="truncate text-sm text-gray-500">{info.getValue()}</span>
-        ) : (
-          <span className="text-gray-300">—</span>
-        ),
-    }),
-    columnHelper.accessor("document_count", {
-      header: "Files",
-      size: 80,
-      cell: (info) => (
-        <span className="text-sm text-gray-500 tabular-nums">{info.getValue() ?? 0}</span>
-      ),
-    }),
-    columnHelper.accessor("chat_count", {
-      header: "Chats",
-      size: 80,
-      cell: (info) => (
-        <span className="text-sm text-gray-500 tabular-nums">{info.getValue() ?? 0}</span>
-      ),
-    }),
-    columnHelper.accessor("review_count", {
-      header: "Tabular Reviews",
-      size: 144,
-      cell: (info) => (
-        <span className="text-sm text-gray-500 tabular-nums">{info.getValue() ?? 0}</span>
-      ),
-    }),
     columnHelper.accessor("created_at", {
       header: "Created",
       size: 128,
-      cell: (info) => <span className="text-sm text-gray-500">{formatDate(info.getValue())}</span>,
+      cell: (info) => <span className="text-gray-500">{formatDate(info.getValue())}</span>,
       sortingFn: "datetime",
     }),
     columnHelper.display({
       id: "actions",
       header: "",
-      size: 88,
+      size: 56,
       enableSorting: false,
       cell: (info) => (
-        <div className="flex justify-end gap-1">
-          <button
-            onClick={() => setEditingApplication(info.row.original)}
-            className="inline-flex shrink-0 items-center justify-center p-1.5 text-gray-400 transition-colors hover:text-gray-900"
-            title="Edit"
-            aria-label={`Edit ${info.row.original.name}`}
-            data-row-action
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => void handleDeleteOne(info.row.original.id)}
-            className="inline-flex shrink-0 items-center justify-center p-1.5 text-gray-400 transition-colors hover:text-red-600"
-            title="Delete"
-            aria-label={`Delete ${info.row.original.name}`}
-            data-row-action
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+        <div className="flex justify-end" data-row-action onClick={(e) => e.stopPropagation()}>
+          <RowMenu
+            ariaLabel={`Actions for ${info.row.original.name}`}
+            items={[
+              {
+                label: "Edit",
+                icon: Pencil,
+                onClick: () => setEditingApplication(info.row.original),
+              },
+              {
+                label: "Delete",
+                icon: Trash2,
+                destructive: true,
+                onClick: () => void handleDeleteOne(info.row.original.id),
+              },
+            ]}
+          />
         </div>
       ),
     }),
@@ -178,11 +191,9 @@ export function ApplicationsOverview() {
         <div key={i} className="flex h-10 items-center border-b border-gray-50 px-8">
           <div className="mr-3 h-2.5 w-2.5 animate-pulse rounded bg-gray-100" />
           <div className="mr-4 h-3.5 w-48 animate-pulse rounded bg-gray-100" />
+          <div className="mr-4 h-3 w-16 animate-pulse rounded-full bg-gray-100" />
           <div className="mr-4 h-3 w-24 animate-pulse rounded bg-gray-100" />
           <div className="mr-4 h-3 w-20 animate-pulse rounded bg-gray-100" />
-          <div className="mr-4 h-3 w-8 animate-pulse rounded bg-gray-100" />
-          <div className="mr-4 h-3 w-8 animate-pulse rounded bg-gray-100" />
-          <div className="mr-4 h-3 w-8 animate-pulse rounded bg-gray-100" />
           <div className="h-3 w-20 animate-pulse rounded bg-gray-100" />
         </div>
       ))}
@@ -255,9 +266,7 @@ export function ApplicationsOverview() {
           if (!q) return true;
           const p = row.original;
           return (
-            p.name.toLowerCase().includes(q) ||
-            (p.company_name ?? "").toLowerCase().includes(q) ||
-            (p.cm_number ?? "").toLowerCase().includes(q)
+            p.name.toLowerCase().includes(q) || (p.company_name ?? "").toLowerCase().includes(q)
           );
         }}
         initialSorting={[{ id: "created_at", desc: true }]}
@@ -280,9 +289,15 @@ export function ApplicationsOverview() {
       <NewApplicationModal
         open={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
-        onCreated={(p) => {
+        onCreated={async (p) => {
           mutateApplications((prev) => [p, ...prev]);
-          router.push(`/applications/${p.id}`);
+          const greeting = buildApplicationGreeting(p);
+          const chatId = await saveChat(p.id, { initialAssistantMessage: greeting });
+          if (chatId) {
+            router.push(`/applications/${p.id}/assistant/chat/${chatId}`);
+          } else {
+            router.push(`/applications/${p.id}`);
+          }
         }}
       />
       <EditApplicationModal

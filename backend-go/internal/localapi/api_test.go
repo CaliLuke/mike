@@ -75,14 +75,22 @@ func TestLocalAPIChatAndTabularStreamsPersistMessages(t *testing.T) {
 	if !ok {
 		t.Fatalf("cell_update missing cell payload: %#v", cellEvents[0])
 	}
-	if got := asString(cellEvents[0]["content"]); got != "Mock completion" {
-		t.Fatalf("cell_update content = %q, want provider mock output", got)
+	contentMap, ok := cellEvents[0]["content"].(map[string]any)
+	if !ok {
+		t.Fatalf("cell_update content is not an object: %#v", cellEvents[0]["content"])
+	}
+	if got := asString(contentMap["summary"]); got != "Mock completion" {
+		t.Fatalf("cell_update content.summary = %q, want provider mock output", got)
 	}
 	if got := int(cellEvents[0]["column_index"].(float64)); got != 0 {
 		t.Fatalf("cell_update column_index = %d, want 0", got)
 	}
-	if got := asString(cell["content"]); got != "Mock completion" {
-		t.Fatalf("tabular generate content = %q, want provider mock output", got)
+	cellContent, ok := cell["content"].(map[string]any)
+	if !ok {
+		t.Fatalf("tabular generate cell.content is not an object: %#v", cell["content"])
+	}
+	if got := asString(cellContent["summary"]); got != "Mock completion" {
+		t.Fatalf("tabular generate content.summary = %q, want provider mock output", got)
 	}
 }
 

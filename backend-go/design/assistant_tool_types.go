@@ -109,7 +109,6 @@ var AssistantCreatedCompany = Type("AssistantCreatedCompany", func() {
 var AssistantCreateApplicationArgs = Type("AssistantCreateApplicationArgs", func() {
 	Attribute("name", String, "Application name, usually the role title from the job ad")
 	Attribute("company_id", String, "Local company identifier returned by create_company or a prior company_created event")
-	Attribute("cm_number", String, "Optional Competition Bureau matter number")
 	Attribute("job_description_text", String, "Optional full job description text to save as an application document")
 	Attribute("job_description_url", String, "Optional source URL for the job description")
 	Example(map[string]any{"name": "Senior Product Counsel", "company_id": "company_123", "job_description_url": "https://example.com/jobs/123"})
@@ -120,9 +119,30 @@ var AssistantCreatedApplication = Type("AssistantCreatedApplication", func() {
 	Attribute("application_id", String, "Local application identifier")
 	Attribute("company_id", String, "Attached local company identifier")
 	Attribute("name", String, "Application name")
-	Attribute("cm_number", String, "Competition Bureau matter number")
 	Attribute("job_description_document_id", String, "Created job description document identifier, when job text was provided")
 	Attribute("error", String, "Error message when creation failed")
+})
+
+var AssistantSetApplicationCompanyArgs = Type("AssistantSetApplicationCompanyArgs", func() {
+	Attribute("application_id", String, "Local application identifier to move")
+	Attribute("company_id", String, "Existing local company identifier to attach. Mutually exclusive with company_name.")
+	Attribute("company_name", String, "Free-text company name. When set, the tool resolves an existing matching company or creates a new one — preferred when the assistant has just identified the company from materials.")
+	Attribute("confirm_new", Boolean, "When using company_name and a similar company already exists, set true to bypass the dedupe warning and create a fresh row.")
+	Example(map[string]any{"application_id": "application_123", "company_name": "GitHub, Inc."})
+})
+
+var AssistantSetApplicationCompanyResult = Type("AssistantSetApplicationCompanyResult", func() {
+	Attribute("ok", Boolean, "Whether the application's company was updated")
+	Attribute("application_id", String, "Local application identifier")
+	Attribute("company_id", String, "Now-attached local company identifier")
+	Attribute("company_name", String, "Now-attached company name")
+	Attribute("previous_company_id", String, "Previously attached company identifier")
+	Attribute("previous_company_name", String, "Previously attached company name")
+	Attribute("requires_confirmation", Boolean, "Whether a similar existing company blocked creation until confirm_new is true")
+	Attribute("similar_company_id", String, "Similar existing company identifier, when one was found")
+	Attribute("similar_company_name", String, "Similar existing company name, when one was found")
+	Attribute("similarity", Float64, "Similarity score for the nearest existing company, from 0 to 1")
+	Attribute("error", String, "Error message when the update failed")
 })
 
 var AssistantReadWorkflowArgs = Type("AssistantReadWorkflowArgs", func() {

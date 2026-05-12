@@ -1346,20 +1346,9 @@ export function ApplicationPage({ applicationId }: Props) {
                 className="text-gray-500 transition-colors hover:text-gray-700"
               >
                 {application.name}
-                {application.cm_number ? (
-                  <span className="ml-1 text-gray-400">(#{application.cm_number})</span>
-                ) : null}
               </button>
             ) : (
-              <RenameableTitle
-                value={application.name}
-                onCommit={handleTitleCommit}
-                suffix={
-                  application.cm_number ? (
-                    <span className="ml-1 text-gray-400">(#{application.cm_number})</span>
-                  ) : null
-                }
-              />
+              <RenameableTitle value={application.name} onCommit={handleTitleCommit} />
             )}
             {tab !== "documents" && (
               <>
@@ -1370,14 +1359,36 @@ export function ApplicationPage({ applicationId }: Props) {
               </>
             )}
           </div>
-          {application.company_name && (
-            <button
-              onClick={() => router.push("/companies")}
-              className="mt-1 text-xs text-gray-400 transition-colors hover:text-gray-700"
+          <div className="mt-1 flex items-center gap-2">
+            {application.company_name && (
+              <button
+                onClick={() => router.push("/companies")}
+                className="text-xs text-gray-400 transition-colors hover:text-gray-700"
+              >
+                {application.company_name}
+              </button>
+            )}
+            <span
+              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                (application.status ?? "in_progress") === "closed"
+                  ? "bg-gray-100 text-gray-500"
+                  : "bg-emerald-50 text-emerald-700"
+              }`}
             >
-              {application.company_name}
-            </button>
-          )}
+              {(application.status ?? "in_progress") === "closed" ? "Closed" : "In progress"}
+            </span>
+            {application.job_description_url && (
+              <a
+                href={application.job_description_url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-gray-400 transition-colors hover:text-gray-700"
+                title="Open job description"
+              >
+                Job posting ↗
+              </a>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <HeaderSearchBtn value={search} onChange={setSearch} placeholder="Search…" />
@@ -1970,11 +1981,7 @@ export function ApplicationPage({ applicationId }: Props) {
         open={addDocsOpen}
         onClose={() => setAddDocsOpen(false)}
         onSelect={handleDocsSelected}
-        breadcrumb={[
-          "Applications",
-          application.name + (application.cm_number ? ` (${application.cm_number})` : ""),
-          "Add Documents",
-        ]}
+        breadcrumb={["Applications", application.name, "Add Documents"]}
         applicationId={applicationId}
       />
 
@@ -2002,7 +2009,6 @@ export function ApplicationPage({ applicationId }: Props) {
         onAdd={handleCreateReview}
         applicationDocs={application?.documents?.filter((d) => d.status === "ready")}
         applicationName={application?.name}
-        applicationCmNumber={application?.cm_number}
       />
 
       <OwnerOnlyModal

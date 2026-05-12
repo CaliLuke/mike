@@ -221,9 +221,29 @@ func (s *Server) company(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, err)
 			return
 		}
+		if req.Name != nil {
+			existing, err := s.getCompany(r.Context(), companyID)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				return
+			}
+			if existing != nil && asString(existing["name"]) == unknownCompanyName && strings.TrimSpace(*req.Name) != unknownCompanyName {
+				writeError(w, http.StatusForbidden, fmt.Errorf("the Unknown placeholder company cannot be renamed"))
+				return
+			}
+		}
 		row, err := s.updateCompany(r.Context(), companyID, req.Name, req.Website)
 		writeOne(w, row, err)
 	case http.MethodDelete:
+		row, err := s.getCompany(r.Context(), companyID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		if row != nil && asString(row["name"]) == unknownCompanyName {
+			writeError(w, http.StatusForbidden, fmt.Errorf("the Unknown placeholder company cannot be deleted"))
+			return
+		}
 		s.writeNoContentQuery(w, r, "DELETE "+recordID("companies", companyID)+";")
 	default:
 		writeError(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed"))
@@ -241,26 +261,108 @@ func (s *Server) applications(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, rows)
 	case http.MethodPost:
 		var req struct {
-			Name       string   `json:"name"`
-			CompanyID  string   `json:"company_id"`
-			CmNumber   *string  `json:"cm_number"`
-			SharedWith []string `json:"shared_with"`
+			Name              string   `json:"name"`
+			CompanyID         string   `json:"company_id"`
+			CompanyName       string   `json:"company_name"`
+			Position          string   `json:"position"`
+			JobDescriptionURL string   `json:"job_description_url"`
+			Status            string   `json:"status"`
+			SharedWith        []string `json:"shared_with"`
 		}
 		if err := decodeJSON(r, &req); err != nil {
 			writeError(w, http.StatusBadRequest, err)
 			return
 		}
-		if req.Name == "" {
-			req.Name = "Untitled Application"
+		jobURL := strings.TrimSpace(req.JobDescriptionURL)
+		// Recognize known job boards (Greenhouse, Lever, Ashby, Workday, …)
+		// from the posting URL. When matched, the parsed identity lets us
+		// (a) reuse an existing employer company that has already posted on
+		// the same board, and (b) tag whichever company we end up using so
+		// future postings dedupe automatically. A future "watch this board
+		// for new openings" agent can read the same identities back.
+		boardMatch := parseJobBoardURL(jobURL)
+		var companyID, companyName string
+		userSuppliedCompany := strings.TrimSpace(req.CompanyID) != "" || strings.TrimSpace(req.CompanyName) != ""
+		if !userSuppliedCompany && boardMatch != nil {
+			existing, err := s.findCompanyByJobBoardIdentity(r.Context(), boardMatch.Identity)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				return
+			}
+			if existing != nil {
+				companyID = trimRecord(asString(existing["id"]))
+				companyName = asString(existing["name"])
+			}
 		}
-		if req.CompanyID == "" {
-			writeError(w, http.StatusBadRequest, fmt.Errorf("company_id is required"))
+		if companyID == "" {
+			id, resolvedName, err := s.resolveCompanyForApplication(r.Context(), req.CompanyID, req.CompanyName)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, err)
+				return
+			}
+			companyID, companyName = id, resolvedName
+		}
+		position := strings.TrimSpace(req.Position)
+		name := strings.TrimSpace(req.Name)
+		jobPage := s.fetchJobPage(r.Context(), jobURL)
+		if name == "" {
+			name = s.resolveApplicationName(r.Context(), position, companyName, jobPage)
+		}
+		// If the user didn't supply a company and we landed on Unknown,
+		// upgrade to a real company. Prefer the URL-parsed slug (deterministic,
+		// no LLM) over the LLM-extracted "Role at Company" form.
+		if !userSuppliedCompany && companyName == unknownCompanyName {
+			if boardMatch != nil {
+				row, err := s.createCompanyWithIdentities(r.Context(), boardMatch.CompanyHint, nil, []string{boardMatch.Identity})
+				if err == nil && row != nil {
+					companyID = trimRecord(asString(row["id"]))
+					companyName = asString(row["name"])
+				}
+			} else if extracted := companyFromGeneratedName(name); extracted != "" {
+				if id, resolved, err := s.resolveCompanyForApplication(r.Context(), "", extracted); err == nil {
+					companyID = id
+					companyName = resolved
+				}
+			}
+		}
+		// Tag whichever company we ended up with so the next posting on the
+		// same board for the same employer reuses this company automatically.
+		// Skip the Unknown placeholder — that's a catch-all, not an employer.
+		if boardMatch != nil && companyID != "" && companyName != unknownCompanyName {
+			if err := s.appendCompanyJobBoardIdentity(r.Context(), companyID, boardMatch.Identity); err != nil {
+				// Non-fatal: identity attach failure shouldn't block create.
+				_ = err
+			}
+		}
+		status := req.Status
+		if status == "" {
+			status = "in_progress"
+		} else if status != "in_progress" && status != "closed" {
+			writeError(w, http.StatusBadRequest, fmt.Errorf("status must be 'in_progress' or 'closed'"))
 			return
 		}
-		row, err := s.createApplication(r.Context(), req.Name, req.CompanyID, req.CmNumber, req.SharedWith)
+		var jobURLPtr *string
+		if jobURL != "" {
+			jobURLPtr = &jobURL
+		}
+		row, err := s.createApplication(r.Context(), createApplicationInput{
+			Name:              name,
+			CompanyID:         companyID,
+			JobDescriptionURL: jobURLPtr,
+			Status:            status,
+			SharedWith:        req.SharedWith,
+		})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
+		}
+		if jobPage != nil {
+			if applicationID := trimRecord(asString(row["id"])); applicationID != "" {
+				if s.ingestJobDescription(r.Context(), applicationID, jobPage) {
+					row["job_description_ingested"] = true
+					row["document_count"] = 1
+				}
+			}
 		}
 		writeJSON(w, http.StatusCreated, row)
 	default:
@@ -276,16 +378,31 @@ func (s *Server) application(w http.ResponseWriter, r *http.Request) {
 		writeOne(w, row, err)
 	case http.MethodPatch:
 		var req struct {
-			Name       *string  `json:"name"`
-			CompanyID  *string  `json:"company_id"`
-			CmNumber   *string  `json:"cm_number"`
-			SharedWith []string `json:"shared_with"`
+			Name              *string  `json:"name"`
+			CompanyID         *string  `json:"company_id"`
+			JobDescriptionURL *string  `json:"job_description_url"`
+			Status            *string  `json:"status"`
+			SharedWith        []string `json:"shared_with"`
 		}
 		if err := decodeJSON(r, &req); err != nil {
 			writeError(w, http.StatusBadRequest, err)
 			return
 		}
-		row, err := s.updateApplication(r.Context(), applicationID, req.Name, req.CompanyID, req.CmNumber, req.SharedWith)
+		if req.Status != nil {
+			switch *req.Status {
+			case "in_progress", "closed":
+			default:
+				writeError(w, http.StatusBadRequest, fmt.Errorf("status must be 'in_progress' or 'closed'"))
+				return
+			}
+		}
+		row, err := s.updateApplication(r.Context(), applicationID, updateApplicationInput{
+			Name:              req.Name,
+			CompanyID:         req.CompanyID,
+			JobDescriptionURL: req.JobDescriptionURL,
+			Status:            req.Status,
+			SharedWith:        req.SharedWith,
+		})
 		writeOne(w, row, err)
 	case http.MethodDelete:
 		if err := localdata.DeleteApplication(r.Context(), s.app.DB, applicationID); err != nil {
@@ -536,13 +653,23 @@ func (s *Server) chats(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, rows)
 	case http.MethodPost:
 		var req struct {
-			ApplicationID *string `json:"application_id"`
+			ApplicationID           *string `json:"application_id"`
+			InitialAssistantMessage string  `json:"initial_assistant_message"`
 		}
 		_ = decodeJSON(r, &req)
 		row, err := s.createChat(r.Context(), req.ApplicationID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
+		}
+		if greeting := strings.TrimSpace(req.InitialAssistantMessage); greeting != "" {
+			chatID := trimRecord(asString(row["id"]))
+			if chatID != "" {
+				if err := s.seedAssistantGreeting(r.Context(), chatID, greeting); err != nil {
+					writeError(w, http.StatusInternalServerError, err)
+					return
+				}
+			}
 		}
 		writeJSON(w, http.StatusCreated, map[string]any{"id": row["id"]})
 	default:
@@ -730,7 +857,15 @@ func (s *Server) deleteWorkflowShare(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) tabularReviews(w http.ResponseWriter, r *http.Request) {
-	s.writeListOrCreate(w, r, "SELECT id, application_id, user_id, title, columns_config, workflow_id, practice, row_mode, anchor_extractor, created_at, updated_at, 0 AS document_count FROM tabular_reviews ORDER BY updated_at DESC;", func() (map[string]any, error) {
+	// document_count is the distinct doc id count across both backing tables:
+	// tabular_cells (document-row mode) and tabular_review_rows (entity-row).
+	// A given review only populates one of them, so the union covers both.
+	s.writeListOrCreate(w, r, `SELECT id, application_id, user_id, title, columns_config, workflow_id, practice, row_mode, anchor_extractor, created_at, updated_at,
+		array::len(array::distinct(array::concat(
+			(SELECT VALUE document_id FROM tabular_cells WHERE review_id = $parent.id),
+			(SELECT VALUE document_id FROM tabular_review_rows WHERE review_id = $parent.id)
+		))) AS document_count
+	FROM tabular_reviews ORDER BY updated_at DESC;`, func() (map[string]any, error) {
 		return decodeAndCreate(r, s.upsertTabularReview, "")
 	})
 }

@@ -852,6 +852,16 @@ func unmarshalDocumentResponseBodyToTabularDocument(v *DocumentResponseBody) *ta
 		CreatedAt:           v.CreatedAt,
 		UpdatedAt:           v.UpdatedAt,
 		LatestVersionNumber: v.LatestVersionNumber,
+		Library:             v.Library,
+		LibraryKind:         v.LibraryKind,
+		Kind:                v.Kind,
+		InterviewStage:      v.InterviewStage,
+		Summary:             v.Summary,
+		DatedEventAt:        v.DatedEventAt,
+		DerivedFromID:       v.DerivedFromID,
+		MetadataStatus:      v.MetadataStatus,
+		MetadataProcessedAt: v.MetadataProcessedAt,
+		MetadataError:       v.MetadataError,
 	}
 	if v.StructureTree != nil {
 		res.StructureTree = make([]*tabular.StructureNode, len(v.StructureTree))
@@ -861,6 +871,34 @@ func unmarshalDocumentResponseBodyToTabularDocument(v *DocumentResponseBody) *ta
 				continue
 			}
 			res.StructureTree[i] = unmarshalStructureNodeResponseBodyToTabularStructureNode(val)
+		}
+	}
+	if v.Topics != nil {
+		res.Topics = make([]string, len(v.Topics))
+		for i, val := range v.Topics {
+			res.Topics[i] = val
+		}
+	}
+	if v.CompanyRefs != nil {
+		res.CompanyRefs = make([]string, len(v.CompanyRefs))
+		for i, val := range v.CompanyRefs {
+			res.CompanyRefs[i] = val
+		}
+	}
+	if v.PeopleRefs != nil {
+		res.PeopleRefs = make([]*tabular.PersonRef, len(v.PeopleRefs))
+		for i, val := range v.PeopleRefs {
+			if val == nil {
+				res.PeopleRefs[i] = nil
+				continue
+			}
+			res.PeopleRefs[i] = unmarshalPersonRefResponseBodyToTabularPersonRef(val)
+		}
+	}
+	if v.LinkedApplicationIds != nil {
+		res.LinkedApplicationIds = make([]string, len(v.LinkedApplicationIds))
+		for i, val := range v.LinkedApplicationIds {
+			res.LinkedApplicationIds[i] = val
 		}
 	}
 
@@ -886,6 +924,20 @@ func unmarshalStructureNodeResponseBodyToTabularStructureNode(v *StructureNodeRe
 			continue
 		}
 		res.Children[i] = unmarshalStructureNodeResponseBodyToTabularStructureNode(val)
+	}
+
+	return res
+}
+
+// unmarshalPersonRefResponseBodyToTabularPersonRef builds a value of type
+// *tabular.PersonRef from a value of type *PersonRefResponseBody.
+func unmarshalPersonRefResponseBodyToTabularPersonRef(v *PersonRefResponseBody) *tabular.PersonRef {
+	if v == nil {
+		return nil
+	}
+	res := &tabular.PersonRef{
+		Name: *v.Name,
+		Role: v.Role,
 	}
 
 	return res

@@ -22,7 +22,7 @@ func BuildCreatePayload(companiesCreateBody string) (*companies.CreatePayload, e
 	{
 		err = json.Unmarshal([]byte(companiesCreateBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"name\": \"Ut expedita numquam ducimus eveniet omnis.\",\n      \"website\": \"Nostrum provident eum.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"name\": \"Debitis et et sint et.\",\n      \"website\": \"Dolor suscipit consequatur.\"\n   }'")
 		}
 	}
 	v := &companies.CreatePayload{
@@ -50,7 +50,7 @@ func BuildUpdatePayload(companiesUpdateBody string, companiesUpdateCompanyID str
 	{
 		err = json.Unmarshal([]byte(companiesUpdateBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"name\": \"Sed vitae est voluptas.\",\n      \"website\": \"Et dolore et.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"name\": \"Facere in et quam ut.\",\n      \"website\": \"Quis sint.\"\n   }'")
 		}
 	}
 	var companyID string

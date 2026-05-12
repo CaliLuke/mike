@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { DataTable } from "@/app/components/shared/DataTable";
 import { HeaderSearchBtn } from "@/app/components/shared/HeaderSearchBtn";
+import { RowMenu } from "@/app/components/shared/RowMenu";
 import type { LukeDocument } from "@/app/components/shared/types";
 import { DOCUMENT_UPLOAD_ACCEPT } from "@/app/lib/documentTypes";
 import { deleteDocument, listDocuments, uploadStandaloneDocument } from "@/app/lib/lukeApi";
@@ -230,18 +231,22 @@ export function FilesOverview() {
     columnHelper.display({
       id: "actions",
       header: "",
-      size: 48,
+      size: 56,
       enableSorting: false,
       cell: (info) => (
-        <button
-          onClick={() => handleDelete(info.row.original.id.replace(/^documents:/, ""))}
-          className="inline-flex shrink-0 items-center justify-center p-1.5 text-gray-400 transition-colors hover:text-red-600"
-          title="Delete file"
-          aria-label={`Delete ${info.row.original.filename}`}
-          data-row-action
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        <div className="flex justify-end" data-row-action onClick={(e) => e.stopPropagation()}>
+          <RowMenu
+            ariaLabel={`Actions for ${info.row.original.filename}`}
+            items={[
+              {
+                label: "Delete",
+                icon: Trash2,
+                destructive: true,
+                onClick: () => handleDelete(info.row.original.id.replace(/^documents:/, "")),
+              },
+            ]}
+          />
+        </div>
       ),
     }),
   ];

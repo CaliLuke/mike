@@ -51,7 +51,6 @@ interface Props {
   hideWorkflowButton?: boolean;
   onApplicationsClick?: () => void;
   applicationName?: string;
-  applicationCmNumber?: string | null;
 }
 
 export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
@@ -63,7 +62,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     hideWorkflowButton,
     onApplicationsClick,
     applicationName,
-    applicationCmNumber,
   }: Props,
   ref,
 ) {
@@ -402,7 +400,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
           setWorkflowModalOpen(false);
         }}
         applicationName={applicationName}
-        applicationCmNumber={applicationCmNumber}
       />
       <ApiKeyMissingModal
         open={apiKeyModalProvider !== null}

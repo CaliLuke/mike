@@ -50,7 +50,7 @@ type tabularPayload struct {
 
 const applicationListQuery = `
 SELECT
-	id, user_id, true AS is_owner, company_id, company_id.name AS company_name, name, cm_number, shared_with, created_at, updated_at,
+	id, user_id, true AS is_owner, company_id, company_id.name AS company_name, name, job_description_url, status, shared_with, created_at, updated_at,
 	(SELECT id, application_id, parent_folder_id, name, created_at, updated_at FROM application_folders WHERE application_id = $parent.id ORDER BY created_at) AS folders,
 	count(SELECT 1 FROM documents WHERE application_id = $parent.id) AS document_count,
 	count(SELECT 1 FROM chats WHERE application_id = $parent.id) AS chat_count,
@@ -59,7 +59,7 @@ FROM applications ORDER BY updated_at DESC;`
 
 const companyListQuery = `
 SELECT
-	id, user_id, name, website, created_at, updated_at,
+	id, user_id, name, website, job_board_identities, created_at, updated_at,
 	count(SELECT VALUE id FROM applications WHERE company_id = $parent.id) AS application_count
 FROM companies ORDER BY name;`
 
@@ -75,16 +75,33 @@ type companySimilarityMatch struct {
 const companySimilarityThreshold = 0.86
 
 func (s *Server) createCompany(ctx context.Context, name string, website *string) (map[string]any, error) {
+	return s.createCompanyWithIdentities(ctx, name, website, nil)
+}
+
+// createCompanyWithIdentities is the full-shape constructor used when the
+// caller has already identified one or more job-board identities (e.g. from
+// parsing a Greenhouse/Lever posting URL). Pass nil identities for the
+// common case — createCompany is the shorthand for that.
+func (s *Server) createCompanyWithIdentities(ctx context.Context, name string, website *string, identities []string) (map[string]any, error) {
 	id := newID("company")
+	identitiesSurreal := "NONE"
+	if len(identities) > 0 {
+		quoted := make([]string, len(identities))
+		for i, ident := range identities {
+			quoted[i] = surrealString(ident)
+		}
+		identitiesSurreal = "[" + strings.Join(quoted, ", ") + "]"
+	}
 	_, err := s.app.DB.Query(ctx, fmt.Sprintf(`
 		CREATE %s CONTENT {
 			user_id: users:local,
 			name: %s,
 			website: %s,
+			job_board_identities: %s,
 			created_at: time::now(),
 			updated_at: time::now()
 		};
-	`, recordID("companies", id), surrealString(name), optionStringPtr(website)))
+	`, recordID("companies", id), surrealString(name), optionStringPtr(website), identitiesSurreal))
 	if err != nil {
 		return nil, err
 	}
@@ -198,10 +215,84 @@ func isCompanyLegalSuffix(word string) bool {
 func (s *Server) getCompany(ctx context.Context, companyID string) (map[string]any, error) {
 	rows, err := queryRows(ctx, s.app.DB, `
 SELECT
-	id, user_id, name, website, created_at, updated_at,
+	id, user_id, name, website, job_board_identities, created_at, updated_at,
 	count(SELECT VALUE id FROM applications WHERE company_id = $parent.id) AS application_count
 FROM `+recordID("companies", companyID)+`;`)
 	return firstRow(rows, err)
+}
+
+// findCompanyByJobBoardIdentity looks up the (at most one) company that has
+// the given "<board>:<slug>" key in its job_board_identities array. Returns
+// nil when no match is found. The schema's job_board_idx covers this query.
+func (s *Server) findCompanyByJobBoardIdentity(ctx context.Context, identity string) (map[string]any, error) {
+	identity = strings.TrimSpace(identity)
+	if identity == "" {
+		return nil, nil
+	}
+	rows, err := queryRows(ctx, s.app.DB, `
+SELECT
+	id, user_id, name, website, job_board_identities, created_at, updated_at,
+	count(SELECT VALUE id FROM applications WHERE company_id = $parent.id) AS application_count
+FROM companies WHERE job_board_identities CONTAINS `+surrealString(identity)+` LIMIT 1;`)
+	if err != nil || len(rows) == 0 {
+		return nil, err
+	}
+	return rows[0], nil
+}
+
+// appendCompanyJobBoardIdentity stores a "<board>:<slug>" identity on the
+// company if it isn't already present. Used both when freshly creating a
+// company from a parsed URL and when an existing company is reused — so the
+// next posting on the same board for the same employer hits the cache.
+// Read-then-write to keep the surreal query free of NONE-handling tricks;
+// runs at most once per application create.
+func (s *Server) appendCompanyJobBoardIdentity(ctx context.Context, companyID, identity string) error {
+	identity = strings.TrimSpace(identity)
+	if identity == "" || companyID == "" {
+		return nil
+	}
+	existing, err := s.getCompany(ctx, companyID)
+	if err != nil {
+		return err
+	}
+	if existing == nil {
+		return nil
+	}
+	current := jobBoardIdentitiesFromRow(existing)
+	for _, id := range current {
+		if id == identity {
+			return nil
+		}
+	}
+	current = append(current, identity)
+	quoted := make([]string, len(current))
+	for i, id := range current {
+		quoted[i] = surrealString(id)
+	}
+	_, err = s.app.DB.Query(ctx, "UPDATE "+recordID("companies", companyID)+
+		` SET job_board_identities = [`+strings.Join(quoted, ", ")+`], updated_at = time::now();`)
+	return err
+}
+
+// jobBoardIdentitiesFromRow normalizes the surreal-returned shape of the
+// job_board_identities field (typically []any with string entries, or nil
+// when the field is NONE) into a flat []string.
+func jobBoardIdentitiesFromRow(row map[string]any) []string {
+	raw, ok := row["job_board_identities"]
+	if !ok || raw == nil {
+		return nil
+	}
+	arr, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(arr))
+	for _, v := range arr {
+		if s, ok := v.(string); ok && s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func (s *Server) updateCompany(ctx context.Context, companyID string, name, website *string) (map[string]any, error) {
@@ -218,8 +309,17 @@ func (s *Server) updateCompany(ctx context.Context, companyID string, name, webs
 	return s.getCompany(ctx, companyID)
 }
 
-func (s *Server) createApplication(ctx context.Context, name, companyID string, cmNumber *string, sharedWith []string) (map[string]any, error) {
+type createApplicationInput struct {
+	Name              string
+	CompanyID         string
+	JobDescriptionURL *string
+	Status            string
+	SharedWith        []string
+}
+
+func (s *Server) createApplication(ctx context.Context, in createApplicationInput) (map[string]any, error) {
 	id := newID("application")
+	sharedWith := in.SharedWith
 	if sharedWith == nil {
 		sharedWith = []string{}
 	}
@@ -227,18 +327,23 @@ func (s *Server) createApplication(ctx context.Context, name, companyID string, 
 	if err != nil {
 		return nil, err
 	}
+	status := in.Status
+	if status == "" {
+		status = "in_progress"
+	}
 	_, err = s.app.DB.Query(ctx, fmt.Sprintf(`
 		CREATE %s CONTENT {
 			user_id: users:local,
 			company_id: %s,
 			name: %s,
-			cm_number: %s,
+			job_description_url: %s,
+			status: %s,
 			visibility: "private",
 			shared_with: %s,
 			created_at: time::now(),
 			updated_at: time::now()
 		};
-	`, recordID("applications", id), recordID("companies", companyID), surrealString(name), optionStringPtr(cmNumber), string(sharedJSON)))
+	`, recordID("applications", id), recordID("companies", in.CompanyID), surrealString(in.Name), optionStringPtr(in.JobDescriptionURL), surrealString(status), string(sharedJSON)))
 	if err != nil {
 		return nil, err
 	}
@@ -248,7 +353,7 @@ func (s *Server) createApplication(ctx context.Context, name, companyID string, 
 func (s *Server) getApplication(ctx context.Context, applicationID string) (map[string]any, error) {
 	rows, err := queryRows(ctx, s.app.DB, `
 SELECT
-	id, user_id, true AS is_owner, company_id, company_id.name AS company_name, name, cm_number, shared_with, created_at, updated_at,
+	id, user_id, true AS is_owner, company_id, company_id.name AS company_name, name, job_description_url, status, shared_with, created_at, updated_at,
 	(SELECT id, application_id, parent_folder_id, name, created_at, updated_at FROM application_folders WHERE application_id = $parent.id ORDER BY created_at) AS folders,
 	(SELECT
 		id, user_id, application_id, folder_id, filename, file_type,
@@ -264,17 +369,29 @@ FROM `+recordID("applications", applicationID)+`;`)
 	return firstRow(rows, err)
 }
 
-func (s *Server) updateApplication(ctx context.Context, applicationID string, name, companyID, cmNumber *string, sharedWith []string) (map[string]any, error) {
+type updateApplicationInput struct {
+	Name              *string
+	CompanyID         *string
+	JobDescriptionURL *string
+	Status            *string
+	SharedWith        []string
+}
+
+func (s *Server) updateApplication(ctx context.Context, applicationID string, in updateApplicationInput) (map[string]any, error) {
 	sets := []string{"updated_at = time::now()"}
-	if name != nil {
-		sets = append(sets, "name = "+surrealString(*name))
+	if in.Name != nil {
+		sets = append(sets, "name = "+surrealString(*in.Name))
 	}
-	if companyID != nil && *companyID != "" {
-		sets = append(sets, "company_id = "+recordID("companies", *companyID))
+	if in.CompanyID != nil && *in.CompanyID != "" {
+		sets = append(sets, "company_id = "+recordID("companies", *in.CompanyID))
 	}
-	if cmNumber != nil {
-		sets = append(sets, "cm_number = "+optionString(*cmNumber))
+	if in.JobDescriptionURL != nil {
+		sets = append(sets, "job_description_url = "+optionString(*in.JobDescriptionURL))
 	}
+	if in.Status != nil && *in.Status != "" {
+		sets = append(sets, "status = "+surrealString(*in.Status))
+	}
+	sharedWith := in.SharedWith
 	if sharedWith != nil {
 		sharedJSON, err := json.Marshal(sharedWith)
 		if err != nil {
@@ -315,7 +432,10 @@ SELECT
 	current_version_id.storage_path AS storage_path,
 	current_version_id.pdf_storage_path AS pdf_storage_path,
 	size_bytes, page_count, structure_tree.root AS structure_tree, status, created_at, updated_at,
-	current_version_id.version_number AS latest_version_number
+	current_version_id.version_number AS latest_version_number,
+	library, library_kind, kind, interview_stage, topics, company_refs, people_refs,
+	summary, dated_event_at, derived_from_id, metadata_status, metadata_processed_at, metadata_error,
+	(SELECT VALUE application_id FROM document_application_links WHERE document_id = $parent.id) AS linked_application_ids
 FROM documents WHERE ` + where + ` ORDER BY updated_at DESC;`
 }
 
@@ -515,6 +635,22 @@ func (s *Server) createChat(ctx context.Context, applicationID *string) (map[str
 		return nil, err
 	}
 	return rows[0], nil
+}
+
+// seedAssistantGreeting persists a deterministic, non-streamed assistant
+// greeting as the chat's first message. The content shape mirrors what the
+// streaming pipeline writes — a single {type:"content", text} event — so the
+// frontend's getChat decoder renders it the same way as any other assistant
+// message. Used by the application-create flow to drop the user into a chat
+// that already feels alive.
+func (s *Server) seedAssistantGreeting(ctx context.Context, chatID, greeting string) error {
+	greeting = strings.TrimSpace(greeting)
+	if greeting == "" {
+		return nil
+	}
+	messageID := newID("msg")
+	timeline := []map[string]any{{"type": "content", "text": greeting}}
+	return s.createChatMessageWithID(ctx, messageID, chatID, "assistant", timeline, nil, nil)
 }
 
 func chatListQuery(where string) string {

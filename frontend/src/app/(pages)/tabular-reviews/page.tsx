@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Check, ChevronDown, Loader2, Plus, Table2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -39,10 +40,38 @@ function formatDate(iso: string) {
 
 const columnHelper = createColumnHelper<TabularReview>();
 
+const TABULAR_REVIEWS_KEY = ["tabular-reviews"] as const;
+const APPLICATIONS_KEY = ["applications"] as const;
+
 export default function TabularReviewsPage() {
-  const [reviews, setReviews] = useState<TabularReview[]>([]);
-  const [applications, setApplications] = useState<LukeApplication[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const {
+    data: reviews = [],
+    isLoading: reviewsLoading,
+    isFetching: reviewsFetching,
+  } = useQuery<TabularReview[]>({
+    queryKey: TABULAR_REVIEWS_KEY,
+    queryFn: () => listTabularReviews(),
+    enabled: !!user,
+    refetchOnWindowFocus: true,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
+  });
+  const { data: applications = [] } = useQuery<LukeApplication[]>({
+    queryKey: APPLICATIONS_KEY,
+    queryFn: listApplications,
+    enabled: !!user,
+    refetchOnWindowFocus: true,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
+  });
+  const setReviews = (fn: (prev: TabularReview[]) => TabularReview[]) =>
+    queryClient.setQueryData<TabularReview[]>(TABULAR_REVIEWS_KEY, (prev) => fn(prev ?? []));
+  // While reviews are loading or being refetched (e.g., after a backend hot
+  // reload), keep the loading skeleton visible instead of flashing the empty
+  // state.
+  const loading = reviewsLoading || (reviewsFetching && reviews.length === 0);
   const [creating, setCreating] = useState(false);
   const [newTROpen, setNewTROpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("all");
@@ -57,16 +86,6 @@ export default function TabularReviewsPage() {
   const filterRef = useRef<HTMLDivElement>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  const { user } = useAuth();
-
-  useEffect(() => {
-    Promise.all([listTabularReviews().catch(() => []), listApplications().catch(() => [])])
-      .then(([r, p]) => {
-        setReviews(r);
-        setApplications(p);
-      })
-      .finally(() => setLoading(false));
-  }, []);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -121,7 +140,10 @@ export default function TabularReviewsPage() {
         ...(applicationId && { application_id: applicationId }),
       });
       if (createdApplication) {
-        setApplications((prev) => [createdApplication, ...prev]);
+        queryClient.setQueryData<LukeApplication[]>(APPLICATIONS_KEY, (prev) => [
+          createdApplication,
+          ...(prev ?? []),
+        ]);
       }
       router.push(
         applicationId
@@ -193,15 +215,11 @@ export default function TabularReviewsPage() {
               onBlur={() => void handleRenameSubmit(review.id)}
               onClick={(e) => e.stopPropagation()}
               data-row-action
-              className="w-full bg-transparent text-sm text-gray-800 outline-none"
+              className="w-full bg-transparent outline-none"
             />
           );
         }
-        return (
-          <span className="block truncate text-sm text-gray-800">
-            {review.title ?? "Untitled Review"}
-          </span>
-        );
+        return <span className="block truncate">{review.title ?? "Untitled Review"}</span>;
       },
     }),
     columnHelper.accessor((row) => row.columns_config?.length ?? 0, {

@@ -57,11 +57,25 @@ type AnyColumnDef<TData> = ColumnDef<TData, any>;
  */
 export type DataTableWidthMode = "fit" | "fixed";
 
+/**
+ * Cell density. Owns the base typography (`text-sm` vs `text-xs`) and the
+ * default text color. Cell renderers should not restate these — only override
+ * when they need a muted tint, a font weight, etc.
+ */
+export type DataTableDensity = "comfortable" | "compact";
+
+const CELL_TYPOGRAPHY: Record<DataTableDensity, string> = {
+  comfortable: "text-sm text-gray-800",
+  compact: "text-xs text-gray-800",
+};
+
 export interface DataTableProps<TData> {
   data: TData[];
   columns: AnyColumnDef<TData>[];
   /** How the table chooses its own width relative to its parent. Defaults to "fit". */
   widthMode?: DataTableWidthMode;
+  /** Base cell typography. Defaults to "comfortable". */
+  density?: DataTableDensity;
   /** Optional controlled global filter. If omitted, the component manages it internally. */
   globalFilter?: string;
   onGlobalFilterChange?: (value: string) => void;
@@ -91,10 +105,38 @@ export interface DataTableProps<TData> {
 // Width of the sticky-left checkbox column when row selection is enabled.
 const SELECT_COL_WIDTH = 32;
 
+/**
+ * Layout classes shared by every header and body cell. The padding /
+ * separator rule lives here once so that changes to either don't drift
+ * between th and td (and so the select column gets the same right border
+ * as everything else). Header- or body-only concerns layer on top.
+ */
+function cellLayoutClasses(args: {
+  isSelect: boolean;
+  isFirstData: boolean;
+  isLast: boolean;
+  enableRowSelection: boolean;
+}): string {
+  const padding = args.isSelect
+    ? "px-1"
+    : args.isFirstData
+      ? args.enableRowSelection
+        ? "pl-3"
+        : "pl-8"
+      : "px-2";
+  const trailing = args.isLast ? "pr-8" : "";
+  // With border-separate, each cell owns all four of its borders. We always
+  // draw bottom (row separator) and conditionally right (column separator).
+  const borders = args.isLast ? "border-b border-gray-200" : "border-r border-b border-gray-200";
+  const textAlign = args.isSelect ? "text-center" : "";
+  return [padding, trailing, "py-2", borders, textAlign].filter(Boolean).join(" ");
+}
+
 export function DataTable<TData>({
   data,
   columns,
   widthMode = "fit",
+  density = "comfortable",
   globalFilter,
   onGlobalFilterChange,
   globalFilterFn,
@@ -205,7 +247,10 @@ export function DataTable<TData>({
     widthMode === "fixed"
       ? { tableLayout: "fixed" as const, width: `${totalColWidth}px` }
       : { tableLayout: "fixed" as const };
-  const tableClass = widthMode === "fixed" ? "text-sm" : "min-w-full text-sm";
+  // border-separate (with border-spacing-0) is required so per-cell borders
+  // render reliably on sticky-positioned cells; Chrome drops border-r on
+  // `position: sticky` th/td under the default border-collapse: collapse.
+  const tableClass = `border-separate border-spacing-0 ${widthMode === "fixed" ? "text-sm" : "min-w-full text-sm"}`;
 
   // All return paths render inside the same `h-full flex-col` shell so
   // pages can rely on the table area filling the available vertical space.
@@ -278,7 +323,7 @@ export function DataTable<TData>({
               />
             ))}
           </colgroup>
-          <thead className="sticky top-0 z-20 border-b border-gray-200 bg-white text-left text-xs font-medium tracking-wider text-gray-500 uppercase">
+          <thead className="sticky top-0 z-20 bg-white text-left text-xs font-medium tracking-wider text-gray-500 uppercase">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header, idx) => {
@@ -286,38 +331,40 @@ export function DataTable<TData>({
                   const canSort = header.column.getCanSort();
                   const isLast = idx === headerGroup.headers.length - 1;
                   const isSelect = header.column.id === "_select";
-                  // The first non-select column gets pl-8. With table-layout:
-                  // fixed, applying pl-8 to the 32px-wide select column would
-                  // push its checkbox out of its own cell and behind the next
-                  // sticky column.
                   const firstDataIdx = enableRowSelection ? 1 : 0;
                   const stickyLeft = header.column.columnDef.meta?.stickyLeft;
                   const stickyStyle =
                     stickyLeft !== undefined
                       ? { position: "sticky" as const, left: `${stickyLeft}px`, zIndex: 30 }
                       : undefined;
+                  const layout = cellLayoutClasses({
+                    isSelect,
+                    isFirstData: idx === firstDataIdx,
+                    isLast,
+                    enableRowSelection: !!enableRowSelection,
+                  });
                   return (
                     <th
                       key={header.id}
                       style={stickyStyle}
-                      className={`${isSelect ? "px-1" : idx === firstDataIdx ? "pl-8" : "px-2"} ${
-                        isLast ? "pr-8" : ""
-                      } py-2 ${canSort ? "cursor-pointer select-none" : ""} ${
+                      className={`${layout} ${canSort ? "cursor-pointer select-none" : ""} ${
                         stickyLeft !== undefined ? "bg-white" : ""
-                      } ${isSelect ? "text-center" : ""}`}
+                      }`}
                       onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
                     >
-                      <span className="inline-flex items-center gap-1">
-                        {flexRender(header.column.columnDef.header, header.getContext())}
+                      <div className="flex w-full items-center gap-1">
+                        <span className="min-w-0 flex-1">
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                        </span>
                         {canSort &&
                           (sortDir === "asc" ? (
-                            <ArrowUp className="h-3 w-3 text-gray-400" />
+                            <ArrowUp className="h-3 w-3 shrink-0 text-gray-400" />
                           ) : sortDir === "desc" ? (
-                            <ArrowDown className="h-3 w-3 text-gray-400" />
+                            <ArrowDown className="h-3 w-3 shrink-0 text-gray-400" />
                           ) : (
-                            <ArrowUpDown className="h-3 w-3 text-gray-300" />
+                            <ArrowUpDown className="h-3 w-3 shrink-0 text-gray-300" />
                           ))}
-                      </span>
+                      </div>
                     </th>
                   );
                 })}
@@ -325,20 +372,20 @@ export function DataTable<TData>({
             ))}
           </thead>
           <tbody>
-            {rows.map((row) => {
+            {rows.map((row, rowIndex) => {
               const rowSelected = row.getIsSelected();
+              // Zebra stripe odd rows with a barely-there tint so it reads as
+              // rhythm, not banding. Selection and hover override it.
+              const zebra = rowIndex % 2 === 1;
+              const baseBgClass = rowSelected ? "bg-gray-50" : zebra ? "bg-gray-50/40" : "bg-white";
               // Sticky-left cells need an opaque background or scrolled
               // content shows through. Match the row tint so it stays
               // consistent on hover/select.
-              const stickyBgClass = rowSelected
-                ? "bg-gray-50 group-hover:bg-gray-50"
-                : "bg-white group-hover:bg-gray-50";
+              const stickyBgClass = `${baseBgClass} group-hover:bg-gray-50`;
               return (
                 <tr
                   key={row.id}
-                  className={`group border-b border-gray-100 hover:bg-gray-50 ${
-                    rowSelected ? "bg-gray-50" : ""
-                  } ${onRowClick ? "cursor-pointer" : ""}`}
+                  className={`group hover:bg-gray-50 ${baseBgClass} ${onRowClick ? "cursor-pointer" : ""}`}
                   onClick={
                     onRowClick
                       ? (e) => {
@@ -362,13 +409,17 @@ export function DataTable<TData>({
                       stickyLeft !== undefined
                         ? { position: "sticky" as const, left: `${stickyLeft}px`, zIndex: 10 }
                         : undefined;
+                    const layout = cellLayoutClasses({
+                      isSelect,
+                      isFirstData: idx === firstDataIdx,
+                      isLast,
+                      enableRowSelection: !!enableRowSelection,
+                    });
                     return (
                       <td
                         key={cell.id}
                         style={stickyStyle}
-                        className={`${isSelect ? "px-1 text-center" : idx === firstDataIdx ? "pl-8" : "px-2"} ${
-                          isLast ? "pr-8" : ""
-                        } py-2 align-middle ${stickyLeft !== undefined ? stickyBgClass : ""}`}
+                        className={`${layout} align-middle ${isSelect ? "" : CELL_TYPOGRAPHY[density]} ${stickyLeft !== undefined ? stickyBgClass : ""}`}
                       >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </td>

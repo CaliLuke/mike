@@ -25,21 +25,35 @@ type UploadRequestBody struct {
 // UploadResponseBody is the type of the "documents" service "upload" endpoint
 // HTTP response body.
 type UploadResponseBody struct {
-	ID                  string                       `form:"id" json:"id" xml:"id"`
-	UserID              *string                      `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
-	ApplicationID       *string                      `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
-	FolderID            *string                      `form:"folder_id,omitempty" json:"folder_id,omitempty" xml:"folder_id,omitempty"`
-	Filename            string                       `form:"filename" json:"filename" xml:"filename"`
-	FileType            *string                      `form:"file_type,omitempty" json:"file_type,omitempty" xml:"file_type,omitempty"`
-	StoragePath         *string                      `form:"storage_path,omitempty" json:"storage_path,omitempty" xml:"storage_path,omitempty"`
-	PdfStoragePath      *string                      `form:"pdf_storage_path,omitempty" json:"pdf_storage_path,omitempty" xml:"pdf_storage_path,omitempty"`
-	SizeBytes           *int64                       `form:"size_bytes,omitempty" json:"size_bytes,omitempty" xml:"size_bytes,omitempty"`
-	PageCount           *int                         `form:"page_count,omitempty" json:"page_count,omitempty" xml:"page_count,omitempty"`
-	StructureTree       []*StructureNodeResponseBody `form:"structure_tree,omitempty" json:"structure_tree,omitempty" xml:"structure_tree,omitempty"`
-	Status              string                       `form:"status" json:"status" xml:"status"`
-	CreatedAt           *string                      `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
-	UpdatedAt           *string                      `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
-	LatestVersionNumber *int                         `form:"latest_version_number,omitempty" json:"latest_version_number,omitempty" xml:"latest_version_number,omitempty"`
+	ID                   string                       `form:"id" json:"id" xml:"id"`
+	UserID               *string                      `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
+	ApplicationID        *string                      `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
+	FolderID             *string                      `form:"folder_id,omitempty" json:"folder_id,omitempty" xml:"folder_id,omitempty"`
+	Filename             string                       `form:"filename" json:"filename" xml:"filename"`
+	FileType             *string                      `form:"file_type,omitempty" json:"file_type,omitempty" xml:"file_type,omitempty"`
+	StoragePath          *string                      `form:"storage_path,omitempty" json:"storage_path,omitempty" xml:"storage_path,omitempty"`
+	PdfStoragePath       *string                      `form:"pdf_storage_path,omitempty" json:"pdf_storage_path,omitempty" xml:"pdf_storage_path,omitempty"`
+	SizeBytes            *int64                       `form:"size_bytes,omitempty" json:"size_bytes,omitempty" xml:"size_bytes,omitempty"`
+	PageCount            *int                         `form:"page_count,omitempty" json:"page_count,omitempty" xml:"page_count,omitempty"`
+	StructureTree        []*StructureNodeResponseBody `form:"structure_tree,omitempty" json:"structure_tree,omitempty" xml:"structure_tree,omitempty"`
+	Status               string                       `form:"status" json:"status" xml:"status"`
+	CreatedAt            *string                      `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	UpdatedAt            *string                      `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+	LatestVersionNumber  *int                         `form:"latest_version_number,omitempty" json:"latest_version_number,omitempty" xml:"latest_version_number,omitempty"`
+	Library              *bool                        `form:"library,omitempty" json:"library,omitempty" xml:"library,omitempty"`
+	LibraryKind          *string                      `form:"library_kind,omitempty" json:"library_kind,omitempty" xml:"library_kind,omitempty"`
+	Kind                 *string                      `form:"kind,omitempty" json:"kind,omitempty" xml:"kind,omitempty"`
+	InterviewStage       *string                      `form:"interview_stage,omitempty" json:"interview_stage,omitempty" xml:"interview_stage,omitempty"`
+	Topics               []string                     `form:"topics,omitempty" json:"topics,omitempty" xml:"topics,omitempty"`
+	CompanyRefs          []string                     `form:"company_refs,omitempty" json:"company_refs,omitempty" xml:"company_refs,omitempty"`
+	PeopleRefs           []*PersonRefResponseBody     `form:"people_refs,omitempty" json:"people_refs,omitempty" xml:"people_refs,omitempty"`
+	Summary              *string                      `form:"summary,omitempty" json:"summary,omitempty" xml:"summary,omitempty"`
+	DatedEventAt         *string                      `form:"dated_event_at,omitempty" json:"dated_event_at,omitempty" xml:"dated_event_at,omitempty"`
+	DerivedFromID        *string                      `form:"derived_from_id,omitempty" json:"derived_from_id,omitempty" xml:"derived_from_id,omitempty"`
+	MetadataStatus       *string                      `form:"metadata_status,omitempty" json:"metadata_status,omitempty" xml:"metadata_status,omitempty"`
+	MetadataProcessedAt  *string                      `form:"metadata_processed_at,omitempty" json:"metadata_processed_at,omitempty" xml:"metadata_processed_at,omitempty"`
+	MetadataError        *string                      `form:"metadata_error,omitempty" json:"metadata_error,omitempty" xml:"metadata_error,omitempty"`
+	LinkedApplicationIds []string                     `form:"linked_application_ids,omitempty" json:"linked_application_ids,omitempty" xml:"linked_application_ids,omitempty"`
 }
 
 // DisplayRequestBody is the type of the "documents" service "display" endpoint
@@ -76,21 +90,35 @@ type DocxRequestBody struct {
 
 // DocumentResponse is used to define fields on response body types.
 type DocumentResponse struct {
-	ID                  string                   `form:"id" json:"id" xml:"id"`
-	UserID              *string                  `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
-	ApplicationID       *string                  `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
-	FolderID            *string                  `form:"folder_id,omitempty" json:"folder_id,omitempty" xml:"folder_id,omitempty"`
-	Filename            string                   `form:"filename" json:"filename" xml:"filename"`
-	FileType            *string                  `form:"file_type,omitempty" json:"file_type,omitempty" xml:"file_type,omitempty"`
-	StoragePath         *string                  `form:"storage_path,omitempty" json:"storage_path,omitempty" xml:"storage_path,omitempty"`
-	PdfStoragePath      *string                  `form:"pdf_storage_path,omitempty" json:"pdf_storage_path,omitempty" xml:"pdf_storage_path,omitempty"`
-	SizeBytes           *int64                   `form:"size_bytes,omitempty" json:"size_bytes,omitempty" xml:"size_bytes,omitempty"`
-	PageCount           *int                     `form:"page_count,omitempty" json:"page_count,omitempty" xml:"page_count,omitempty"`
-	StructureTree       []*StructureNodeResponse `form:"structure_tree,omitempty" json:"structure_tree,omitempty" xml:"structure_tree,omitempty"`
-	Status              string                   `form:"status" json:"status" xml:"status"`
-	CreatedAt           *string                  `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
-	UpdatedAt           *string                  `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
-	LatestVersionNumber *int                     `form:"latest_version_number,omitempty" json:"latest_version_number,omitempty" xml:"latest_version_number,omitempty"`
+	ID                   string                   `form:"id" json:"id" xml:"id"`
+	UserID               *string                  `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
+	ApplicationID        *string                  `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
+	FolderID             *string                  `form:"folder_id,omitempty" json:"folder_id,omitempty" xml:"folder_id,omitempty"`
+	Filename             string                   `form:"filename" json:"filename" xml:"filename"`
+	FileType             *string                  `form:"file_type,omitempty" json:"file_type,omitempty" xml:"file_type,omitempty"`
+	StoragePath          *string                  `form:"storage_path,omitempty" json:"storage_path,omitempty" xml:"storage_path,omitempty"`
+	PdfStoragePath       *string                  `form:"pdf_storage_path,omitempty" json:"pdf_storage_path,omitempty" xml:"pdf_storage_path,omitempty"`
+	SizeBytes            *int64                   `form:"size_bytes,omitempty" json:"size_bytes,omitempty" xml:"size_bytes,omitempty"`
+	PageCount            *int                     `form:"page_count,omitempty" json:"page_count,omitempty" xml:"page_count,omitempty"`
+	StructureTree        []*StructureNodeResponse `form:"structure_tree,omitempty" json:"structure_tree,omitempty" xml:"structure_tree,omitempty"`
+	Status               string                   `form:"status" json:"status" xml:"status"`
+	CreatedAt            *string                  `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	UpdatedAt            *string                  `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+	LatestVersionNumber  *int                     `form:"latest_version_number,omitempty" json:"latest_version_number,omitempty" xml:"latest_version_number,omitempty"`
+	Library              *bool                    `form:"library,omitempty" json:"library,omitempty" xml:"library,omitempty"`
+	LibraryKind          *string                  `form:"library_kind,omitempty" json:"library_kind,omitempty" xml:"library_kind,omitempty"`
+	Kind                 *string                  `form:"kind,omitempty" json:"kind,omitempty" xml:"kind,omitempty"`
+	InterviewStage       *string                  `form:"interview_stage,omitempty" json:"interview_stage,omitempty" xml:"interview_stage,omitempty"`
+	Topics               []string                 `form:"topics,omitempty" json:"topics,omitempty" xml:"topics,omitempty"`
+	CompanyRefs          []string                 `form:"company_refs,omitempty" json:"company_refs,omitempty" xml:"company_refs,omitempty"`
+	PeopleRefs           []*PersonRefResponse     `form:"people_refs,omitempty" json:"people_refs,omitempty" xml:"people_refs,omitempty"`
+	Summary              *string                  `form:"summary,omitempty" json:"summary,omitempty" xml:"summary,omitempty"`
+	DatedEventAt         *string                  `form:"dated_event_at,omitempty" json:"dated_event_at,omitempty" xml:"dated_event_at,omitempty"`
+	DerivedFromID        *string                  `form:"derived_from_id,omitempty" json:"derived_from_id,omitempty" xml:"derived_from_id,omitempty"`
+	MetadataStatus       *string                  `form:"metadata_status,omitempty" json:"metadata_status,omitempty" xml:"metadata_status,omitempty"`
+	MetadataProcessedAt  *string                  `form:"metadata_processed_at,omitempty" json:"metadata_processed_at,omitempty" xml:"metadata_processed_at,omitempty"`
+	MetadataError        *string                  `form:"metadata_error,omitempty" json:"metadata_error,omitempty" xml:"metadata_error,omitempty"`
+	LinkedApplicationIds []string                 `form:"linked_application_ids,omitempty" json:"linked_application_ids,omitempty" xml:"linked_application_ids,omitempty"`
 }
 
 // StructureNodeResponse is used to define fields on response body types.
@@ -102,6 +130,12 @@ type StructureNodeResponse struct {
 	Children   []*StructureNodeResponse `form:"children" json:"children" xml:"children"`
 }
 
+// PersonRefResponse is used to define fields on response body types.
+type PersonRefResponse struct {
+	Name string  `form:"name" json:"name" xml:"name"`
+	Role *string `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
+}
+
 // StructureNodeResponseBody is used to define fields on response body types.
 type StructureNodeResponseBody struct {
 	ID         string                       `form:"id" json:"id" xml:"id"`
@@ -109,6 +143,12 @@ type StructureNodeResponseBody struct {
 	Level      int                          `form:"level" json:"level" xml:"level"`
 	PageNumber *int                         `form:"page_number,omitempty" json:"page_number,omitempty" xml:"page_number,omitempty"`
 	Children   []*StructureNodeResponseBody `form:"children" json:"children" xml:"children"`
+}
+
+// PersonRefResponseBody is used to define fields on response body types.
+type PersonRefResponseBody struct {
+	Name string  `form:"name" json:"name" xml:"name"`
+	Role *string `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
 }
 
 // NewListResponseBody builds the HTTP response body from the result of the
@@ -143,6 +183,16 @@ func NewUploadResponseBody(res *documents.Document) *UploadResponseBody {
 		CreatedAt:           res.CreatedAt,
 		UpdatedAt:           res.UpdatedAt,
 		LatestVersionNumber: res.LatestVersionNumber,
+		Library:             res.Library,
+		LibraryKind:         res.LibraryKind,
+		Kind:                res.Kind,
+		InterviewStage:      res.InterviewStage,
+		Summary:             res.Summary,
+		DatedEventAt:        res.DatedEventAt,
+		DerivedFromID:       res.DerivedFromID,
+		MetadataStatus:      res.MetadataStatus,
+		MetadataProcessedAt: res.MetadataProcessedAt,
+		MetadataError:       res.MetadataError,
 	}
 	if res.StructureTree != nil {
 		body.StructureTree = make([]*StructureNodeResponseBody, len(res.StructureTree))
@@ -152,6 +202,34 @@ func NewUploadResponseBody(res *documents.Document) *UploadResponseBody {
 				continue
 			}
 			body.StructureTree[i] = marshalDocumentsStructureNodeToStructureNodeResponseBody(val)
+		}
+	}
+	if res.Topics != nil {
+		body.Topics = make([]string, len(res.Topics))
+		for i, val := range res.Topics {
+			body.Topics[i] = val
+		}
+	}
+	if res.CompanyRefs != nil {
+		body.CompanyRefs = make([]string, len(res.CompanyRefs))
+		for i, val := range res.CompanyRefs {
+			body.CompanyRefs[i] = val
+		}
+	}
+	if res.PeopleRefs != nil {
+		body.PeopleRefs = make([]*PersonRefResponseBody, len(res.PeopleRefs))
+		for i, val := range res.PeopleRefs {
+			if val == nil {
+				body.PeopleRefs[i] = nil
+				continue
+			}
+			body.PeopleRefs[i] = marshalDocumentsPersonRefToPersonRefResponseBody(val)
+		}
+	}
+	if res.LinkedApplicationIds != nil {
+		body.LinkedApplicationIds = make([]string, len(res.LinkedApplicationIds))
+		for i, val := range res.LinkedApplicationIds {
+			body.LinkedApplicationIds[i] = val
 		}
 	}
 	return body

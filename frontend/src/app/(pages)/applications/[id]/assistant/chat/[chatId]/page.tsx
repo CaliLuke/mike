@@ -692,11 +692,11 @@ export default function ApplicationAssistantChatPage({ params }: Props) {
 
   // ── Resize handlers ───────────────────────────────────────────────────────
   const onExplorerDividerDrag = useCallback((dx: number) => {
-    setExplorerWidth((w) => Math.max(EXPLORER_MIN, w + dx));
+    setExplorerWidth((w) => Math.max(EXPLORER_MIN, w - dx));
   }, []);
 
   const onChatDividerDrag = useCallback((dx: number) => {
-    setChatWidth((w) => Math.max(CHAT_MIN, w - dx));
+    setChatWidth((w) => Math.max(CHAT_MIN, w + dx));
   }, []);
 
   return (
@@ -717,9 +717,6 @@ export default function ApplicationAssistantChatPage({ params }: Props) {
               className="text-gray-500 transition-colors hover:text-gray-700"
             >
               {application.name}
-              {application.cm_number && (
-                <span className="ml-1 text-gray-400">(#{application.cm_number})</span>
-              )}
             </button>
           ) : (
             <div className="h-6 w-32 animate-pulse rounded bg-gray-100" />
@@ -770,120 +767,105 @@ export default function ApplicationAssistantChatPage({ params }: Props) {
 
       {/* Three-panel body */}
       <div className="flex min-h-0 flex-1 overflow-hidden border-t border-gray-200">
-        {/* LEFT: Application Explorer */}
-        {!explorerCollapsed && (
-          <>
-            <div
-              style={{ width: explorerWidth }}
-              className="flex shrink-0 flex-col border-r border-gray-200"
-              onDragOver={(e) => {
-                e.preventDefault();
-                // Only show the upload overlay for external file drags, not internal moves
-                const isInternal =
-                  Array.from(e.dataTransfer.types).includes("application/luke-doc") ||
-                  Array.from(e.dataTransfer.types).includes("application/luke-folder");
-                if (!isInternal) setExplorerDragOver(true);
-              }}
-              onDragLeave={(e) => {
-                if (!e.currentTarget.contains(e.relatedTarget as Node)) setExplorerDragOver(false);
-              }}
-              onDrop={handleExplorerFileDrop}
-            >
-              {/* Explorer header */}
-              <div className="flex h-10 shrink-0 items-center justify-between border-b border-gray-200 px-3">
-                <span className="text-xs text-gray-700">Explorer</span>
-                <div className="flex items-center gap-1">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept={DOCUMENT_UPLOAD_ACCEPT}
-                    multiple
-                    className="hidden"
-                    onChange={(e) => uploadFiles(Array.from(e.target.files ?? []))}
-                  />
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading}
-                    title="Upload documents"
-                    className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40"
-                  >
-                    {uploading ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Upload className="h-3.5 w-3.5" />
-                    )}
-                  </button>
-                  <button
-                    onClick={() => setExplorerCollapsed(true)}
-                    title="Collapse explorer"
-                    className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
-                  >
-                    <ChevronLeft className="h-3.5 w-3.5" />
-                  </button>
+        {/* LEFT: Assistant Panel */}
+        <div
+          style={{ width: chatWidth }}
+          className="flex shrink-0 flex-col border-r border-gray-200"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={handleChatDrop}
+        >
+          <div className="flex h-10 shrink-0 items-center gap-2 border-b border-gray-200 px-4">
+            <LukeIcon size={16} />
+            <span className="text-xs text-gray-700">Application Assistant</span>
+          </div>
+
+          {/* Messages / greeting / shimmer */}
+          {!chatLoaded ? (
+            <div className="flex-1 space-y-4 px-4 py-4">
+              <div className="flex justify-end">
+                <div className="w-3/4 rounded-2xl bg-gray-100 p-4">
+                  <div className="h-3 w-full animate-[shimmer_2s_ease-in-out_infinite] rounded bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%]" />
                 </div>
               </div>
-
-              {/* Drop overlay */}
-              <div
-                className={`relative h-full flex-1 overflow-y-auto ${explorerDragOver ? "bg-blue-50" : ""}`}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                }}
-                onDrop={async (e) => {
-                  e.preventDefault();
-                  const docId = e.dataTransfer.getData("application/luke-doc");
-                  const folderId = e.dataTransfer.getData("application/luke-folder");
-                  if (docId) {
-                    e.stopPropagation();
-                    await handleMoveDoc(docId, null);
-                  } else if (folderId) {
-                    e.stopPropagation();
-                    await handleMoveFolder(folderId, null);
-                  }
-                  // External file drops are not stopped — they bubble to handleExplorerFileDrop
-                }}
-              >
-                {explorerDragOver && (
-                  <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-                    <p className="text-xs font-medium text-blue-500">Drop to upload</p>
-                  </div>
-                )}
-                <ApplicationExplorer
-                  applicationName={application?.name}
-                  documents={application?.documents ?? []}
-                  folders={application?.folders ?? []}
-                  selectedDocId={selectedDocId}
-                  onDocClick={handleDocClick}
-                  onCreateFolder={handleCreateFolder}
-                  onRenameFolder={handleRenameFolder}
-                  onDeleteFolder={handleDeleteFolder}
-                  onDeleteDoc={handleDeleteDoc}
-                  onMoveDoc={handleMoveDoc}
-                  onMoveFolder={handleMoveFolder}
-                />
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className={`h-3 animate-[shimmer_2s_ease-in-out_infinite] rounded bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] ${i === 3 ? "w-4/6" : "w-full"}`}
+                  />
+                ))}
               </div>
             </div>
-            <Divider onDrag={onExplorerDividerDrag} />
-          </>
-        )}
-
-        {/* Collapsed explorer toggle */}
-        {explorerCollapsed && (
-          <div className="flex shrink-0 flex-col border-r border-gray-200">
-            <div className="flex h-10 shrink-0 items-center justify-center border-b border-gray-200 px-1">
-              <button
-                onClick={() => setExplorerCollapsed(false)}
-                title="Expand explorer"
-                className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
-              >
-                <ChevronRight className="h-3.5 w-3.5" />
-              </button>
+          ) : messages.length === 0 ? (
+            <div className="flex min-h-0 flex-1 flex-col">
+              <AssistantGreeting username={username} />
             </div>
-          </div>
-        )}
+          ) : (
+            <div
+              ref={messagesContainerRef}
+              className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4"
+              style={{ scrollbarGutter: "stable" }}
+            >
+              {(() => {
+                const lastUserIdx = messages.map((m) => m.role).lastIndexOf("user");
+                const lastAssistantIdx = messages.map((m) => m.role).lastIndexOf("assistant");
+                return messages.map((msg, i) =>
+                  msg.role === "user" ? (
+                    <div key={i} ref={i === lastUserIdx ? latestUserMessageRef : null}>
+                      <UserMessage
+                        content={msg.content ?? ""}
+                        files={
+                          (
+                            msg as {
+                              files?: {
+                                filename: string;
+                                document_id?: string;
+                              }[];
+                            }
+                          ).files
+                        }
+                      />
+                    </div>
+                  ) : (
+                    <AssistantMessage
+                      key={i}
+                      content={msg.content ?? ""}
+                      events={msg.events}
+                      isStreaming={i === messages.length - 1 && isResponseLoading}
+                      isError={!!(msg as { error?: unknown }).error}
+                      annotations={msg.annotations}
+                      onCitationClick={handleCitationClick}
+                      minHeight={i === lastAssistantIdx ? minHeight : "0px"}
+                      onEditViewClick={handleEditViewClick}
+                      onOpenDocument={handleOpenDocument}
+                      onEditResolved={handleEditResolved}
+                      onEditError={handleEditError}
+                      isDocReloading={(docId) => reloadingDocIds.has(docId)}
+                    />
+                  ),
+                );
+              })()}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
 
-        {/* CENTER: Document Panel */}
-        <div className="flex min-w-0 flex-1 flex-col border-r border-gray-200">
+          {/* ChatInput */}
+          <div className="shrink-0 px-4 pb-4">
+            <ChatInput
+              ref={chatInputRef}
+              onSubmit={handleSubmit}
+              onCancel={cancel}
+              isLoading={isResponseLoading}
+              hideAddDocButton
+              applicationName={application?.name}
+            />
+          </div>
+        </div>
+
+        <Divider onDrag={onChatDividerDrag} />
+
+        {/* RIGHT: Document Panel */}
+        <div className="flex min-w-0 flex-1 flex-col">
           {/* Tab bar */}
           <div
             ref={tabBarRef}
@@ -1000,103 +982,111 @@ export default function ApplicationAssistantChatPage({ params }: Props) {
           </div>
         </div>
 
-        <Divider onDrag={onChatDividerDrag} />
-
-        {/* RIGHT: Assistant Panel */}
-        <div
-          style={{ width: chatWidth }}
-          className="flex shrink-0 flex-col"
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={handleChatDrop}
-        >
-          <div className="flex h-10 shrink-0 items-center gap-2 border-b border-gray-200 px-4">
-            <LukeIcon size={16} />
-            <span className="text-xs text-gray-700">Application Assistant</span>
-          </div>
-
-          {/* Messages / greeting / shimmer */}
-          {!chatLoaded ? (
-            <div className="flex-1 space-y-4 px-4 py-4">
-              <div className="flex justify-end">
-                <div className="w-3/4 rounded-2xl bg-gray-100 p-4">
-                  <div className="h-3 w-full animate-[shimmer_2s_ease-in-out_infinite] rounded bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%]" />
+        {/* RIGHT: Application Explorer */}
+        {!explorerCollapsed && (
+          <>
+            <Divider onDrag={onExplorerDividerDrag} />
+            <div
+              style={{ width: explorerWidth }}
+              className="flex shrink-0 flex-col border-l border-gray-200"
+              onDragOver={(e) => {
+                e.preventDefault();
+                const isInternal =
+                  Array.from(e.dataTransfer.types).includes("application/luke-doc") ||
+                  Array.from(e.dataTransfer.types).includes("application/luke-folder");
+                if (!isInternal) setExplorerDragOver(true);
+              }}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) setExplorerDragOver(false);
+              }}
+              onDrop={handleExplorerFileDrop}
+            >
+              <div className="flex h-10 shrink-0 items-center justify-between border-b border-gray-200 px-3">
+                <span className="text-xs text-gray-700">Explorer</span>
+                <div className="flex items-center gap-1">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept={DOCUMENT_UPLOAD_ACCEPT}
+                    multiple
+                    className="hidden"
+                    onChange={(e) => uploadFiles(Array.from(e.target.files ?? []))}
+                  />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    title="Upload documents"
+                    className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40"
+                  >
+                    {uploading ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setExplorerCollapsed(true)}
+                    title="Collapse explorer"
+                    className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               </div>
-              <div className="space-y-2">
-                {[1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className={`h-3 animate-[shimmer_2s_ease-in-out_infinite] rounded bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] ${i === 3 ? "w-4/6" : "w-full"}`}
-                  />
-                ))}
+              <div
+                className={`relative h-full flex-1 overflow-y-auto ${explorerDragOver ? "bg-blue-50" : ""}`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                }}
+                onDrop={async (e) => {
+                  e.preventDefault();
+                  const docId = e.dataTransfer.getData("application/luke-doc");
+                  const folderId = e.dataTransfer.getData("application/luke-folder");
+                  if (docId) {
+                    e.stopPropagation();
+                    await handleMoveDoc(docId, null);
+                  } else if (folderId) {
+                    e.stopPropagation();
+                    await handleMoveFolder(folderId, null);
+                  }
+                }}
+              >
+                {explorerDragOver && (
+                  <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+                    <p className="text-xs font-medium text-blue-500">Drop to upload</p>
+                  </div>
+                )}
+                <ApplicationExplorer
+                  applicationName={application?.name}
+                  documents={application?.documents ?? []}
+                  folders={application?.folders ?? []}
+                  selectedDocId={selectedDocId}
+                  onDocClick={handleDocClick}
+                  onCreateFolder={handleCreateFolder}
+                  onRenameFolder={handleRenameFolder}
+                  onDeleteFolder={handleDeleteFolder}
+                  onDeleteDoc={handleDeleteDoc}
+                  onMoveDoc={handleMoveDoc}
+                  onMoveFolder={handleMoveFolder}
+                />
               </div>
             </div>
-          ) : messages.length === 0 ? (
-            <div className="flex min-h-0 flex-1 flex-col">
-              <AssistantGreeting username={username} />
-            </div>
-          ) : (
-            <div
-              ref={messagesContainerRef}
-              className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4"
-              style={{ scrollbarGutter: "stable" }}
-            >
-              {(() => {
-                const lastUserIdx = messages.map((m) => m.role).lastIndexOf("user");
-                const lastAssistantIdx = messages.map((m) => m.role).lastIndexOf("assistant");
-                return messages.map((msg, i) =>
-                  msg.role === "user" ? (
-                    <div key={i} ref={i === lastUserIdx ? latestUserMessageRef : null}>
-                      <UserMessage
-                        content={msg.content ?? ""}
-                        files={
-                          (
-                            msg as {
-                              files?: {
-                                filename: string;
-                                document_id?: string;
-                              }[];
-                            }
-                          ).files
-                        }
-                      />
-                    </div>
-                  ) : (
-                    <AssistantMessage
-                      key={i}
-                      content={msg.content ?? ""}
-                      events={msg.events}
-                      isStreaming={i === messages.length - 1 && isResponseLoading}
-                      isError={!!(msg as { error?: unknown }).error}
-                      annotations={msg.annotations}
-                      onCitationClick={handleCitationClick}
-                      minHeight={i === lastAssistantIdx ? minHeight : "0px"}
-                      onEditViewClick={handleEditViewClick}
-                      onOpenDocument={handleOpenDocument}
-                      onEditResolved={handleEditResolved}
-                      onEditError={handleEditError}
-                      isDocReloading={(docId) => reloadingDocIds.has(docId)}
-                    />
-                  ),
-                );
-              })()}
-              <div ref={messagesEndRef} />
-            </div>
-          )}
+          </>
+        )}
 
-          {/* ChatInput */}
-          <div className="shrink-0 px-4 pb-4">
-            <ChatInput
-              ref={chatInputRef}
-              onSubmit={handleSubmit}
-              onCancel={cancel}
-              isLoading={isResponseLoading}
-              hideAddDocButton
-              applicationName={application?.name}
-              applicationCmNumber={application?.cm_number}
-            />
+        {explorerCollapsed && (
+          <div className="flex shrink-0 flex-col border-l border-gray-200">
+            <div className="flex h-10 shrink-0 items-center justify-center border-b border-gray-200 px-1">
+              <button
+                onClick={() => setExplorerCollapsed(false)}
+                title="Expand explorer"
+                className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
       <OwnerOnlyModal
         open={!!ownerOnlyAction}

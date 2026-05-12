@@ -23,15 +23,17 @@ export function EditApplicationModal({ open, application, onClose, onUpdated }: 
   const form = useForm({
     defaultValues: {
       name: application?.name ?? "",
-      cm_number: application?.cm_number ?? "",
+      job_description_url: application?.job_description_url ?? "",
+      status: (application?.status ?? "in_progress") as "in_progress" | "closed",
     },
     onSubmit: async ({ value }) => {
       if (!application) return;
       const trimmed = value.name.trim();
-      const cm = value.cm_number.trim();
+      const url = value.job_description_url.trim();
       const updated = await updateApplication(application.id, {
         name: trimmed,
-        cm_number: cm || undefined,
+        job_description_url: url || "",
+        status: value.status,
       });
       onUpdated(updated);
       onClose();
@@ -42,7 +44,8 @@ export function EditApplicationModal({ open, application, onClose, onUpdated }: 
     if (open && application) {
       form.reset({
         name: application.name ?? "",
-        cm_number: application.cm_number ?? "",
+        job_description_url: application.job_description_url ?? "",
+        status: application.status ?? "in_progress",
       });
     }
   }, [open, application, form]);
@@ -97,25 +100,49 @@ export function EditApplicationModal({ open, application, onClose, onUpdated }: 
               )}
             </form.Field>
 
-            <form.Field name="cm_number">
+            <form.Field name="job_description_url">
               {(field) => (
                 <div className="mt-3">
                   <label
                     htmlFor={field.name}
                     className="mb-1 block text-xs font-medium text-gray-700"
                   >
-                    CM number
+                    Job description URL
                   </label>
                   <input
                     id={field.name}
                     name={field.name}
-                    type="text"
+                    type="url"
                     value={field.state.value}
                     onChange={(e) => field.handleChange(e.target.value)}
                     onBlur={field.handleBlur}
-                    placeholder="Optional"
+                    placeholder="https://…"
                     className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none placeholder:text-gray-300 focus:border-gray-400"
                   />
+                </div>
+              )}
+            </form.Field>
+
+            <form.Field name="status">
+              {(field) => (
+                <div className="mt-3">
+                  <label
+                    htmlFor={field.name}
+                    className="mb-1 block text-xs font-medium text-gray-700"
+                  >
+                    Status
+                  </label>
+                  <select
+                    id={field.name}
+                    name={field.name}
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value as "in_progress" | "closed")}
+                    onBlur={field.handleBlur}
+                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-400"
+                  >
+                    <option value="in_progress">In progress</option>
+                    <option value="closed">Closed</option>
+                  </select>
                 </div>
               )}
             </form.Field>

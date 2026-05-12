@@ -9,7 +9,6 @@ var Application = Type("Application", func() {
 	Attribute("company_id", String)
 	Attribute("company_name", String)
 	Attribute("name", String)
-	Attribute("cm_number", String)
 	Attribute("shared_with", ArrayOf(String))
 	Attribute("created_at", String)
 	Attribute("updated_at", String)

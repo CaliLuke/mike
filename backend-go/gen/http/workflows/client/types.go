@@ -601,8 +601,8 @@ func ValidateColumnConfigResponse(body *ColumnConfigResponse) (err error) {
 		err = loom.MergeErrors(err, loom.MissingFieldError("prompt", "body"))
 	}
 	if body.Format != nil {
-		if !(*body.Format == "text" || *body.Format == "bulleted_list" || *body.Format == "number" || *body.Format == "currency" || *body.Format == "yes_no" || *body.Format == "date" || *body.Format == "tag" || *body.Format == "percentage" || *body.Format == "monetary_amount") {
-			err = loom.MergeErrors(err, loom.InvalidEnumValueError("body.format", *body.Format, []any{"text", "bulleted_list", "number", "currency", "yes_no", "date", "tag", "percentage", "monetary_amount"}))
+		if !(*body.Format == "text" || *body.Format == "bulleted_list" || *body.Format == "number" || *body.Format == "currency" || *body.Format == "yes_no" || *body.Format == "date" || *body.Format == "tag" || *body.Format == "percentage" || *body.Format == "monetary_amount" || *body.Format == "company") {
+			err = loom.MergeErrors(err, loom.InvalidEnumValueError("body.format", *body.Format, []any{"text", "bulleted_list", "number", "currency", "yes_no", "date", "tag", "percentage", "monetary_amount", "company"}))
 		}
 	}
 	return
@@ -612,8 +612,8 @@ func ValidateColumnConfigResponse(body *ColumnConfigResponse) (err error) {
 // ColumnConfigRequestBody
 func ValidateColumnConfigRequestBody(body *ColumnConfigRequestBody) (err error) {
 	if body.Format != nil {
-		if !(*body.Format == "text" || *body.Format == "bulleted_list" || *body.Format == "number" || *body.Format == "currency" || *body.Format == "yes_no" || *body.Format == "date" || *body.Format == "tag" || *body.Format == "percentage" || *body.Format == "monetary_amount") {
-			err = loom.MergeErrors(err, loom.InvalidEnumValueError("body.format", *body.Format, []any{"text", "bulleted_list", "number", "currency", "yes_no", "date", "tag", "percentage", "monetary_amount"}))
+		if !(*body.Format == "text" || *body.Format == "bulleted_list" || *body.Format == "number" || *body.Format == "currency" || *body.Format == "yes_no" || *body.Format == "date" || *body.Format == "tag" || *body.Format == "percentage" || *body.Format == "monetary_amount" || *body.Format == "company") {
+			err = loom.MergeErrors(err, loom.InvalidEnumValueError("body.format", *body.Format, []any{"text", "bulleted_list", "number", "currency", "yes_no", "date", "tag", "percentage", "monetary_amount", "company"}))
 		}
 	}
 	return
@@ -632,8 +632,8 @@ func ValidateColumnConfigResponseBody(body *ColumnConfigResponseBody) (err error
 		err = loom.MergeErrors(err, loom.MissingFieldError("prompt", "body"))
 	}
 	if body.Format != nil {
-		if !(*body.Format == "text" || *body.Format == "bulleted_list" || *body.Format == "number" || *body.Format == "currency" || *body.Format == "yes_no" || *body.Format == "date" || *body.Format == "tag" || *body.Format == "percentage" || *body.Format == "monetary_amount") {
-			err = loom.MergeErrors(err, loom.InvalidEnumValueError("body.format", *body.Format, []any{"text", "bulleted_list", "number", "currency", "yes_no", "date", "tag", "percentage", "monetary_amount"}))
+		if !(*body.Format == "text" || *body.Format == "bulleted_list" || *body.Format == "number" || *body.Format == "currency" || *body.Format == "yes_no" || *body.Format == "date" || *body.Format == "tag" || *body.Format == "percentage" || *body.Format == "monetary_amount" || *body.Format == "company") {
+			err = loom.MergeErrors(err, loom.InvalidEnumValueError("body.format", *body.Format, []any{"text", "bulleted_list", "number", "currency", "yes_no", "date", "tag", "percentage", "monetary_amount", "company"}))
 		}
 	}
 	return

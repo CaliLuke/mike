@@ -23,7 +23,7 @@ func BuildListPayload(tabularListBody string) (*tabular.ListPayload, error) {
 	{
 		err = json.Unmarshal([]byte(tabularListBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"application_id\": \"Voluptatem repellat et.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"application_id\": \"Non minima.\"\n   }'")
 		}
 	}
 	v := &tabular.ListPayload{
@@ -39,7 +39,7 @@ func BuildCreatePayload(tabularCreateBody string) (*tabular.CreatePayload, error
 	{
 		err = json.Unmarshal([]byte(tabularCreateBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"application_id\": \"Similique in.\",\n      \"columns_config\": [\n         {\n            \"format\": \"percentage\",\n            \"index\": 2904445995872418577,\n            \"name\": \"Rerum qui vel impedit.\",\n            \"prompt\": \"Accusamus deserunt consequuntur consequuntur qui quas in.\",\n            \"tags\": [\n               \"Minima dolore.\",\n               \"Neque quas iusto est quam eveniet ullam.\"\n            ]\n         },\n         {\n            \"format\": \"percentage\",\n            \"index\": 2904445995872418577,\n            \"name\": \"Rerum qui vel impedit.\",\n            \"prompt\": \"Accusamus deserunt consequuntur consequuntur qui quas in.\",\n            \"tags\": [\n               \"Minima dolore.\",\n               \"Neque quas iusto est quam eveniet ullam.\"\n            ]\n         },\n         {\n            \"format\": \"percentage\",\n            \"index\": 2904445995872418577,\n            \"name\": \"Rerum qui vel impedit.\",\n            \"prompt\": \"Accusamus deserunt consequuntur consequuntur qui quas in.\",\n            \"tags\": [\n               \"Minima dolore.\",\n               \"Neque quas iusto est quam eveniet ullam.\"\n            ]\n         }\n      ],\n      \"document_ids\": [\n         \"Tempore perferendis in repellendus id eos voluptas.\",\n         \"Autem est numquam in.\",\n         \"In laboriosam.\",\n         \"Nam officia dolorum assumenda.\"\n      ],\n      \"title\": \"Quia nobis ullam.\",\n      \"workflow_id\": \"Ea ut et quo.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"application_id\": \"Et est consequatur beatae assumenda placeat.\",\n      \"columns_config\": [\n         {\n            \"format\": \"company\",\n            \"index\": 6524741495142838326,\n            \"name\": \"Similique quae asperiores.\",\n            \"prompt\": \"Libero doloremque quis laborum.\",\n            \"tags\": [\n               \"Eligendi sapiente vero nostrum ipsum alias occaecati.\",\n               \"Non modi sint.\"\n            ]\n         },\n         {\n            \"format\": \"company\",\n            \"index\": 6524741495142838326,\n            \"name\": \"Similique quae asperiores.\",\n            \"prompt\": \"Libero doloremque quis laborum.\",\n            \"tags\": [\n               \"Eligendi sapiente vero nostrum ipsum alias occaecati.\",\n               \"Non modi sint.\"\n            ]\n         }\n      ],\n      \"document_ids\": [\n         \"Mollitia soluta consequuntur aliquam porro.\",\n         \"Porro possimus eius temporibus et molestiae molestiae.\",\n         \"Natus aut eius.\"\n      ],\n      \"title\": \"Modi non repellendus rerum id ea.\",\n      \"workflow_id\": \"Ut placeat qui.\"\n   }'")
 		}
 		if body.DocumentIds == nil {
 			err = loom.MergeErrors(err, loom.MissingFieldError("document_ids", "body"))
@@ -93,7 +93,7 @@ func BuildPromptPayload(tabularPromptBody string) (*tabular.PromptPayload, error
 	{
 		err = json.Unmarshal([]byte(tabularPromptBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"documentName\": \"Ut voluptatum.\",\n      \"format\": \"Non dolores voluptate fuga corporis magnam rerum.\",\n      \"tags\": [\n         \"Voluptatem et.\",\n         \"Occaecati velit.\"\n      ],\n      \"title\": \"Nemo laboriosam.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"documentName\": \"Animi aut et odio architecto id.\",\n      \"format\": \"Sint rerum eaque.\",\n      \"tags\": [\n         \"Autem corporis.\",\n         \"Velit culpa quae ad consectetur temporibus.\",\n         \"Ut porro eum culpa ut nostrum.\",\n         \"Id sunt quia rerum odio.\"\n      ],\n      \"title\": \"Qui occaecati et numquam sit quas dignissimos.\"\n   }'")
 		}
 	}
 	v := &tabular.PromptPayload{
@@ -128,7 +128,7 @@ func BuildUpdatePayload(tabularUpdateBody string, tabularUpdateReviewID string) 
 	{
 		err = json.Unmarshal([]byte(tabularUpdateBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"application_id\": \"Vel quo.\",\n      \"columns_config\": [\n         {\n            \"format\": \"percentage\",\n            \"index\": 2904445995872418577,\n            \"name\": \"Rerum qui vel impedit.\",\n            \"prompt\": \"Accusamus deserunt consequuntur consequuntur qui quas in.\",\n            \"tags\": [\n               \"Minima dolore.\",\n               \"Neque quas iusto est quam eveniet ullam.\"\n            ]\n         },\n         {\n            \"format\": \"percentage\",\n            \"index\": 2904445995872418577,\n            \"name\": \"Rerum qui vel impedit.\",\n            \"prompt\": \"Accusamus deserunt consequuntur consequuntur qui quas in.\",\n            \"tags\": [\n               \"Minima dolore.\",\n               \"Neque quas iusto est quam eveniet ullam.\"\n            ]\n         },\n         {\n            \"format\": \"percentage\",\n            \"index\": 2904445995872418577,\n            \"name\": \"Rerum qui vel impedit.\",\n            \"prompt\": \"Accusamus deserunt consequuntur consequuntur qui quas in.\",\n            \"tags\": [\n               \"Minima dolore.\",\n               \"Neque quas iusto est quam eveniet ullam.\"\n            ]\n         }\n      ],\n      \"document_ids\": [\n         \"Tenetur consequuntur praesentium ut labore.\",\n         \"Id et aliquid qui maxime.\",\n         \"Id facilis ducimus.\"\n      ],\n      \"title\": \"Voluptas velit neque magni officia placeat quo.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"application_id\": \"Autem voluptatibus occaecati id nostrum accusamus ab.\",\n      \"columns_config\": [\n         {\n            \"format\": \"company\",\n            \"index\": 6524741495142838326,\n            \"name\": \"Similique quae asperiores.\",\n            \"prompt\": \"Libero doloremque quis laborum.\",\n            \"tags\": [\n               \"Eligendi sapiente vero nostrum ipsum alias occaecati.\",\n               \"Non modi sint.\"\n            ]\n         },\n         {\n            \"format\": \"company\",\n            \"index\": 6524741495142838326,\n            \"name\": \"Similique quae asperiores.\",\n            \"prompt\": \"Libero doloremque quis laborum.\",\n            \"tags\": [\n               \"Eligendi sapiente vero nostrum ipsum alias occaecati.\",\n               \"Non modi sint.\"\n            ]\n         },\n         {\n            \"format\": \"company\",\n            \"index\": 6524741495142838326,\n            \"name\": \"Similique quae asperiores.\",\n            \"prompt\": \"Libero doloremque quis laborum.\",\n            \"tags\": [\n               \"Eligendi sapiente vero nostrum ipsum alias occaecati.\",\n               \"Non modi sint.\"\n            ]\n         },\n         {\n            \"format\": \"company\",\n            \"index\": 6524741495142838326,\n            \"name\": \"Similique quae asperiores.\",\n            \"prompt\": \"Libero doloremque quis laborum.\",\n            \"tags\": [\n               \"Eligendi sapiente vero nostrum ipsum alias occaecati.\",\n               \"Non modi sint.\"\n            ]\n         }\n      ],\n      \"document_ids\": [\n         \"Iste ut ut.\",\n         \"Quia aliquam porro a.\",\n         \"Aliquam non rerum quia quasi.\"\n      ],\n      \"title\": \"Quas ipsa numquam minus voluptas.\"\n   }'")
 		}
 		for _, e := range body.ColumnsConfig {
 			if e != nil {
@@ -187,7 +187,7 @@ func BuildClearCellsPayload(tabularClearCellsBody string, tabularClearCellsRevie
 	{
 		err = json.Unmarshal([]byte(tabularClearCellsBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"document_ids\": [\n         \"Omnis omnis beatae autem aut non.\",\n         \"Impedit non ipsam deleniti porro.\",\n         \"Accusamus quia molestiae.\"\n      ]\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"document_ids\": [\n         \"Molestias nihil tenetur blanditiis adipisci sed.\",\n         \"Expedita veniam eos.\"\n      ]\n   }'")
 		}
 		if body.DocumentIds == nil {
 			err = loom.MergeErrors(err, loom.MissingFieldError("document_ids", "body"))
@@ -220,7 +220,7 @@ func BuildRegenerateCellPayload(tabularRegenerateCellBody string, tabularRegener
 	{
 		err = json.Unmarshal([]byte(tabularRegenerateCellBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"column_index\": 1028530552807332805,\n      \"document_id\": \"Commodi sit omnis fugit delectus.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"column_index\": 4626719394990421367,\n      \"document_id\": \"Consequatur rem ipsum deleniti consectetur est.\"\n   }'")
 		}
 	}
 	var reviewID string

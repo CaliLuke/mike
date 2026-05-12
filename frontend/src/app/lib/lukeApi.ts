@@ -97,15 +97,22 @@ export async function listApplications(): Promise<LukeApplication[]> {
   return apiRequest<LukeApplication[]>("/applications");
 }
 
+export interface CreateApplicationPayload {
+  name?: string;
+  company_id?: string;
+  company_name?: string;
+  position?: string;
+  job_description_url?: string;
+  status?: "in_progress" | "closed";
+}
+
 export async function createApplication(
-  name: string,
-  companyId: string,
-  cm_number?: string,
+  payload: CreateApplicationPayload,
 ): Promise<LukeApplication> {
   return apiRequest<LukeApplication>("/applications", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, company_id: companyId, cm_number }),
+    body: JSON.stringify(payload),
   });
 }
 
@@ -134,7 +141,8 @@ export async function updateApplication(
   payload: {
     name?: string;
     company_id?: string;
-    cm_number?: string;
+    job_description_url?: string;
+    status?: "in_progress" | "closed";
     shared_with?: string[];
   },
 ): Promise<LukeApplication> {
@@ -345,7 +353,10 @@ export async function downloadDocumentsZip(documentIds: string[]): Promise<Blob>
 // Chat
 // ---------------------------------------------------------------------------
 
-export async function createChat(payload?: { application_id?: string }): Promise<{ id: string }> {
+export async function createChat(payload?: {
+  application_id?: string;
+  initial_assistant_message?: string;
+}): Promise<{ id: string }> {
   return apiRequest<{ id: string }>("/chat/create", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

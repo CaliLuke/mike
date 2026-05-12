@@ -7,6 +7,7 @@ import { useState } from "react";
 
 import { DataTable } from "@/app/components/shared/DataTable";
 import { HeaderSearchBtn } from "@/app/components/shared/HeaderSearchBtn";
+import { RowMenu } from "@/app/components/shared/RowMenu";
 import type { LukeCompany } from "@/app/components/shared/types";
 import { createCompany, deleteCompany, listCompanies } from "@/app/lib/lukeApi";
 
@@ -143,7 +144,7 @@ function CompaniesTable({
   const columns = [
     columnHelper.accessor("name", {
       header: "Name",
-      cell: (info) => <span className="truncate text-gray-800">{info.getValue()}</span>,
+      cell: (info) => <span className="truncate">{info.getValue()}</span>,
     }),
     columnHelper.accessor("website", {
       header: "Website",
@@ -171,28 +172,26 @@ function CompaniesTable({
     columnHelper.display({
       id: "actions",
       header: "",
-      size: 88,
+      size: 56,
       enableSorting: false,
       cell: (info) => (
-        <div className="flex justify-end gap-1">
-          <button
-            onClick={() => onEdit(info.row.original)}
-            className="inline-flex shrink-0 items-center justify-center p-1.5 text-gray-400 transition-colors hover:text-gray-900"
-            title="Edit"
-            aria-label={`Edit ${info.row.original.name}`}
-            data-row-action
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => void onDelete(info.row.original.id)}
-            className="inline-flex shrink-0 items-center justify-center p-1.5 text-gray-400 transition-colors hover:text-red-600"
-            title="Delete"
-            aria-label={`Delete ${info.row.original.name}`}
-            data-row-action
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+        <div className="flex justify-end" data-row-action onClick={(e) => e.stopPropagation()}>
+          <RowMenu
+            ariaLabel={`Actions for ${info.row.original.name}`}
+            items={[
+              {
+                label: "Edit",
+                icon: Pencil,
+                onClick: () => onEdit(info.row.original),
+              },
+              {
+                label: "Delete",
+                icon: Trash2,
+                destructive: true,
+                onClick: () => void onDelete(info.row.original.id),
+              },
+            ]}
+          />
         </div>
       ),
     }),

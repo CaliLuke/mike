@@ -45,8 +45,6 @@ type AssistantCreateApplicationArgs struct {
 	// Local company identifier returned by create_company or a prior
 	// company_created event
 	CompanyID *string `json:"company_id,omitempty"`
-	// Optional Competition Bureau matter number
-	CmNumber *string `json:"cm_number,omitempty"`
 	// Optional full job description text to save as an application document
 	JobDescriptionText *string `json:"job_description_text,omitempty"`
 	// Optional source URL for the job description
@@ -72,8 +70,6 @@ type AssistantCreatedApplication struct {
 	CompanyID *string `json:"company_id,omitempty"`
 	// Application name
 	Name *string `json:"name,omitempty"`
-	// Competition Bureau matter number
-	CmNumber *string `json:"cm_number,omitempty"`
 	// Created job description document identifier, when job text was provided
 	JobDescriptionDocumentID *string `json:"job_description_document_id,omitempty"`
 	// Error message when creation failed
@@ -349,6 +345,46 @@ type AssistantReplicatedDocuments struct {
 	Error *string `json:"error,omitempty"`
 }
 
+type AssistantSetApplicationCompanyArgs struct {
+	// Local application identifier to move
+	ApplicationID *string `json:"application_id,omitempty"`
+	// Existing local company identifier to attach. Mutually exclusive with
+	// company_name.
+	CompanyID *string `json:"company_id,omitempty"`
+	// Free-text company name. When set, the tool resolves an existing matching
+	// company or creates a new one — preferred when the assistant has just
+	// identified the company from materials.
+	CompanyName *string `json:"company_name,omitempty"`
+	// When using company_name and a similar company already exists, set true to
+	// bypass the dedupe warning and create a fresh row.
+	ConfirmNew *bool `json:"confirm_new,omitempty"`
+}
+
+type AssistantSetApplicationCompanyResult struct {
+	// Whether the application's company was updated
+	OK *bool `json:"ok,omitempty"`
+	// Local application identifier
+	ApplicationID *string `json:"application_id,omitempty"`
+	// Now-attached local company identifier
+	CompanyID *string `json:"company_id,omitempty"`
+	// Now-attached company name
+	CompanyName *string `json:"company_name,omitempty"`
+	// Previously attached company identifier
+	PreviousCompanyID *string `json:"previous_company_id,omitempty"`
+	// Previously attached company name
+	PreviousCompanyName *string `json:"previous_company_name,omitempty"`
+	// Whether a similar existing company blocked creation until confirm_new is true
+	RequiresConfirmation *bool `json:"requires_confirmation,omitempty"`
+	// Similar existing company identifier, when one was found
+	SimilarCompanyID *string `json:"similar_company_id,omitempty"`
+	// Similar existing company name, when one was found
+	SimilarCompanyName *string `json:"similar_company_name,omitempty"`
+	// Similarity score for the nearest existing company, from 0 to 1
+	Similarity *float64 `json:"similarity,omitempty"`
+	// Error message when the update failed
+	Error *string `json:"error,omitempty"`
+}
+
 type AssistantTableCellsText struct {
 	// Human-readable row/column count
 	Label *string `json:"label,omitempty"`
@@ -415,21 +451,35 @@ type DeletePayload struct {
 
 // Document is the result type of the folders service move_document method.
 type Document struct {
-	ID                  string           `json:"id"`
-	UserID              *string          `json:"user_id,omitempty"`
-	ApplicationID       *string          `json:"application_id,omitempty"`
-	FolderID            *string          `json:"folder_id,omitempty"`
-	Filename            string           `json:"filename"`
-	FileType            *string          `json:"file_type,omitempty"`
-	StoragePath         *string          `json:"storage_path,omitempty"`
-	PdfStoragePath      *string          `json:"pdf_storage_path,omitempty"`
-	SizeBytes           *int64           `json:"size_bytes,omitempty"`
-	PageCount           *int             `json:"page_count,omitempty"`
-	StructureTree       []*StructureNode `json:"structure_tree,omitempty"`
-	Status              string           `json:"status"`
-	CreatedAt           *string          `json:"created_at,omitempty"`
-	UpdatedAt           *string          `json:"updated_at,omitempty"`
-	LatestVersionNumber *int             `json:"latest_version_number,omitempty"`
+	ID                   string           `json:"id"`
+	UserID               *string          `json:"user_id,omitempty"`
+	ApplicationID        *string          `json:"application_id,omitempty"`
+	FolderID             *string          `json:"folder_id,omitempty"`
+	Filename             string           `json:"filename"`
+	FileType             *string          `json:"file_type,omitempty"`
+	StoragePath          *string          `json:"storage_path,omitempty"`
+	PdfStoragePath       *string          `json:"pdf_storage_path,omitempty"`
+	SizeBytes            *int64           `json:"size_bytes,omitempty"`
+	PageCount            *int             `json:"page_count,omitempty"`
+	StructureTree        []*StructureNode `json:"structure_tree,omitempty"`
+	Status               string           `json:"status"`
+	CreatedAt            *string          `json:"created_at,omitempty"`
+	UpdatedAt            *string          `json:"updated_at,omitempty"`
+	LatestVersionNumber  *int             `json:"latest_version_number,omitempty"`
+	Library              *bool            `json:"library,omitempty"`
+	LibraryKind          *string          `json:"library_kind,omitempty"`
+	Kind                 *string          `json:"kind,omitempty"`
+	InterviewStage       *string          `json:"interview_stage,omitempty"`
+	Topics               []string         `json:"topics,omitempty"`
+	CompanyRefs          []string         `json:"company_refs,omitempty"`
+	PeopleRefs           []*PersonRef     `json:"people_refs,omitempty"`
+	Summary              *string          `json:"summary,omitempty"`
+	DatedEventAt         *string          `json:"dated_event_at,omitempty"`
+	DerivedFromID        *string          `json:"derived_from_id,omitempty"`
+	MetadataStatus       *string          `json:"metadata_status,omitempty"`
+	MetadataProcessedAt  *string          `json:"metadata_processed_at,omitempty"`
+	MetadataError        *string          `json:"metadata_error,omitempty"`
+	LinkedApplicationIds []string         `json:"linked_application_ids,omitempty"`
 }
 
 // Folder is the result type of the folders service create method.
@@ -449,6 +499,11 @@ type MoveDocumentPayload struct {
 	ApplicationID string  `json:"applicationId"`
 	DocumentID    string  `json:"documentId"`
 	FolderID      *string `json:"folder_id,omitempty"`
+}
+
+type PersonRef struct {
+	Name string  `json:"name"`
+	Role *string `json:"role,omitempty"`
 }
 
 type StructureNode struct {

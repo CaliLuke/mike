@@ -342,3 +342,17 @@ func unmarshalStructureNodeResponseBodyToFoldersStructureNode(v *StructureNodeRe
 
 	return res
 }
+
+// unmarshalPersonRefResponseBodyToFoldersPersonRef builds a value of type
+// *folders.PersonRef from a value of type *PersonRefResponseBody.
+func unmarshalPersonRefResponseBodyToFoldersPersonRef(v *PersonRefResponseBody) *folders.PersonRef {
+	if v == nil {
+		return nil
+	}
+	res := &folders.PersonRef{
+		Name: *v.Name,
+		Role: v.Role,
+	}
+
+	return res
+}

@@ -146,6 +146,16 @@ var (
 		ToJSON:   MarshalReplicateDocumentResult,
 		FromJSON: UnmarshalReplicateDocumentResult,
 	}
+	// SetApplicationCompanyPayloadCodec serializes values of type *SetApplicationCompanyPayload to canonical JSON.
+	SetApplicationCompanyPayloadCodec = tools.JSONCodec[*SetApplicationCompanyPayload]{
+		ToJSON:   MarshalSetApplicationCompanyPayload,
+		FromJSON: UnmarshalSetApplicationCompanyPayload,
+	}
+	// SetApplicationCompanyResultCodec serializes values of type *SetApplicationCompanyResult to canonical JSON.
+	SetApplicationCompanyResultCodec = tools.JSONCodec[*SetApplicationCompanyResult]{
+		ToJSON:   MarshalSetApplicationCompanyResult,
+		FromJSON: UnmarshalSetApplicationCompanyResult,
+	}
 	// createApplicationPayloadCodec provides an untyped codec for *CreateApplicationPayload.
 	createApplicationPayloadCodec = tools.JSONCodec[any]{
 		ToJSON: func(v any) ([]byte, error) {
@@ -484,9 +494,34 @@ var (
 			return UnmarshalReplicateDocumentResult(data)
 		},
 	}
+	// setApplicationCompanyPayloadCodec provides an untyped codec for *SetApplicationCompanyPayload.
+	setApplicationCompanyPayloadCodec = tools.JSONCodec[any]{
+		ToJSON: func(v any) ([]byte, error) {
+			// Prefer typed marshal when the value matches the expected type.
+			if typed, ok := v.(*SetApplicationCompanyPayload); ok {
+				return MarshalSetApplicationCompanyPayload(typed)
+			}
+			return nil, fmt.Errorf("invalid value type for *SetApplicationCompanyPayload: %T", v)
+		},
+		FromJSON: func(data []byte) (any, error) {
+			return UnmarshalSetApplicationCompanyPayload(data)
+		},
+	}
+	// setApplicationCompanyResultCodec provides an untyped codec for *SetApplicationCompanyResult.
+	setApplicationCompanyResultCodec = tools.JSONCodec[any]{
+		ToJSON: func(v any) ([]byte, error) {
+			// Prefer typed marshal when the value matches the expected type.
+			if typed, ok := v.(*SetApplicationCompanyResult); ok {
+				return MarshalSetApplicationCompanyResult(typed)
+			}
+			return nil, fmt.Errorf("invalid value type for *SetApplicationCompanyResult: %T", v)
+		},
+		FromJSON: func(data []byte) (any, error) {
+			return UnmarshalSetApplicationCompanyResult(data)
+		},
+	}
 )
 var CreateApplicationPayloadFieldDescs = map[string]string{
-	"cm_number":            "Optional Competition Bureau matter number",
 	"company_id":           "Local company identifier returned by create_company or a prior company_created event",
 	"job_description_text": "Optional full job description text to save as an application document",
 	"job_description_url":  "Optional source URL for the job description",
@@ -494,7 +529,6 @@ var CreateApplicationPayloadFieldDescs = map[string]string{
 }
 var CreateApplicationResultFieldDescs = map[string]string{
 	"application_id":              "Local application identifier",
-	"cm_number":                   "Competition Bureau matter number",
 	"company_id":                  "Attached local company identifier",
 	"error":                       "Error message when creation failed",
 	"job_description_document_id": "Created job description document identifier, when job text was provided",
@@ -666,6 +700,25 @@ var ReplicateDocumentResultFieldDescs = map[string]string{
 	"filename":            "Source filename",
 	"ok":                  "Whether replication succeeded",
 }
+var SetApplicationCompanyPayloadFieldDescs = map[string]string{
+	"application_id": "Local application identifier to move",
+	"company_id":     "Existing local company identifier to attach. Mutually exclusive with company_name.",
+	"company_name":   "Free-text company name. When set, the tool resolves an existing matching company or creates a new one — preferred when the assistant has just identified the company from materials.",
+	"confirm_new":    "When using company_name and a similar company already exists, set true to bypass the dedupe warning and create a fresh row.",
+}
+var SetApplicationCompanyResultFieldDescs = map[string]string{
+	"application_id":        "Local application identifier",
+	"company_id":            "Now-attached local company identifier",
+	"company_name":          "Now-attached company name",
+	"error":                 "Error message when the update failed",
+	"ok":                    "Whether the application's company was updated",
+	"previous_company_id":   "Previously attached company identifier",
+	"previous_company_name": "Previously attached company name",
+	"requires_confirmation": "Whether a similar existing company blocked creation until confirm_new is true",
+	"similar_company_id":    "Similar existing company identifier, when one was found",
+	"similar_company_name":  "Similar existing company name, when one was found",
+	"similarity":            "Similarity score for the nearest existing company, from 0 to 1",
+}
 
 // ValidationError wraps a validation failure and exposes issues that callers
 // can use to build retry hints. It implements error and an Issues() accessor.
@@ -726,6 +779,8 @@ func PayloadCodec(name string) (*tools.JSONCodec[any], bool) {
 		return &readWorkflowPayloadCodec, true
 	case "career_context.replicate_document":
 		return &replicateDocumentPayloadCodec, true
+	case "career_context.set_application_company":
+		return &setApplicationCompanyPayloadCodec, true
 	default:
 		return nil, false
 	}
@@ -760,6 +815,8 @@ func ResultCodec(name string) (*tools.JSONCodec[any], bool) {
 		return &readWorkflowResultCodec, true
 	case "career_context.replicate_document":
 		return &replicateDocumentResultCodec, true
+	case "career_context.set_application_company":
+		return &setApplicationCompanyResultCodec, true
 	default:
 		return nil, false
 	}
@@ -776,7 +833,6 @@ func MarshalCreateApplicationPayload(v *CreateApplicationPayload) ([]byte, error
 	out = &toolhttp.CreateApplicationPayloadTransport{
 		Name:               in.Name,
 		CompanyID:          in.CompanyID,
-		CmNumber:           in.CmNumber,
 		JobDescriptionText: in.JobDescriptionText,
 		JobDescriptionURL:  in.JobDescriptionURL,
 	}
@@ -798,7 +854,6 @@ func UnmarshalCreateApplicationPayload(data []byte) (*CreateApplicationPayload, 
 	out = &CreateApplicationPayload{
 		Name:               in.Name,
 		CompanyID:          in.CompanyID,
-		CmNumber:           in.CmNumber,
 		JobDescriptionText: in.JobDescriptionText,
 		JobDescriptionURL:  in.JobDescriptionURL,
 	}
@@ -818,7 +873,6 @@ func MarshalCreateApplicationResult(v *CreateApplicationResult) ([]byte, error) 
 		ApplicationID:            in.ApplicationID,
 		CompanyID:                in.CompanyID,
 		Name:                     in.Name,
-		CmNumber:                 in.CmNumber,
 		JobDescriptionDocumentID: in.JobDescriptionDocumentID,
 		Error:                    in.Error,
 	}
@@ -842,7 +896,6 @@ func UnmarshalCreateApplicationResult(data []byte) (*CreateApplicationResult, er
 		ApplicationID:            in.ApplicationID,
 		CompanyID:                in.CompanyID,
 		Name:                     in.Name,
-		CmNumber:                 in.CmNumber,
 		JobDescriptionDocumentID: in.JobDescriptionDocumentID,
 		Error:                    in.Error,
 	}
@@ -1891,6 +1944,96 @@ func UnmarshalReplicateDocumentResult(data []byte) (*ReplicateDocumentResult, er
 			}
 			out.Copies[i] = decodeToolhttpAssistantDocumentCopyTransportToAssistantDocumentCopy(val)
 		}
+	}
+	return out, nil
+}
+
+// MarshalSetApplicationCompanyPayload serializes *SetApplicationCompanyPayload into JSON.
+func MarshalSetApplicationCompanyPayload(v *SetApplicationCompanyPayload) ([]byte, error) {
+	if v == nil {
+		return nil, fmt.Errorf("setApplicationCompanyPayload is nil")
+	}
+	in := v
+	_ = in
+	var out *toolhttp.SetApplicationCompanyPayloadTransport
+	out = &toolhttp.SetApplicationCompanyPayloadTransport{
+		ApplicationID: in.ApplicationID,
+		CompanyID:     in.CompanyID,
+		CompanyName:   in.CompanyName,
+		ConfirmNew:    in.ConfirmNew,
+	}
+	return json.Marshal(out)
+}
+
+// UnmarshalSetApplicationCompanyPayload deserializes JSON into *SetApplicationCompanyPayload.
+func UnmarshalSetApplicationCompanyPayload(data []byte) (*SetApplicationCompanyPayload, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("setApplicationCompanyPayload JSON is empty")
+	}
+	var tv toolhttp.SetApplicationCompanyPayloadTransport
+	if err := json.Unmarshal(data, &tv); err != nil {
+		return nil, fmt.Errorf("decode setApplicationCompanyPayload: %w", err)
+	}
+	in := &tv
+	_ = in
+	var out *SetApplicationCompanyPayload
+	out = &SetApplicationCompanyPayload{
+		ApplicationID: in.ApplicationID,
+		CompanyID:     in.CompanyID,
+		CompanyName:   in.CompanyName,
+		ConfirmNew:    in.ConfirmNew,
+	}
+	return out, nil
+}
+
+// MarshalSetApplicationCompanyResult serializes *SetApplicationCompanyResult into JSON.
+func MarshalSetApplicationCompanyResult(v *SetApplicationCompanyResult) ([]byte, error) {
+	if v == nil {
+		return nil, fmt.Errorf("setApplicationCompanyResult is nil")
+	}
+	in := v
+	_ = in
+	var out *toolhttp.SetApplicationCompanyResultTransport
+	out = &toolhttp.SetApplicationCompanyResultTransport{
+		OK:                   in.OK,
+		ApplicationID:        in.ApplicationID,
+		CompanyID:            in.CompanyID,
+		CompanyName:          in.CompanyName,
+		PreviousCompanyID:    in.PreviousCompanyID,
+		PreviousCompanyName:  in.PreviousCompanyName,
+		RequiresConfirmation: in.RequiresConfirmation,
+		SimilarCompanyID:     in.SimilarCompanyID,
+		SimilarCompanyName:   in.SimilarCompanyName,
+		Similarity:           in.Similarity,
+		Error:                in.Error,
+	}
+	return json.Marshal(out)
+}
+
+// UnmarshalSetApplicationCompanyResult deserializes JSON into *SetApplicationCompanyResult.
+func UnmarshalSetApplicationCompanyResult(data []byte) (*SetApplicationCompanyResult, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("setApplicationCompanyResult JSON is empty")
+	}
+	var tv toolhttp.SetApplicationCompanyResultTransport
+	if err := json.Unmarshal(data, &tv); err != nil {
+		return nil, fmt.Errorf("decode setApplicationCompanyResult: %w", err)
+	}
+	in := &tv
+	_ = in
+	var out *SetApplicationCompanyResult
+	out = &SetApplicationCompanyResult{
+		OK:                   in.OK,
+		ApplicationID:        in.ApplicationID,
+		CompanyID:            in.CompanyID,
+		CompanyName:          in.CompanyName,
+		PreviousCompanyID:    in.PreviousCompanyID,
+		PreviousCompanyName:  in.PreviousCompanyName,
+		RequiresConfirmation: in.RequiresConfirmation,
+		SimilarCompanyID:     in.SimilarCompanyID,
+		SimilarCompanyName:   in.SimilarCompanyName,
+		Similarity:           in.Similarity,
+		Error:                in.Error,
 	}
 	return out, nil
 }

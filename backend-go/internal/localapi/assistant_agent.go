@@ -899,6 +899,8 @@ func (s *Server) newCareerContextExecutor(applicationID *string, tabularReviewID
 			return s.executeCreateCompany(ctx, call, send)
 		case careercontext.CreateApplication:
 			return s.executeCreateApplication(ctx, call, send)
+		case careercontext.SetApplicationCompany:
+			return s.executeSetApplicationCompany(ctx, call, send)
 		case careercontext.ReadWorkflow:
 			return s.executeReadWorkflow(ctx, call, send)
 		case careercontext.GenerateDocx:
@@ -1195,14 +1197,18 @@ func (s *Server) executeCreateApplication(ctx context.Context, call *planner.Too
 		attribute.String("company.id", companyID),
 		attribute.Bool("application.has_job_description", payload.JobDescriptionText != nil && strings.TrimSpace(*payload.JobDescriptionText) != ""),
 	)
-	var cmNumber *string
-	if payload.CmNumber != nil {
-		trimmed := strings.TrimSpace(*payload.CmNumber)
+	var jobDescriptionURL *string
+	if payload.JobDescriptionURL != nil {
+		trimmed := strings.TrimSpace(*payload.JobDescriptionURL)
 		if trimmed != "" {
-			cmNumber = &trimmed
+			jobDescriptionURL = &trimmed
 		}
 	}
-	row, err := s.createApplication(ctx, name, companyID, cmNumber, nil)
+	row, err := s.createApplication(ctx, createApplicationInput{
+		Name:              name,
+		CompanyID:         companyID,
+		JobDescriptionURL: jobDescriptionURL,
+	})
 	if err != nil {
 		recordSpanError(span, err)
 		return nil, err
@@ -1210,7 +1216,6 @@ func (s *Server) executeCreateApplication(ctx context.Context, call *planner.Too
 	applicationID := trimRecord(asString(row["id"]))
 	applicationName := asString(row["name"])
 	attachedCompanyID := trimRecord(asString(row["company_id"]))
-	applicationCMNumber := asString(row["cm_number"])
 	jobDescriptionDocID := ""
 	if payload.JobDescriptionText != nil && strings.TrimSpace(*payload.JobDescriptionText) != "" {
 		doc, err := s.createJobDescriptionDocument(ctx, applicationName, strings.TrimSpace(*payload.JobDescriptionText), derefString(payload.JobDescriptionURL), applicationID)
@@ -1236,8 +1241,157 @@ func (s *Server) executeCreateApplication(ctx context.Context, call *planner.Too
 		ApplicationID:            stringPtr(applicationID),
 		CompanyID:                stringPtr(attachedCompanyID),
 		Name:                     stringPtr(applicationName),
-		CmNumber:                 stringPtr(applicationCMNumber),
 		JobDescriptionDocumentID: stringPtr(jobDescriptionDocID),
+	}}, nil
+}
+
+// executeSetApplicationCompany moves an application onto a different
+// company. Accepts either a concrete company_id or a free-text company_name
+// — when company_name is supplied, dedupes against existing companies and
+// requires confirm_new to bypass a similarity warning, mirroring
+// executeCreateCompany. Used by the assistant after reading materials to
+// swap an application off the "Unknown" placeholder.
+func (s *Server) executeSetApplicationCompany(ctx context.Context, call *planner.ToolRequest, send func(map[string]any) error) (*planner.ToolResult, error) {
+	ctx, span := startLocalSpan(ctx, "assistant.tool.set_application_company",
+		attribute.String("assistant.tool_call_id", call.ToolCallID),
+	)
+	defer span.End()
+	payload, err := careercontext.UnmarshalSetApplicationCompanyPayload([]byte(call.Payload))
+	if err != nil {
+		return recordToolFailure(span, call.Name, err), nil
+	}
+	applicationID, err := requiredString(payload.ApplicationID, "application_id")
+	if err != nil {
+		return recordToolFailure(span, call.Name, err), nil
+	}
+	span.SetAttributes(attribute.String("application.id", applicationID))
+
+	suppliedID := ""
+	if payload.CompanyID != nil {
+		suppliedID = strings.TrimSpace(*payload.CompanyID)
+	}
+	suppliedName := ""
+	if payload.CompanyName != nil {
+		suppliedName = strings.TrimSpace(*payload.CompanyName)
+	}
+	if suppliedID == "" && suppliedName == "" {
+		err := fmt.Errorf("either company_id or company_name is required")
+		return recordToolFailure(span, call.Name, err), nil
+	}
+
+	existing, err := s.getApplication(ctx, applicationID)
+	if err != nil {
+		recordSpanError(span, err)
+		return nil, err
+	}
+	if existing == nil {
+		err := fmt.Errorf("application %s not found", applicationID)
+		return recordToolFailure(span, call.Name, err), nil
+	}
+	previousCompanyID := trimRecord(asString(existing["company_id"]))
+	previousCompanyName := asString(existing["company_name"])
+	span.SetAttributes(
+		attribute.String("application.previous_company_id", previousCompanyID),
+		attribute.String("application.previous_company_name", previousCompanyName),
+	)
+
+	// Branch 1: caller supplied a concrete company_id — adopt it directly.
+	if suppliedID != "" {
+		row, err := s.getCompany(ctx, suppliedID)
+		if err != nil {
+			recordSpanError(span, err)
+			return nil, err
+		}
+		if row == nil {
+			err := fmt.Errorf("company %s not found", suppliedID)
+			return recordToolFailure(span, call.Name, err), nil
+		}
+		return s.applySetApplicationCompany(ctx, span, call, send, applicationID, suppliedID, asString(row["name"]), previousCompanyID, previousCompanyName)
+	}
+
+	// Branch 2: caller supplied a name — dedupe and either reuse, warn, or create.
+	confirmNew := payload.ConfirmNew != nil && *payload.ConfirmNew
+	span.SetAttributes(
+		attribute.String("company.requested_name", suppliedName),
+		attribute.Bool("company.confirm_new", confirmNew),
+	)
+	similar, err := s.findSimilarCompanies(ctx, suppliedName)
+	if err != nil {
+		recordSpanError(span, err)
+		return nil, err
+	}
+	span.SetAttributes(attribute.Int("company.similar_count", len(similar)))
+	if len(similar) > 0 {
+		best := similar[0]
+		span.SetAttributes(
+			attribute.String("company.similar.id", best.ID),
+			attribute.String("company.similar.name", best.Name),
+			attribute.Float64("company.similar.score", best.Similarity),
+			attribute.Bool("company.similar.exact_key", best.ExactKey),
+		)
+		if best.ExactKey {
+			return s.applySetApplicationCompany(ctx, span, call, send, applicationID, best.ID, best.Name, previousCompanyID, previousCompanyName)
+		}
+		if !confirmNew {
+			span.SetAttributes(attribute.String("company.dedupe.decision", "requires_confirmation"))
+			return &planner.ToolResult{Name: call.Name, Result: &careercontext.SetApplicationCompanyResult{
+				OK:                   new(false),
+				ApplicationID:        stringPtr(applicationID),
+				RequiresConfirmation: new(true),
+				SimilarCompanyID:     stringPtr(best.ID),
+				SimilarCompanyName:   stringPtr(best.Name),
+				Similarity:           new(best.Similarity),
+				Error:                stringPtr("A similar company already exists. Reuse similar_company_id unless the user confirms this should be a separate company; only then call set_application_company again with confirm_new=true."),
+			}}, nil
+		}
+		span.SetAttributes(attribute.String("company.dedupe.decision", "create_confirmed"))
+	} else {
+		span.SetAttributes(attribute.String("company.dedupe.decision", "create_no_match"))
+	}
+	row, err := s.createCompany(ctx, suppliedName, nil)
+	if err != nil {
+		recordSpanError(span, err)
+		return nil, err
+	}
+	newCompanyID := trimRecord(asString(row["id"]))
+	newCompanyName := asString(row["name"])
+	_ = send(map[string]any{"type": "company_created", "company_id": newCompanyID, "name": newCompanyName})
+	return s.applySetApplicationCompany(ctx, span, call, send, applicationID, newCompanyID, newCompanyName, previousCompanyID, previousCompanyName)
+}
+
+// applySetApplicationCompany performs the PATCH against the application row
+// and emits the assistant-visible company_changed event. Pulled out so both
+// branches of executeSetApplicationCompany share the persistence path.
+func (s *Server) applySetApplicationCompany(
+	ctx context.Context,
+	span trace.Span,
+	call *planner.ToolRequest,
+	send func(map[string]any) error,
+	applicationID, companyID, companyName, previousCompanyID, previousCompanyName string,
+) (*planner.ToolResult, error) {
+	span.SetAttributes(
+		attribute.String("application.new_company_id", companyID),
+		attribute.String("application.new_company_name", companyName),
+	)
+	if _, err := s.updateApplication(ctx, applicationID, updateApplicationInput{CompanyID: &companyID}); err != nil {
+		recordSpanError(span, err)
+		return nil, err
+	}
+	_ = send(map[string]any{
+		"type":                  "application_company_changed",
+		"application_id":        applicationID,
+		"company_id":            companyID,
+		"company_name":          companyName,
+		"previous_company_id":   previousCompanyID,
+		"previous_company_name": previousCompanyName,
+	})
+	return &planner.ToolResult{Name: call.Name, Result: &careercontext.SetApplicationCompanyResult{
+		OK:                  new(true),
+		ApplicationID:       stringPtr(applicationID),
+		CompanyID:           stringPtr(companyID),
+		CompanyName:         stringPtr(companyName),
+		PreviousCompanyID:   stringPtr(previousCompanyID),
+		PreviousCompanyName: stringPtr(previousCompanyName),
 	}}, nil
 }
 

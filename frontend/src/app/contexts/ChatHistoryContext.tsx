@@ -19,7 +19,10 @@ interface ChatHistoryContextType {
   currentChatId: string | null;
   setCurrentChatId: (chatId: string | null) => void;
   loadChats: () => Promise<void>;
-  saveChat: (applicationId?: string) => Promise<string | null>;
+  saveChat: (
+    applicationId?: string,
+    opts?: { initialAssistantMessage?: string },
+  ) => Promise<string | null>;
   renameChat: (chatId: string, title: string) => Promise<void>;
   newChatMessages: LukeMessage[] | null;
   setNewChatMessages: (messages: LukeMessage[] | null) => void;
@@ -87,11 +90,16 @@ export function ChatHistoryProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const saveChat = useCallback(
-    async (applicationId?: string): Promise<string | null> => {
+    async (
+      applicationId?: string,
+      opts?: { initialAssistantMessage?: string },
+    ): Promise<string | null> => {
       try {
-        const { id } = await createChat(
-          applicationId ? { application_id: applicationId } : undefined,
-        );
+        const payload: { application_id?: string; initial_assistant_message?: string } = {};
+        if (applicationId) payload.application_id = applicationId;
+        if (opts?.initialAssistantMessage)
+          payload.initial_assistant_message = opts.initialAssistantMessage;
+        const { id } = await createChat(Object.keys(payload).length > 0 ? payload : undefined);
         const now = new Date().toISOString();
         const newChat: LukeChat = {
           id,

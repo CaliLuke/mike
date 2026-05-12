@@ -212,11 +212,6 @@ export function FileDirectory({
                 <Folder className="h-3.5 w-3.5 shrink-0 text-gray-400" />
                 <span className="flex-1 truncate font-medium text-gray-700">
                   {application.name}
-                  {application.cm_number && (
-                    <span className="ml-1 font-normal text-gray-400">
-                      (#{application.cm_number})
-                    </span>
-                  )}
                 </span>
                 <span className="shrink-0 text-xs text-gray-400">{docs.length}</span>
               </button>

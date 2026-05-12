@@ -514,12 +514,7 @@ export function TRView({ reviewId, applicationId }: Props) {
                   {loading ? (
                     <div className="h-6 w-32 animate-pulse rounded bg-gray-100" />
                   ) : (
-                    <>
-                      {application?.name ?? ""}
-                      {application?.cm_number && (
-                        <span className="ml-1 text-gray-400">(#{application.cm_number})</span>
-                      )}
-                    </>
+                    (application?.name ?? "")
                   )}
                 </button>
                 <span className="text-gray-300">›</span>
@@ -781,7 +776,7 @@ export function TRView({ reviewId, applicationId }: Props) {
           onSelect={(docs: LukeDocument[]) => handleAddDocuments(docs)}
           breadcrumb={[
             "Applications",
-            application.name + (application.cm_number ? ` (#${application.cm_number})` : ""),
+            application.name,
             "Tabular Reviews",
             ...(review ? [review.title || "Untitled Review"] : []),
             "Add Documents",

@@ -22,6 +22,12 @@ var Folder = Type("Folder", func() {
 	Required("id", "application_id", "user_id", "name", "created_at", "updated_at")
 })
 
+var PersonRef = Type("PersonRef", func() {
+	Attribute("name", String)
+	Attribute("role", String)
+	Required("name")
+})
+
 var Document = Type("Document", func() {
 	Attribute("id", String)
 	Attribute("user_id", String)
@@ -38,6 +44,31 @@ var Document = Type("Document", func() {
 	Attribute("created_at", String)
 	Attribute("updated_at", String)
 	Attribute("latest_version_number", Int)
+	Attribute("library", Boolean)
+	Attribute("library_kind", String, func() { Enum("shared", "reference") })
+	Attribute("kind", String, func() {
+		Enum(
+			"resume", "resume_baseline", "job_description", "interview_transcript",
+			"recruiter_notes", "prep_packet", "cheatsheet", "interviewer_bio", "schedule",
+			"story", "about_me", "answer_bank", "framework", "references",
+			"cover_letter", "writing_sample", "coaching_state", "unclassified",
+		)
+	})
+	Attribute("interview_stage", String, func() {
+		Enum("recruiter", "hiring_manager", "peer", "tech", "panel", "onsite", "other")
+	})
+	Attribute("topics", ArrayOf(String))
+	Attribute("company_refs", ArrayOf(String))
+	Attribute("people_refs", ArrayOf(PersonRef))
+	Attribute("summary", String)
+	Attribute("dated_event_at", String)
+	Attribute("derived_from_id", String)
+	Attribute("metadata_status", String, func() {
+		Enum("unprocessed", "queued", "processing", "ready", "error", "user_confirmed")
+	})
+	Attribute("metadata_processed_at", String)
+	Attribute("metadata_error", String)
+	Attribute("linked_application_ids", ArrayOf(String))
 	Required("id", "filename", "status")
 })
 

@@ -16,7 +16,6 @@ interface Props {
   onClose: () => void;
   onSelect: (workflow: LukeWorkflow) => void;
   applicationName?: string;
-  applicationCmNumber?: string | null;
   initialWorkflowId?: string;
 }
 
@@ -25,7 +24,6 @@ export function AssistantWorkflowModal({
   onClose,
   onSelect,
   applicationName,
-  applicationCmNumber,
   initialWorkflowId,
 }: Props) {
   const [workflows, setWorkflows] = useState<LukeWorkflow[]>([]);
@@ -103,10 +101,7 @@ export function AssistantWorkflowModal({
               <>
                 <span>Applications</span>
                 <span>›</span>
-                <span>
-                  {applicationName}
-                  {applicationCmNumber ? ` (#${applicationCmNumber})` : ""}
-                </span>
+                <span>{applicationName}</span>
                 <span>›</span>
                 <span>Assistant</span>
                 <span>›</span>

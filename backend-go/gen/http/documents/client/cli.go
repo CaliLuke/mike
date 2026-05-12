@@ -23,7 +23,7 @@ func BuildUploadPayload(documentsUploadBody string) (*documents.FileUpload, erro
 	{
 		err = json.Unmarshal([]byte(documentsUploadBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"file\": \"RXN0IHVuZGUgcXVpYSByZXBlbGxhdC4=\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"file\": \"RXN0IGV4IGlwc2FtIGN1bXF1ZSBleHBsaWNhYm8gdml0YWUgb21uaXMu\"\n   }'")
 		}
 		if body.File == nil {
 			err = loom.MergeErrors(err, loom.MissingFieldError("file", "body"))
@@ -56,7 +56,7 @@ func BuildDisplayPayload(documentsDisplayBody string, documentsDisplayDocumentID
 	{
 		err = json.Unmarshal([]byte(documentsDisplayBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"version_id\": \"Quam aspernatur officiis.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"version_id\": \"Dicta voluptate voluptatem iusto modi.\"\n   }'")
 		}
 	}
 	var documentID string
@@ -77,7 +77,7 @@ func BuildDownloadZipPayload(documentsDownloadZipBody string) (*documents.Downlo
 	{
 		err = json.Unmarshal([]byte(documentsDownloadZipBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"document_ids\": [\n         \"Consequatur nisi perspiciatis hic nemo eaque.\",\n         \"Dolores saepe ut atque voluptatem.\",\n         \"Quasi est debitis autem velit molestiae beatae.\",\n         \"Velit animi ut.\"\n      ]\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"document_ids\": [\n         \"Dolorem possimus molestias corporis.\",\n         \"Soluta non.\",\n         \"Numquam velit consequatur nemo ex enim vero.\",\n         \"Itaque est voluptate fugiat nemo sit nam.\"\n      ]\n   }'")
 		}
 		if body.DocumentIds == nil {
 			err = loom.MergeErrors(err, loom.MissingFieldError("document_ids", "body"))
@@ -105,7 +105,7 @@ func BuildURLPayload(documentsURLBody string, documentsURLDocumentID string) (*d
 	{
 		err = json.Unmarshal([]byte(documentsURLBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"version_id\": \"Delectus praesentium commodi praesentium rerum sed veritatis.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"version_id\": \"Quia optio natus voluptatibus.\"\n   }'")
 		}
 	}
 	var documentID string
@@ -126,7 +126,7 @@ func BuildDocxPayload(documentsDocxBody string, documentsDocxDocumentID string) 
 	{
 		err = json.Unmarshal([]byte(documentsDocxBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"version_id\": \"Sed eos in dolores quia.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"version_id\": \"Nostrum similique dolores dolorem et magnam totam.\"\n   }'")
 		}
 	}
 	var documentID string

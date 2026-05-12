@@ -15,7 +15,6 @@ var _ = Service("applications", func() {
 		Payload(func() {
 			Attribute("name", String)
 			Attribute("company_id", String)
-			Attribute("cm_number", String)
 			Attribute("shared_with", ArrayOf(String))
 			Required("name", "company_id")
 		})
@@ -43,7 +42,6 @@ var _ = Service("applications", func() {
 			Attribute("applicationId", String)
 			Attribute("name", String)
 			Attribute("company_id", String)
-			Attribute("cm_number", String)
 			Attribute("shared_with", ArrayOf(String))
 			Required("applicationId")
 		})

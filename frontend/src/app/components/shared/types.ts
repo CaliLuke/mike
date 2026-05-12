@@ -17,7 +17,8 @@ export interface LukeApplication {
   company_id: string;
   company_name?: string | null;
   name: string;
-  cm_number: string | null;
+  job_description_url?: string | null;
+  status?: "in_progress" | "closed";
   shared_with?: string[];
   created_at: string;
   updated_at: string;
@@ -26,6 +27,9 @@ export interface LukeApplication {
   document_count?: number;
   chat_count?: number;
   review_count?: number;
+  /** Set true on the create response when the job posting URL was fetched
+   * and persisted as a Job description.md document. */
+  job_description_ingested?: boolean;
 }
 
 export interface LukeCompany {

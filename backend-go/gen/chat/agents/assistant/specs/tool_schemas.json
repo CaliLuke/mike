@@ -12,30 +12,25 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
-            "cm_number": {
-              "type": "string",
-              "description": "Optional Competition Bureau matter number",
-              "example": "Neque eum."
-            },
             "company_id": {
               "type": "string",
               "description": "Local company identifier returned by create_company or a prior company_created event",
-              "example": "Aspernatur quod natus occaecati blanditiis a."
+              "example": "Consequatur ea et aut ea est quaerat."
             },
             "job_description_text": {
               "type": "string",
               "description": "Optional full job description text to save as an application document",
-              "example": "Quisquam sint eaque sed ratione."
+              "example": "Eius tempore quo."
             },
             "job_description_url": {
               "type": "string",
               "description": "Optional source URL for the job description",
-              "example": "Nihil sed et omnis."
+              "example": "Enim voluptatem quis quidem."
             },
             "name": {
               "type": "string",
               "description": "Application name, usually the role title from the job ad",
-              "example": "Quibusdam accusantium ea."
+              "example": "Illum natus autem magni reprehenderit non."
             }
           }
         }
@@ -49,37 +44,32 @@
             "application_id": {
               "type": "string",
               "description": "Local application identifier",
-              "example": "Dignissimos rerum blanditiis at iure."
-            },
-            "cm_number": {
-              "type": "string",
-              "description": "Competition Bureau matter number",
-              "example": "Libero et."
+              "example": "Unde earum."
             },
             "company_id": {
               "type": "string",
               "description": "Attached local company identifier",
-              "example": "Neque molestiae iusto itaque totam laboriosam."
+              "example": "Occaecati ad alias."
             },
             "error": {
               "type": "string",
               "description": "Error message when creation failed",
-              "example": "Voluptatum deserunt."
+              "example": "Omnis atque."
             },
             "job_description_document_id": {
               "type": "string",
               "description": "Created job description document identifier, when job text was provided",
-              "example": "Nulla totam sed omnis earum possimus."
+              "example": "Praesentium quam qui magni dolores eveniet illo."
             },
             "name": {
               "type": "string",
               "description": "Application name",
-              "example": "Quia dolorem."
+              "example": "Optio dignissimos quia."
             },
             "ok": {
               "type": "boolean",
               "description": "Whether the application was created",
-              "example": true
+              "example": false
             }
           }
         }
@@ -105,12 +95,12 @@
             "name": {
               "type": "string",
               "description": "Company name",
-              "example": "Quia dolorem hic culpa ea doloremque."
+              "example": "Sed accusamus doloremque inventore impedit."
             },
             "website": {
               "type": "string",
               "description": "Optional company website",
-              "example": "Nam delectus aut a labore."
+              "example": "Voluptatem at sed."
             }
           }
         }
@@ -124,17 +114,17 @@
             "company_id": {
               "type": "string",
               "description": "Local company identifier",
-              "example": "Minus dolor aut incidunt ratione ducimus voluptates."
+              "example": "Ratione eos qui nesciunt voluptate voluptas nihil."
             },
             "error": {
               "type": "string",
               "description": "Error message when creation failed",
-              "example": "Et cumque nemo."
+              "example": "Commodi quisquam beatae minima quia inventore voluptatem."
             },
             "name": {
               "type": "string",
               "description": "Company name",
-              "example": "A explicabo magni necessitatibus fugit sunt nobis."
+              "example": "Dolores a facere nisi enim et."
             },
             "ok": {
               "type": "boolean",
@@ -144,33 +134,33 @@
             "requires_confirmation": {
               "type": "boolean",
               "description": "Whether a similar existing company blocked creation until confirm_new is true",
-              "example": true
+              "example": false
             },
             "reused_existing": {
               "type": "boolean",
               "description": "Whether an existing company was reused instead of creating a duplicate",
-              "example": true
+              "example": false
             },
             "similar_company_id": {
               "type": "string",
               "description": "Similar existing company identifier, when one was found",
-              "example": "Laboriosam architecto amet architecto est ipsa ducimus."
+              "example": "Consequatur ut harum aut est."
             },
             "similar_company_name": {
               "type": "string",
               "description": "Similar existing company name, when one was found",
-              "example": "Quo dolorem voluptatum magnam est quibusdam."
+              "example": "Incidunt at voluptatum."
             },
             "similarity": {
               "type": "number",
               "description": "Similarity score for the nearest existing company, from 0 to 1",
-              "example": 0.2701630080847302,
+              "example": 0.654218665450932,
               "format": "double"
             },
             "website": {
               "type": "string",
               "description": "Company website",
-              "example": "Deleniti fuga necessitatibus sapiente id."
+              "example": "Id inventore cupiditate necessitatibus."
             }
           }
         }
@@ -191,7 +181,7 @@
             "document_id": {
               "type": "string",
               "description": "Local document identifier to edit",
-              "example": "Qui et eos."
+              "example": "In eum vitae amet dolor sunt."
             },
             "edits": {
               "type": "array",
@@ -201,18 +191,25 @@
               "description": "Text replacement edits",
               "example": [
                 {
-                  "context_after": "Natus magni id.",
-                  "context_before": "Repellendus maiores inventore quis iste.",
-                  "find": "Nisi sit placeat voluptas eos libero nisi.",
-                  "reason": "Sit iure quia suscipit.",
-                  "replace": "Cupiditate reprehenderit."
+                  "context_after": "Laudantium eum repellendus nisi maiores.",
+                  "context_before": "Esse rerum.",
+                  "find": "Id reprehenderit rem iure eum accusamus quia.",
+                  "reason": "Rerum eveniet voluptatem nostrum.",
+                  "replace": "Velit sunt quibusdam."
                 },
                 {
-                  "context_after": "Natus magni id.",
-                  "context_before": "Repellendus maiores inventore quis iste.",
-                  "find": "Nisi sit placeat voluptas eos libero nisi.",
-                  "reason": "Sit iure quia suscipit.",
-                  "replace": "Cupiditate reprehenderit."
+                  "context_after": "Laudantium eum repellendus nisi maiores.",
+                  "context_before": "Esse rerum.",
+                  "find": "Id reprehenderit rem iure eum accusamus quia.",
+                  "reason": "Rerum eveniet voluptatem nostrum.",
+                  "replace": "Velit sunt quibusdam."
+                },
+                {
+                  "context_after": "Laudantium eum repellendus nisi maiores.",
+                  "context_before": "Esse rerum.",
+                  "find": "Id reprehenderit rem iure eum accusamus quia.",
+                  "reason": "Rerum eveniet voluptatem nostrum.",
+                  "replace": "Velit sunt quibusdam."
                 }
               ]
             }
@@ -225,35 +222,35 @@
                 "context_after": {
                   "type": "string",
                   "description": "Optional expected text after the match",
-                  "example": "Alias aut tempore."
+                  "example": "Minus inventore."
                 },
                 "context_before": {
                   "type": "string",
                   "description": "Optional expected text before the match",
-                  "example": "Sequi asperiores exercitationem."
+                  "example": "Quos consequatur voluptas."
                 },
                 "find": {
                   "type": "string",
                   "description": "Exact text to replace",
-                  "example": "Aspernatur pariatur sint eveniet."
+                  "example": "Quibusdam eum provident sed earum fuga suscipit."
                 },
                 "reason": {
                   "type": "string",
                   "description": "Reason for the change",
-                  "example": "Quod dignissimos ipsa maxime sed."
+                  "example": "Aut eligendi."
                 },
                 "replace": {
                   "type": "string",
                   "description": "Replacement text",
-                  "example": "Et neque itaque labore ipsum est."
+                  "example": "Nihil vitae debitis sit sint ut."
                 }
               },
               "example": {
-                "context_after": "Ea unde sunt.",
-                "context_before": "Aperiam quisquam.",
-                "find": "Sit mollitia.",
-                "reason": "Corrupti assumenda officia enim.",
-                "replace": "Veritatis voluptatem sit necessitatibus totam nobis error."
+                "context_after": "Sint aut possimus.",
+                "context_before": "Repudiandae id non culpa voluptas ratione.",
+                "find": "In dolore qui nobis labore inventore.",
+                "reason": "Minus aperiam dolore fugiat.",
+                "replace": "Doloribus hic quae accusantium."
               }
             }
           }
@@ -273,97 +270,83 @@
               "description": "Edit annotations",
               "example": [
                 {
-                  "change_id": "Consequatur temporibus ut reprehenderit.",
-                  "context_after": "Id libero incidunt ut mollitia.",
-                  "context_before": "Sed dicta dolorem distinctio.",
-                  "deleted_text": "Cum fugiat voluptatem eveniet.",
-                  "document_id": "Harum ut ad.",
-                  "edit_id": "Sed quasi quas facilis fugiat.",
-                  "inserted_text": "Rerum dolor.",
-                  "kind": "Sunt repellendus ut nulla excepturi nihil hic.",
-                  "reason": "Nulla dolore non et qui molestias.",
-                  "status": "Ducimus voluptas vitae rerum in non rerum.",
-                  "version_id": "Pariatur ducimus necessitatibus fugit.",
-                  "version_number": 8761040337819477278
+                  "change_id": "Eius reiciendis quasi.",
+                  "context_after": "Sint incidunt voluptatum nihil sit occaecati praesentium.",
+                  "context_before": "Et omnis.",
+                  "deleted_text": "Consectetur ipsum.",
+                  "document_id": "Aliquid numquam id suscipit quo rem debitis.",
+                  "edit_id": "Et vel voluptates.",
+                  "inserted_text": "Nemo harum.",
+                  "kind": "Maxime cumque.",
+                  "reason": "Voluptas neque et.",
+                  "status": "Tenetur id ut illum ipsum ut ea.",
+                  "version_id": "Ut adipisci velit.",
+                  "version_number": 1499793008425742534
                 },
                 {
-                  "change_id": "Consequatur temporibus ut reprehenderit.",
-                  "context_after": "Id libero incidunt ut mollitia.",
-                  "context_before": "Sed dicta dolorem distinctio.",
-                  "deleted_text": "Cum fugiat voluptatem eveniet.",
-                  "document_id": "Harum ut ad.",
-                  "edit_id": "Sed quasi quas facilis fugiat.",
-                  "inserted_text": "Rerum dolor.",
-                  "kind": "Sunt repellendus ut nulla excepturi nihil hic.",
-                  "reason": "Nulla dolore non et qui molestias.",
-                  "status": "Ducimus voluptas vitae rerum in non rerum.",
-                  "version_id": "Pariatur ducimus necessitatibus fugit.",
-                  "version_number": 8761040337819477278
+                  "change_id": "Eius reiciendis quasi.",
+                  "context_after": "Sint incidunt voluptatum nihil sit occaecati praesentium.",
+                  "context_before": "Et omnis.",
+                  "deleted_text": "Consectetur ipsum.",
+                  "document_id": "Aliquid numquam id suscipit quo rem debitis.",
+                  "edit_id": "Et vel voluptates.",
+                  "inserted_text": "Nemo harum.",
+                  "kind": "Maxime cumque.",
+                  "reason": "Voluptas neque et.",
+                  "status": "Tenetur id ut illum ipsum ut ea.",
+                  "version_id": "Ut adipisci velit.",
+                  "version_number": 1499793008425742534
                 },
                 {
-                  "change_id": "Consequatur temporibus ut reprehenderit.",
-                  "context_after": "Id libero incidunt ut mollitia.",
-                  "context_before": "Sed dicta dolorem distinctio.",
-                  "deleted_text": "Cum fugiat voluptatem eveniet.",
-                  "document_id": "Harum ut ad.",
-                  "edit_id": "Sed quasi quas facilis fugiat.",
-                  "inserted_text": "Rerum dolor.",
-                  "kind": "Sunt repellendus ut nulla excepturi nihil hic.",
-                  "reason": "Nulla dolore non et qui molestias.",
-                  "status": "Ducimus voluptas vitae rerum in non rerum.",
-                  "version_id": "Pariatur ducimus necessitatibus fugit.",
-                  "version_number": 8761040337819477278
-                },
-                {
-                  "change_id": "Consequatur temporibus ut reprehenderit.",
-                  "context_after": "Id libero incidunt ut mollitia.",
-                  "context_before": "Sed dicta dolorem distinctio.",
-                  "deleted_text": "Cum fugiat voluptatem eveniet.",
-                  "document_id": "Harum ut ad.",
-                  "edit_id": "Sed quasi quas facilis fugiat.",
-                  "inserted_text": "Rerum dolor.",
-                  "kind": "Sunt repellendus ut nulla excepturi nihil hic.",
-                  "reason": "Nulla dolore non et qui molestias.",
-                  "status": "Ducimus voluptas vitae rerum in non rerum.",
-                  "version_id": "Pariatur ducimus necessitatibus fugit.",
-                  "version_number": 8761040337819477278
+                  "change_id": "Eius reiciendis quasi.",
+                  "context_after": "Sint incidunt voluptatum nihil sit occaecati praesentium.",
+                  "context_before": "Et omnis.",
+                  "deleted_text": "Consectetur ipsum.",
+                  "document_id": "Aliquid numquam id suscipit quo rem debitis.",
+                  "edit_id": "Et vel voluptates.",
+                  "inserted_text": "Nemo harum.",
+                  "kind": "Maxime cumque.",
+                  "reason": "Voluptas neque et.",
+                  "status": "Tenetur id ut illum ipsum ut ea.",
+                  "version_id": "Ut adipisci velit.",
+                  "version_number": 1499793008425742534
                 }
               ]
             },
             "document_id": {
               "type": "string",
               "description": "Local document identifier",
-              "example": "Nihil aut dolorem."
+              "example": "Voluptatem incidunt tempora voluptatem voluptatem."
             },
             "download_url": {
               "type": "string",
               "description": "Local download URL",
-              "example": "Aut vel iste tenetur odit illo suscipit."
+              "example": "Deserunt odio ut eum sit dolor repellendus."
             },
             "error": {
               "type": "string",
               "description": "Error message when editing failed",
-              "example": "Tenetur officiis error voluptates et."
+              "example": "Quibusdam aspernatur."
             },
             "filename": {
               "type": "string",
               "description": "Document filename",
-              "example": "Atque omnis sint assumenda amet."
+              "example": "Harum nihil."
             },
             "ok": {
               "type": "boolean",
               "description": "Whether edits were applied",
-              "example": true
+              "example": false
             },
             "version_id": {
               "type": "string",
               "description": "New document version identifier",
-              "example": "Minus quam."
+              "example": "Sint quis beatae deleniti molestiae."
             },
             "version_number": {
               "type": "integer",
               "description": "New version number",
-              "example": 5901490860972764764,
+              "example": 9124183023688476688,
               "format": "int64"
             }
           },
@@ -375,78 +358,78 @@
                 "change_id": {
                   "type": "string",
                   "description": "Change identifier",
-                  "example": "Id ipsum."
+                  "example": "Fuga sint ut."
                 },
                 "context_after": {
                   "type": "string",
                   "description": "Text after the edit",
-                  "example": "Soluta est molestiae quaerat natus autem."
+                  "example": "Dolorum eos sequi."
                 },
                 "context_before": {
                   "type": "string",
                   "description": "Text before the edit",
-                  "example": "Dolores dolorem."
+                  "example": "Temporibus suscipit."
                 },
                 "deleted_text": {
                   "type": "string",
                   "description": "Text removed",
-                  "example": "Quam id accusamus et."
+                  "example": "Accusantium nihil."
                 },
                 "document_id": {
                   "type": "string",
                   "description": "Local document identifier",
-                  "example": "Harum unde ducimus excepturi fugit quidem."
+                  "example": "At deleniti."
                 },
                 "edit_id": {
                   "type": "string",
                   "description": "Edit identifier",
-                  "example": "Quam blanditiis optio rerum ut."
+                  "example": "Cupiditate sunt ea."
                 },
                 "inserted_text": {
                   "type": "string",
                   "description": "Text inserted",
-                  "example": "Molestiae rem accusantium commodi."
+                  "example": "Reprehenderit deleniti."
                 },
                 "kind": {
                   "type": "string",
                   "description": "Annotation kind",
-                  "example": "Tenetur impedit dignissimos."
+                  "example": "Exercitationem odio enim est."
                 },
                 "reason": {
                   "type": "string",
                   "description": "Reason for the change",
-                  "example": "Assumenda in."
+                  "example": "Quod aliquid qui ut consequatur."
                 },
                 "status": {
                   "type": "string",
                   "description": "Edit status",
-                  "example": "Pariatur repellat sed aut magnam inventore."
+                  "example": "Quia facere nisi vel suscipit saepe."
                 },
                 "version_id": {
                   "type": "string",
                   "description": "Document version identifier",
-                  "example": "Provident assumenda."
+                  "example": "Laudantium illum earum iure ut eum veritatis."
                 },
                 "version_number": {
                   "type": "integer",
                   "description": "Document version number",
-                  "example": 6039253151362679359,
+                  "example": 7499772937478975207,
                   "format": "int64"
                 }
               },
               "example": {
-                "change_id": "Voluptatibus officiis et omnis quisquam.",
-                "context_after": "Id aut quae incidunt.",
-                "context_before": "Nulla sed eum sed illum fugiat et.",
-                "deleted_text": "Nam neque.",
-                "document_id": "Consequuntur voluptatem accusantium.",
-                "edit_id": "Pariatur similique et.",
-                "inserted_text": "Ut ad officiis nemo dolorem.",
-                "kind": "At expedita ipsa ut aliquid et est.",
-                "reason": "Nesciunt est.",
-                "status": "Omnis facere sunt quisquam officia sit ut.",
-                "version_id": "Laudantium id hic commodi.",
-                "version_number": 6296512410433397714
+                "change_id": "Iste cumque quia est vel sit tempore.",
+                "context_after": "Nam nesciunt est cum.",
+                "context_before": "Voluptatibus quis eligendi.",
+                "deleted_text": "Et qui excepturi rerum.",
+                "document_id": "Eius quisquam.",
+                "edit_id": "Sit officiis non ullam corporis.",
+                "inserted_text": "Necessitatibus perspiciatis asperiores rerum ad deserunt architecto.",
+                "kind": "Sit id sed dolore quia sint repellendus.",
+                "reason": "Occaecati assumenda error vitae et et.",
+                "status": "Cumque dolorem nostrum.",
+                "version_id": "Dolore id tempore rerum veritatis.",
+                "version_number": 1132612895247369301
               }
             }
           }
@@ -469,14 +452,12 @@
               "type": "array",
               "items": {
                 "type": "string",
-                "example": "Voluptatibus fugit nobis quas qui ratione."
+                "example": "Atque explicabo eos."
               },
               "description": "Local document identifiers to fetch",
               "example": [
-                "Omnis et ut nihil quos recusandae.",
-                "Provident laudantium odio repellat accusamus cupiditate.",
-                "Dolores ut in soluta dicta quia facilis.",
-                "Rem suscipit."
+                "Voluptas in quos consequatur.",
+                "Quibusdam optio omnis dolorem."
               ]
             }
           }
@@ -496,19 +477,14 @@
               "description": "Fetched document contents",
               "example": [
                 {
-                  "document_id": "Architecto eligendi.",
-                  "filename": "Vitae tempora ea.",
-                  "text": "Id ut quasi voluptatem totam ut est."
+                  "document_id": "Ullam quo asperiores.",
+                  "filename": "Autem reprehenderit nihil ducimus.",
+                  "text": "Similique sit dolor."
                 },
                 {
-                  "document_id": "Architecto eligendi.",
-                  "filename": "Vitae tempora ea.",
-                  "text": "Id ut quasi voluptatem totam ut est."
-                },
-                {
-                  "document_id": "Architecto eligendi.",
-                  "filename": "Vitae tempora ea.",
-                  "text": "Id ut quasi voluptatem totam ut est."
+                  "document_id": "Ullam quo asperiores.",
+                  "filename": "Autem reprehenderit nihil ducimus.",
+                  "text": "Similique sit dolor."
                 }
               ]
             }
@@ -521,23 +497,23 @@
                 "document_id": {
                   "type": "string",
                   "description": "Local document identifier",
-                  "example": "Excepturi similique voluptas iste enim."
+                  "example": "Magni molestiae eius quos rerum id."
                 },
                 "filename": {
                   "type": "string",
                   "description": "Document filename",
-                  "example": "Quibusdam quam eligendi nisi."
+                  "example": "Id voluptate sit."
                 },
                 "text": {
                   "type": "string",
                   "description": "Plain text extracted from the current document version",
-                  "example": "Sint quos."
+                  "example": "Aut nostrum beatae aperiam quidem eos."
                 }
               },
               "example": {
-                "document_id": "Necessitatibus in voluptatum.",
-                "filename": "Quisquam perferendis.",
-                "text": "Labore quis."
+                "document_id": "Tempora nostrum voluptate.",
+                "filename": "Sed doloribus non et ad blanditiis.",
+                "text": "Consequatur rerum maiores."
               }
             }
           }
@@ -559,13 +535,13 @@
             "max_chars": {
               "type": "integer",
               "description": "Optional maximum characters of simplified text to return",
-              "example": 3672654082747941578,
+              "example": 2468479710569040878,
               "format": "int64"
             },
             "url": {
               "type": "string",
               "description": "Public HTTP or HTTPS URL to download and simplify",
-              "example": "Ipsum corporis."
+              "example": "Qui vitae sunt reprehenderit officiis."
             }
           }
         }
@@ -579,17 +555,17 @@
             "error": {
               "type": "string",
               "description": "Error message when fetching failed",
-              "example": "Impedit quia et est occaecati veritatis."
+              "example": "Iusto repudiandae."
             },
             "text": {
               "type": "string",
               "description": "Simplified readable page text",
-              "example": "Velit delectus et ut cumque consequuntur doloribus."
+              "example": "Aut ut quibusdam aut non dolorem."
             },
             "title": {
               "type": "string",
               "description": "Extracted page title",
-              "example": "Quia asperiores."
+              "example": "Cumque repellendus voluptatem eaque."
             },
             "truncated": {
               "type": "boolean",
@@ -599,7 +575,7 @@
             "url": {
               "type": "string",
               "description": "Final fetched URL after redirects",
-              "example": "Totam odio reiciendis et."
+              "example": "Quia qui aut est impedit porro."
             }
           }
         }
@@ -620,24 +596,24 @@
             "context_chars": {
               "type": "integer",
               "description": "Characters of context to include around each match",
-              "example": 1648445279722260915,
+              "example": 4386737927895519624,
               "format": "int64"
             },
             "document_id": {
               "type": "string",
               "description": "Local document identifier to search",
-              "example": "Quia qui voluptatem."
+              "example": "Repellendus quod impedit voluptas corporis doloremque quos."
             },
             "max_results": {
               "type": "integer",
               "description": "Maximum number of matches to return",
-              "example": 3688823791751559216,
+              "example": 5481237041249183397,
               "format": "int64"
             },
             "query": {
               "type": "string",
               "description": "Exact text to find",
-              "example": "Sed aut quia voluptates et dicta velit."
+              "example": "Illo ea atque aperiam."
             }
           }
         }
@@ -651,12 +627,12 @@
             "document_id": {
               "type": "string",
               "description": "Local document identifier",
-              "example": "Dolores sed ducimus et laboriosam velit ut."
+              "example": "Molestiae id nobis sit."
             },
             "filename": {
               "type": "string",
               "description": "Document filename",
-              "example": "Impedit eius tempora hic est placeat."
+              "example": "Sit sed aliquid voluptatum magni pariatur aut."
             },
             "matches": {
               "type": "array",
@@ -666,32 +642,39 @@
               "description": "Search matches",
               "example": [
                 {
-                  "context": "Et inventore eveniet voluptatem.",
-                  "end": 4688065451639806515,
-                  "index": 2579374227520467158,
-                  "quote": "Sit adipisci.",
-                  "start": 6424695878675818149
+                  "context": "Qui et est maiores alias.",
+                  "end": 3874481540354048516,
+                  "index": 6297018985175653224,
+                  "quote": "Dolorem ut reiciendis nesciunt aut.",
+                  "start": 3382874899693537015
                 },
                 {
-                  "context": "Et inventore eveniet voluptatem.",
-                  "end": 4688065451639806515,
-                  "index": 2579374227520467158,
-                  "quote": "Sit adipisci.",
-                  "start": 6424695878675818149
+                  "context": "Qui et est maiores alias.",
+                  "end": 3874481540354048516,
+                  "index": 6297018985175653224,
+                  "quote": "Dolorem ut reiciendis nesciunt aut.",
+                  "start": 3382874899693537015
                 },
                 {
-                  "context": "Et inventore eveniet voluptatem.",
-                  "end": 4688065451639806515,
-                  "index": 2579374227520467158,
-                  "quote": "Sit adipisci.",
-                  "start": 6424695878675818149
+                  "context": "Qui et est maiores alias.",
+                  "end": 3874481540354048516,
+                  "index": 6297018985175653224,
+                  "quote": "Dolorem ut reiciendis nesciunt aut.",
+                  "start": 3382874899693537015
+                },
+                {
+                  "context": "Qui et est maiores alias.",
+                  "end": 3874481540354048516,
+                  "index": 6297018985175653224,
+                  "quote": "Dolorem ut reiciendis nesciunt aut.",
+                  "start": 3382874899693537015
                 }
               ]
             },
             "total_matches": {
               "type": "integer",
               "description": "Total matches found before truncation",
-              "example": 4199017412994727371,
+              "example": 133365497728222743,
               "format": "int64"
             }
           },
@@ -703,38 +686,38 @@
                 "context": {
                   "type": "string",
                   "description": "Surrounding text context",
-                  "example": "Est expedita possimus voluptate."
+                  "example": "Alias deserunt."
                 },
                 "end": {
                   "type": "integer",
                   "description": "End character offset",
-                  "example": 8314206121195191971,
+                  "example": 2664399370725002992,
                   "format": "int64"
                 },
                 "index": {
                   "type": "integer",
                   "description": "Zero-based match index",
-                  "example": 983823586229570930,
+                  "example": 3018998679506094975,
                   "format": "int64"
                 },
                 "quote": {
                   "type": "string",
                   "description": "Matched text",
-                  "example": "Officia corrupti."
+                  "example": "Culpa et hic facilis dolorem."
                 },
                 "start": {
                   "type": "integer",
                   "description": "Start character offset",
-                  "example": 8305810428760105257,
+                  "example": 3331800806373059683,
                   "format": "int64"
                 }
               },
               "example": {
-                "context": "Et ut rem quia dolorem.",
-                "end": 462771048176684569,
-                "index": 6939477511425069949,
-                "quote": "Molestiae omnis fuga doloremque.",
-                "start": 480379989323578564
+                "context": "Expedita voluptate nihil voluptatum in harum illo.",
+                "end": 5808242943426418919,
+                "index": 2888175021500607300,
+                "quote": "A reiciendis consequatur perspiciatis voluptas asperiores vel.",
+                "start": 9063302817303339777
               }
             }
           }
@@ -756,7 +739,7 @@
             "landscape": {
               "type": "boolean",
               "description": "Whether to use landscape orientation",
-              "example": true
+              "example": false
             },
             "sections": {
               "type": "array",
@@ -766,79 +749,137 @@
               "description": "Document sections",
               "example": [
                 {
-                  "content": "Est dolor.",
-                  "heading": "Ut necessitatibus.",
-                  "level": 7823423865920165622,
+                  "content": "Sed sed est.",
+                  "heading": "Dolores dolor nihil.",
+                  "level": 8130782496385729754,
                   "pageBreak": false,
                   "table": {
                     "headers": [
-                      "Non aliquam est harum quos provident.",
-                      "Sed aspernatur sint.",
-                      "Eligendi consequuntur similique laudantium.",
-                      "A et suscipit qui."
+                      "Enim eos similique perspiciatis.",
+                      "Vitae ullam sequi modi omnis saepe.",
+                      "Cumque totam atque voluptatem qui explicabo."
                     ],
                     "rows": [
                       [
-                        "Maiores facilis ut consequatur perspiciatis incidunt quia.",
-                        "Dolor totam quo.",
-                        "Officiis reprehenderit soluta nihil expedita amet.",
-                        "Animi iusto laboriosam dolorum aut repellendus debitis."
+                        "Ea aliquid est voluptas.",
+                        "Odit nisi rem at tempore.",
+                        "Molestiae sit dignissimos aliquid et provident sit.",
+                        "Dicta sequi corrupti praesentium odit."
                       ],
                       [
-                        "Minima et dolores nihil veritatis nihil laborum.",
-                        "Magnam doloremque.",
-                        "Et rerum et.",
-                        "Ut molestiae."
+                        "Dignissimos occaecati error.",
+                        "Modi culpa deserunt et accusantium dolores voluptatem."
                       ],
                       [
-                        "Ea nam.",
-                        "Quaerat et nobis commodi ea laborum.",
-                        "Et vel qui earum.",
-                        "Ea non ab."
+                        "Aperiam similique ab placeat incidunt earum.",
+                        "Est sed.",
+                        "Et voluptatem autem."
                       ],
                       [
-                        "Ratione tenetur dolor eligendi pariatur suscipit.",
-                        "Repellat aut tempore ut voluptate sunt.",
-                        "Aut eos beatae iusto aperiam ducimus enim."
+                        "Dolorem ut expedita.",
+                        "Asperiores quia laudantium nobis qui molestiae."
                       ]
                     ]
                   }
                 },
                 {
-                  "content": "Est dolor.",
-                  "heading": "Ut necessitatibus.",
-                  "level": 7823423865920165622,
+                  "content": "Sed sed est.",
+                  "heading": "Dolores dolor nihil.",
+                  "level": 8130782496385729754,
                   "pageBreak": false,
                   "table": {
                     "headers": [
-                      "Non aliquam est harum quos provident.",
-                      "Sed aspernatur sint.",
-                      "Eligendi consequuntur similique laudantium.",
-                      "A et suscipit qui."
+                      "Enim eos similique perspiciatis.",
+                      "Vitae ullam sequi modi omnis saepe.",
+                      "Cumque totam atque voluptatem qui explicabo."
                     ],
                     "rows": [
                       [
-                        "Maiores facilis ut consequatur perspiciatis incidunt quia.",
-                        "Dolor totam quo.",
-                        "Officiis reprehenderit soluta nihil expedita amet.",
-                        "Animi iusto laboriosam dolorum aut repellendus debitis."
+                        "Ea aliquid est voluptas.",
+                        "Odit nisi rem at tempore.",
+                        "Molestiae sit dignissimos aliquid et provident sit.",
+                        "Dicta sequi corrupti praesentium odit."
                       ],
                       [
-                        "Minima et dolores nihil veritatis nihil laborum.",
-                        "Magnam doloremque.",
-                        "Et rerum et.",
-                        "Ut molestiae."
+                        "Dignissimos occaecati error.",
+                        "Modi culpa deserunt et accusantium dolores voluptatem."
                       ],
                       [
-                        "Ea nam.",
-                        "Quaerat et nobis commodi ea laborum.",
-                        "Et vel qui earum.",
-                        "Ea non ab."
+                        "Aperiam similique ab placeat incidunt earum.",
+                        "Est sed.",
+                        "Et voluptatem autem."
                       ],
                       [
-                        "Ratione tenetur dolor eligendi pariatur suscipit.",
-                        "Repellat aut tempore ut voluptate sunt.",
-                        "Aut eos beatae iusto aperiam ducimus enim."
+                        "Dolorem ut expedita.",
+                        "Asperiores quia laudantium nobis qui molestiae."
+                      ]
+                    ]
+                  }
+                },
+                {
+                  "content": "Sed sed est.",
+                  "heading": "Dolores dolor nihil.",
+                  "level": 8130782496385729754,
+                  "pageBreak": false,
+                  "table": {
+                    "headers": [
+                      "Enim eos similique perspiciatis.",
+                      "Vitae ullam sequi modi omnis saepe.",
+                      "Cumque totam atque voluptatem qui explicabo."
+                    ],
+                    "rows": [
+                      [
+                        "Ea aliquid est voluptas.",
+                        "Odit nisi rem at tempore.",
+                        "Molestiae sit dignissimos aliquid et provident sit.",
+                        "Dicta sequi corrupti praesentium odit."
+                      ],
+                      [
+                        "Dignissimos occaecati error.",
+                        "Modi culpa deserunt et accusantium dolores voluptatem."
+                      ],
+                      [
+                        "Aperiam similique ab placeat incidunt earum.",
+                        "Est sed.",
+                        "Et voluptatem autem."
+                      ],
+                      [
+                        "Dolorem ut expedita.",
+                        "Asperiores quia laudantium nobis qui molestiae."
+                      ]
+                    ]
+                  }
+                },
+                {
+                  "content": "Sed sed est.",
+                  "heading": "Dolores dolor nihil.",
+                  "level": 8130782496385729754,
+                  "pageBreak": false,
+                  "table": {
+                    "headers": [
+                      "Enim eos similique perspiciatis.",
+                      "Vitae ullam sequi modi omnis saepe.",
+                      "Cumque totam atque voluptatem qui explicabo."
+                    ],
+                    "rows": [
+                      [
+                        "Ea aliquid est voluptas.",
+                        "Odit nisi rem at tempore.",
+                        "Molestiae sit dignissimos aliquid et provident sit.",
+                        "Dicta sequi corrupti praesentium odit."
+                      ],
+                      [
+                        "Dignissimos occaecati error.",
+                        "Modi culpa deserunt et accusantium dolores voluptatem."
+                      ],
+                      [
+                        "Aperiam similique ab placeat incidunt earum.",
+                        "Est sed.",
+                        "Et voluptatem autem."
+                      ],
+                      [
+                        "Dolorem ut expedita.",
+                        "Asperiores quia laudantium nobis qui molestiae."
                       ]
                     ]
                   }
@@ -848,7 +889,7 @@
             "title": {
               "type": "string",
               "description": "Document title",
-              "example": "Ut ullam."
+              "example": "Optio velit dolores nam nihil ipsum."
             }
           },
           "$defs": {
@@ -859,63 +900,58 @@
                 "content": {
                   "type": "string",
                   "description": "Section prose; blank lines split paragraphs",
-                  "example": "Voluptas ex et veritatis et labore."
+                  "example": "Quis quia eaque."
                 },
                 "heading": {
                   "type": "string",
                   "description": "Optional section heading",
-                  "example": "Iure quaerat."
+                  "example": "Nihil non facere et et minima."
                 },
                 "level": {
                   "type": "integer",
                   "description": "Heading level: 1, 2, or 3",
-                  "example": 5152224059626359675,
+                  "example": 5026873879308232748,
                   "format": "int64"
                 },
                 "pageBreak": {
                   "type": "boolean",
                   "description": "Whether to start this section on a new page",
-                  "example": true
+                  "example": false
                 },
                 "table": {
                   "$ref": "#/$defs/AssistantDocxTable"
                 }
               },
               "example": {
-                "content": "Aut saepe recusandae voluptas temporibus dolor dolorem.",
-                "heading": "Repellat autem natus architecto ad.",
-                "level": 4845012471951170834,
+                "content": "Ad ut et laborum adipisci.",
+                "heading": "Rerum aliquid provident nesciunt.",
+                "level": 8457109462845060517,
                 "pageBreak": false,
                 "table": {
                   "headers": [
-                    "Non aliquam est harum quos provident.",
-                    "Sed aspernatur sint.",
-                    "Eligendi consequuntur similique laudantium.",
-                    "A et suscipit qui."
+                    "Enim eos similique perspiciatis.",
+                    "Vitae ullam sequi modi omnis saepe.",
+                    "Cumque totam atque voluptatem qui explicabo."
                   ],
                   "rows": [
                     [
-                      "Maiores facilis ut consequatur perspiciatis incidunt quia.",
-                      "Dolor totam quo.",
-                      "Officiis reprehenderit soluta nihil expedita amet.",
-                      "Animi iusto laboriosam dolorum aut repellendus debitis."
+                      "Ea aliquid est voluptas.",
+                      "Odit nisi rem at tempore.",
+                      "Molestiae sit dignissimos aliquid et provident sit.",
+                      "Dicta sequi corrupti praesentium odit."
                     ],
                     [
-                      "Minima et dolores nihil veritatis nihil laborum.",
-                      "Magnam doloremque.",
-                      "Et rerum et.",
-                      "Ut molestiae."
+                      "Dignissimos occaecati error.",
+                      "Modi culpa deserunt et accusantium dolores voluptatem."
                     ],
                     [
-                      "Ea nam.",
-                      "Quaerat et nobis commodi ea laborum.",
-                      "Et vel qui earum.",
-                      "Ea non ab."
+                      "Aperiam similique ab placeat incidunt earum.",
+                      "Est sed.",
+                      "Et voluptatem autem."
                     ],
                     [
-                      "Ratione tenetur dolor eligendi pariatur suscipit.",
-                      "Repellat aut tempore ut voluptate sunt.",
-                      "Aut eos beatae iusto aperiam ducimus enim."
+                      "Dolorem ut expedita.",
+                      "Asperiores quia laudantium nobis qui molestiae."
                     ]
                   ]
                 }
@@ -929,13 +965,12 @@
                   "type": "array",
                   "items": {
                     "type": "string",
-                    "example": "Voluptatem culpa porro deleniti dolor aut."
+                    "example": "Qui molestiae ut vel."
                   },
                   "description": "Table header cells",
                   "example": [
-                    "Velit inventore suscipit minus quis voluptatem.",
-                    "Officiis tempora optio.",
-                    "Consequatur quibusdam."
+                    "Est consequatur.",
+                    "Dolor ullam harum aperiam."
                   ]
                 },
                 "rows": {
@@ -944,50 +979,55 @@
                     "type": "array",
                     "items": {
                       "type": "string",
-                      "example": "Dolor explicabo soluta adipisci ad."
+                      "example": "Ea repudiandae itaque quidem."
                     },
                     "example": [
-                      "Non quibusdam maxime et sed nam.",
-                      "Assumenda ullam."
+                      "Dolore facilis aperiam amet impedit minus.",
+                      "Culpa ut praesentium qui.",
+                      "Doloribus reiciendis.",
+                      "Quibusdam delectus quos."
                     ]
                   },
                   "description": "Table body rows",
                   "example": [
                     [
-                      "Fugiat minus ut maiores.",
-                      "Enim quidem ullam ut quae alias asperiores.",
-                      "Sit amet est rerum ea ut minima."
+                      "Tenetur omnis dolorem non et voluptas.",
+                      "Est quam non est culpa quas inventore."
                     ],
                     [
-                      "Quibusdam molestiae nesciunt est architecto inventore eius.",
-                      "Rem blanditiis accusantium.",
-                      "Asperiores doloribus sequi nisi illum."
+                      "Qui sit.",
+                      "Quidem architecto perferendis."
+                    ],
+                    [
+                      "Quia minus deserunt nostrum sunt totam explicabo.",
+                      "Ut omnis."
                     ]
                   ]
                 }
               },
               "example": {
                 "headers": [
-                  "Asperiores voluptas accusamus id.",
-                  "Eveniet autem.",
-                  "Autem non ducimus ducimus vitae."
+                  "Ullam illum tempore iure animi rem incidunt.",
+                  "Pariatur esse nisi qui eos commodi.",
+                  "In omnis sunt blanditiis molestiae."
                 ],
                 "rows": [
                   [
-                    "Nisi aperiam.",
-                    "Eum vero quaerat et.",
-                    "Fuga vitae unde rerum beatae."
+                    "Dolores sit.",
+                    "Vel possimus in."
                   ],
                   [
-                    "Et facere fugiat incidunt itaque.",
-                    "Ex cum et ex qui et.",
-                    "Tempore ut ut fugiat."
+                    "Reiciendis consectetur sapiente laboriosam ratione et.",
+                    "Saepe voluptas.",
+                    "Dolores soluta odit sequi."
                   ],
                   [
-                    "Eius commodi et quis dolorem.",
-                    "Nemo nemo omnis molestias rerum neque sint.",
-                    "Eligendi esse sunt amet.",
-                    "Rem ut nihil."
+                    "Odit doloremque id qui.",
+                    "Nihil eligendi ut inventore non non qui."
+                  ],
+                  [
+                    "Ea aut saepe enim.",
+                    "Ut pariatur facere quia saepe sit distinctio."
                   ]
                 ]
               }
@@ -1004,37 +1044,37 @@
             "document_id": {
               "type": "string",
               "description": "Local document identifier",
-              "example": "Inventore nostrum rerum temporibus."
+              "example": "Et commodi aut ea ratione."
             },
             "download_url": {
               "type": "string",
               "description": "Local download URL",
-              "example": "Impedit architecto temporibus aut quod ex ea."
+              "example": "Aspernatur expedita omnis vitae nesciunt vel."
             },
             "error": {
               "type": "string",
               "description": "Error message when generation failed",
-              "example": "Et impedit eveniet beatae quas."
+              "example": "Ipsum ut ut exercitationem."
             },
             "filename": {
               "type": "string",
               "description": "Generated filename",
-              "example": "Molestias dignissimos consectetur est nemo odit."
+              "example": "Omnis eum."
             },
             "ok": {
               "type": "boolean",
               "description": "Whether the document was generated",
-              "example": true
+              "example": false
             },
             "version_id": {
               "type": "string",
               "description": "Current document version identifier",
-              "example": "Beatae quis non."
+              "example": "Pariatur optio eum maiores velit cupiditate voluptatibus."
             },
             "version_number": {
               "type": "integer",
               "description": "Current version number",
-              "example": 6913769614815399013,
+              "example": 2617094335399771313,
               "format": "int64"
             }
           }
@@ -1068,18 +1108,25 @@
               "description": "Documents available to the current chat",
               "example": [
                 {
-                  "application_id": "Fugiat eos.",
-                  "document_id": "Et atque sunt consequatur voluptatem rerum sit.",
-                  "file_type": "Hic et nemo aperiam est corrupti.",
-                  "filename": "Quo eius quis assumenda at.",
-                  "status": "Eum est a deleniti incidunt perspiciatis."
+                  "application_id": "Non illo molestiae unde iure.",
+                  "document_id": "Voluptatibus voluptas dolor quam accusantium modi.",
+                  "file_type": "Vel blanditiis nesciunt dolores.",
+                  "filename": "Explicabo omnis sed ut.",
+                  "status": "Iste impedit exercitationem asperiores rem."
                 },
                 {
-                  "application_id": "Fugiat eos.",
-                  "document_id": "Et atque sunt consequatur voluptatem rerum sit.",
-                  "file_type": "Hic et nemo aperiam est corrupti.",
-                  "filename": "Quo eius quis assumenda at.",
-                  "status": "Eum est a deleniti incidunt perspiciatis."
+                  "application_id": "Non illo molestiae unde iure.",
+                  "document_id": "Voluptatibus voluptas dolor quam accusantium modi.",
+                  "file_type": "Vel blanditiis nesciunt dolores.",
+                  "filename": "Explicabo omnis sed ut.",
+                  "status": "Iste impedit exercitationem asperiores rem."
+                },
+                {
+                  "application_id": "Non illo molestiae unde iure.",
+                  "document_id": "Voluptatibus voluptas dolor quam accusantium modi.",
+                  "file_type": "Vel blanditiis nesciunt dolores.",
+                  "filename": "Explicabo omnis sed ut.",
+                  "status": "Iste impedit exercitationem asperiores rem."
                 }
               ]
             }
@@ -1092,35 +1139,35 @@
                 "application_id": {
                   "type": "string",
                   "description": "Owning application identifier, when attached to a application",
-                  "example": "Ut est voluptates eum."
+                  "example": "Consequatur est libero incidunt quia qui."
                 },
                 "document_id": {
                   "type": "string",
                   "description": "Local document identifier",
-                  "example": "Est praesentium."
+                  "example": "Vel quia."
                 },
                 "file_type": {
                   "type": "string",
                   "description": "Stored file type or MIME hint",
-                  "example": "Deserunt magnam perferendis."
+                  "example": "Ipsum accusamus nihil omnis."
                 },
                 "filename": {
                   "type": "string",
                   "description": "Document filename",
-                  "example": "Iure autem."
+                  "example": "Velit dolor saepe consectetur."
                 },
                 "status": {
                   "type": "string",
                   "description": "Processing status",
-                  "example": "Et rerum dolores."
+                  "example": "Autem perspiciatis in harum ratione."
                 }
               },
               "example": {
-                "application_id": "Libero deserunt voluptates molestiae quisquam omnis.",
-                "document_id": "Suscipit temporibus accusamus incidunt qui vel.",
-                "file_type": "Sit est non velit alias enim.",
-                "filename": "Officia qui in laboriosam est nesciunt.",
-                "status": "Illo placeat asperiores."
+                "application_id": "Aliquam consequuntur veniam deserunt aperiam.",
+                "document_id": "Et earum id non delectus.",
+                "file_type": "Ut esse.",
+                "filename": "Vero maxime cumque non nihil eum.",
+                "status": "Rerum quae illo aut fugit numquam."
               }
             }
           }
@@ -1154,16 +1201,28 @@
               "description": "Saved workflows",
               "example": [
                 {
-                  "practice": "Aut eveniet nostrum.",
-                  "title": "Quo et non minus ea magnam natus.",
-                  "type": "Esse consequatur aspernatur ducimus.",
-                  "workflow_id": "Libero qui nulla fuga quae ut."
+                  "practice": "Omnis deleniti.",
+                  "title": "Neque non consequatur sit architecto delectus.",
+                  "type": "Praesentium doloribus.",
+                  "workflow_id": "Non pariatur nam perferendis."
                 },
                 {
-                  "practice": "Aut eveniet nostrum.",
-                  "title": "Quo et non minus ea magnam natus.",
-                  "type": "Esse consequatur aspernatur ducimus.",
-                  "workflow_id": "Libero qui nulla fuga quae ut."
+                  "practice": "Omnis deleniti.",
+                  "title": "Neque non consequatur sit architecto delectus.",
+                  "type": "Praesentium doloribus.",
+                  "workflow_id": "Non pariatur nam perferendis."
+                },
+                {
+                  "practice": "Omnis deleniti.",
+                  "title": "Neque non consequatur sit architecto delectus.",
+                  "type": "Praesentium doloribus.",
+                  "workflow_id": "Non pariatur nam perferendis."
+                },
+                {
+                  "practice": "Omnis deleniti.",
+                  "title": "Neque non consequatur sit architecto delectus.",
+                  "type": "Praesentium doloribus.",
+                  "workflow_id": "Non pariatur nam perferendis."
                 }
               ]
             }
@@ -1176,29 +1235,29 @@
                 "practice": {
                   "type": "string",
                   "description": "Workflow practice or category",
-                  "example": "Sit sed quia neque cupiditate cupiditate est."
+                  "example": "Sequi et velit quidem aliquid."
                 },
                 "title": {
                   "type": "string",
                   "description": "Workflow title",
-                  "example": "Culpa iste molestias."
+                  "example": "Minus eos et."
                 },
                 "type": {
                   "type": "string",
                   "description": "Workflow type",
-                  "example": "Ea optio et."
+                  "example": "Odio et nemo."
                 },
                 "workflow_id": {
                   "type": "string",
                   "description": "Local workflow identifier",
-                  "example": "Reprehenderit et nam distinctio dolores consequatur dolor."
+                  "example": "Repellat numquam magni consequatur quas qui fugit."
                 }
               },
               "example": {
-                "practice": "Eius tempore quo.",
-                "title": "Illum natus autem magni reprehenderit non.",
-                "type": "Consequatur ea et aut ea est quaerat.",
-                "workflow_id": "Nulla quibusdam quae architecto et et."
+                "practice": "Cum vitae delectus et illum.",
+                "title": "Nostrum ipsam quidem maxime aut quo.",
+                "type": "Rerum nostrum.",
+                "workflow_id": "Aut doloremque et."
               }
             }
           }
@@ -1220,7 +1279,7 @@
             "document_id": {
               "type": "string",
               "description": "Local document identifier to read",
-              "example": "Voluptatem quis quidem ratione."
+              "example": "Voluptas modi a."
             }
           }
         }
@@ -1234,17 +1293,17 @@
             "document_id": {
               "type": "string",
               "description": "Local document identifier",
-              "example": "Unde earum."
+              "example": "Modi sit et."
             },
             "filename": {
               "type": "string",
               "description": "Document filename",
-              "example": "Occaecati ad alias."
+              "example": "Voluptatem id culpa explicabo expedita nemo nam."
             },
             "text": {
               "type": "string",
               "description": "Plain text extracted from the current document version",
-              "example": "Optio dignissimos quia."
+              "example": "Voluptas omnis a eos maiores reiciendis non."
             }
           }
         }
@@ -1266,32 +1325,35 @@
               "type": "array",
               "items": {
                 "type": "integer",
-                "example": 2299882780648138258,
+                "example": 527879900151890231,
                 "format": "int64"
               },
               "description": "Column positions to read; omit for all",
               "example": [
-                614596651922258578,
-                357654742851123622
+                1569710755598318519,
+                4896968367285807249,
+                5747833261658024736,
+                419483679643018045
               ]
             },
             "review_id": {
               "type": "string",
               "description": "Tabular review identifier",
-              "example": "Praesentium quam qui magni dolores eveniet illo."
+              "example": "Occaecati in et in sed voluptas."
             },
             "row_indices": {
               "type": "array",
               "items": {
                 "type": "integer",
-                "example": 3939584701502362652,
+                "example": 4984527517352417930,
                 "format": "int64"
               },
               "description": "Row positions to read; omit for all",
               "example": [
-                9143568532906566720,
-                7478277250756652318,
-                1984847069021197612
+                5685400563515114798,
+                5666364499091422632,
+                5951428837362745786,
+                7960178533233792828
               ]
             }
           }
@@ -1306,12 +1368,12 @@
             "label": {
               "type": "string",
               "description": "Human-readable row/column count",
-              "example": "Voluptatem at sed."
+              "example": "Voluptatem unde provident ex."
             },
             "text": {
               "type": "string",
               "description": "Readable cell content",
-              "example": "Alias tempora ratione."
+              "example": "At fugiat ipsum."
             }
           }
         }
@@ -1332,7 +1394,7 @@
             "workflow_id": {
               "type": "string",
               "description": "Local workflow identifier to read",
-              "example": "Qui nesciunt voluptate voluptas nihil quod."
+              "example": "Iure perspiciatis."
             }
           }
         }
@@ -1346,39 +1408,39 @@
             "columns_config": {
               "type": "array",
               "items": {
-                "example": "At voluptatum id maiores commodi."
+                "example": "Nam consequatur nulla et enim et qui."
               },
               "description": "Workflow column configuration",
               "example": [
-                "Minima quia inventore voluptatem ipsa in.",
-                "Vitae amet dolor sunt deleniti quibusdam eum.",
-                "Sed earum fuga suscipit a."
+                "Molestiae quis consequatur dolor voluptatum.",
+                "Enim repellat aliquid ea eveniet.",
+                "Omnis nostrum molestiae sunt tenetur cum."
               ]
             },
             "practice": {
               "type": "string",
               "description": "Workflow practice or category",
-              "example": "Vitae debitis sit."
+              "example": "Quia eligendi maxime."
             },
             "prompt_md": {
               "type": "string",
               "description": "Workflow prompt",
-              "example": "Harum aut est eos."
+              "example": "Ea eos recusandae debitis ut quo."
             },
             "title": {
               "type": "string",
               "description": "Workflow title",
-              "example": "Enim et tempore id inventore cupiditate."
+              "example": "Sit natus."
             },
             "type": {
               "type": "string",
               "description": "Workflow type",
-              "example": "Eos debitis laboriosam consequatur."
+              "example": "Sapiente aut quia ipsum id."
             },
             "workflow_id": {
               "type": "string",
               "description": "Local workflow identifier",
-              "example": "A facere."
+              "example": "Nam occaecati inventore recusandae asperiores hic quam."
             }
           }
         }
@@ -1399,18 +1461,18 @@
             "count": {
               "type": "integer",
               "description": "Number of copies to create",
-              "example": 2121541102552010168,
+              "example": 212801356240326654,
               "format": "int64"
             },
             "document_id": {
               "type": "string",
               "description": "Local document identifier to copy",
-              "example": "Ut est quos consequatur voluptas."
+              "example": "Architecto rerum vitae sed non sint."
             },
             "new_filename": {
               "type": "string",
               "description": "Optional filename for a single copy",
-              "example": "Inventore accusamus aut eligendi a in dolore."
+              "example": "Neque sit earum quos impedit voluptas."
             }
           }
         }
@@ -1429,51 +1491,39 @@
               "description": "Created copies",
               "example": [
                 {
-                  "document_id": "Magnam animi quia harum molestiae.",
-                  "download_url": "Distinctio recusandae dicta distinctio officia modi quae.",
-                  "new_filename": "Earum distinctio consequuntur debitis veritatis.",
-                  "version_id": "Officiis iure voluptatum ullam voluptas quo."
+                  "document_id": "Harum aliquam officia id hic.",
+                  "download_url": "Corrupti omnis deleniti ad sit architecto.",
+                  "new_filename": "Quia at non quidem.",
+                  "version_id": "Sit animi occaecati recusandae quam."
                 },
                 {
-                  "document_id": "Magnam animi quia harum molestiae.",
-                  "download_url": "Distinctio recusandae dicta distinctio officia modi quae.",
-                  "new_filename": "Earum distinctio consequuntur debitis veritatis.",
-                  "version_id": "Officiis iure voluptatum ullam voluptas quo."
-                },
-                {
-                  "document_id": "Magnam animi quia harum molestiae.",
-                  "download_url": "Distinctio recusandae dicta distinctio officia modi quae.",
-                  "new_filename": "Earum distinctio consequuntur debitis veritatis.",
-                  "version_id": "Officiis iure voluptatum ullam voluptas quo."
-                },
-                {
-                  "document_id": "Magnam animi quia harum molestiae.",
-                  "download_url": "Distinctio recusandae dicta distinctio officia modi quae.",
-                  "new_filename": "Earum distinctio consequuntur debitis veritatis.",
-                  "version_id": "Officiis iure voluptatum ullam voluptas quo."
+                  "document_id": "Harum aliquam officia id hic.",
+                  "download_url": "Corrupti omnis deleniti ad sit architecto.",
+                  "new_filename": "Quia at non quidem.",
+                  "version_id": "Sit animi occaecati recusandae quam."
                 }
               ]
             },
             "count": {
               "type": "integer",
               "description": "Number of copies created",
-              "example": 7214525873011511277,
+              "example": 245451823968000643,
               "format": "int64"
             },
             "error": {
               "type": "string",
               "description": "Error message when replication failed",
-              "example": "Est sit cupiditate sunt ea est."
+              "example": "Labore doloribus ratione ut tempora."
             },
             "filename": {
               "type": "string",
               "description": "Source filename",
-              "example": "Labore inventore dignissimos doloribus."
+              "example": "Quia occaecati culpa molestias."
             },
             "ok": {
               "type": "boolean",
               "description": "Whether replication succeeded",
-              "example": false
+              "example": true
             }
           },
           "$defs": {
@@ -1484,30 +1534,131 @@
                 "document_id": {
                   "type": "string",
                   "description": "New local document identifier",
-                  "example": "Sit sint."
+                  "example": "Dolor ad quae qui libero et vel."
                 },
                 "download_url": {
                   "type": "string",
                   "description": "Local download URL",
-                  "example": "Fugiat esse placeat et harum nihil."
+                  "example": "Officiis beatae quia sequi."
                 },
                 "new_filename": {
                   "type": "string",
                   "description": "Copied document filename",
-                  "example": "Accusantium esse repudiandae id non culpa voluptas."
+                  "example": "Ipsa qui debitis aspernatur."
                 },
                 "version_id": {
                   "type": "string",
                   "description": "New version identifier",
-                  "example": "Possimus ut minus aperiam."
+                  "example": "Earum eos."
                 }
               },
               "example": {
-                "document_id": "Voluptatem incidunt tempora voluptatem voluptatem.",
-                "download_url": "Laborum exercitationem.",
-                "new_filename": "Deserunt odio ut eum sit dolor repellendus.",
-                "version_id": "Sint quis beatae deleniti molestiae."
+                "document_id": "Quos beatae ut.",
+                "download_url": "Nam voluptates magnam nam aliquam.",
+                "new_filename": "A est iusto reiciendis ipsam cupiditate.",
+                "version_id": "Quae fugit illo."
               }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "career_context.set_application_company",
+      "service": "chat",
+      "toolset": "chat.career_context",
+      "title": "Set Application Company",
+      "description": "Move an existing application onto a different (usually newly identified) company. Use after reading the job description to swap the application off the Unknown placeholder.",
+      "payload": {
+        "name": "SetApplicationCompanyPayload",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "application_id": {
+              "type": "string",
+              "description": "Local application identifier to move",
+              "example": "Ratione odit sunt velit voluptate et."
+            },
+            "company_id": {
+              "type": "string",
+              "description": "Existing local company identifier to attach. Mutually exclusive with company_name.",
+              "example": "Voluptas beatae sit aperiam alias molestias."
+            },
+            "company_name": {
+              "type": "string",
+              "description": "Free-text company name. When set, the tool resolves an existing matching company or creates a new one — preferred when the assistant has just identified the company from materials.",
+              "example": "Eos et optio."
+            },
+            "confirm_new": {
+              "type": "boolean",
+              "description": "When using company_name and a similar company already exists, set true to bypass the dedupe warning and create a fresh row.",
+              "example": true
+            }
+          }
+        }
+      },
+      "result": {
+        "name": "SetApplicationCompanyResult",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "application_id": {
+              "type": "string",
+              "description": "Local application identifier",
+              "example": "Molestias voluptatem sint asperiores."
+            },
+            "company_id": {
+              "type": "string",
+              "description": "Now-attached local company identifier",
+              "example": "Et sed et architecto."
+            },
+            "company_name": {
+              "type": "string",
+              "description": "Now-attached company name",
+              "example": "Et excepturi eum et provident facere minus."
+            },
+            "error": {
+              "type": "string",
+              "description": "Error message when the update failed",
+              "example": "Dicta facilis fugit veritatis provident odio."
+            },
+            "ok": {
+              "type": "boolean",
+              "description": "Whether the application's company was updated",
+              "example": false
+            },
+            "previous_company_id": {
+              "type": "string",
+              "description": "Previously attached company identifier",
+              "example": "Commodi et consequatur."
+            },
+            "previous_company_name": {
+              "type": "string",
+              "description": "Previously attached company name",
+              "example": "Natus accusamus et est voluptatem quas."
+            },
+            "requires_confirmation": {
+              "type": "boolean",
+              "description": "Whether a similar existing company blocked creation until confirm_new is true",
+              "example": true
+            },
+            "similar_company_id": {
+              "type": "string",
+              "description": "Similar existing company identifier, when one was found",
+              "example": "Quo magni corrupti."
+            },
+            "similar_company_name": {
+              "type": "string",
+              "description": "Similar existing company name, when one was found",
+              "example": "Id ullam."
+            },
+            "similarity": {
+              "type": "number",
+              "description": "Similarity score for the nearest existing company, from 0 to 1",
+              "example": 0.22194490231428327,
+              "format": "double"
             }
           }
         }

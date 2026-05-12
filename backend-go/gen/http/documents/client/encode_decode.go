@@ -541,6 +541,16 @@ func unmarshalDocumentResponseToDocumentsDocument(v *DocumentResponse) *document
 		CreatedAt:           v.CreatedAt,
 		UpdatedAt:           v.UpdatedAt,
 		LatestVersionNumber: v.LatestVersionNumber,
+		Library:             v.Library,
+		LibraryKind:         v.LibraryKind,
+		Kind:                v.Kind,
+		InterviewStage:      v.InterviewStage,
+		Summary:             v.Summary,
+		DatedEventAt:        v.DatedEventAt,
+		DerivedFromID:       v.DerivedFromID,
+		MetadataStatus:      v.MetadataStatus,
+		MetadataProcessedAt: v.MetadataProcessedAt,
+		MetadataError:       v.MetadataError,
 	}
 	if v.StructureTree != nil {
 		res.StructureTree = make([]*documents.StructureNode, len(v.StructureTree))
@@ -550,6 +560,34 @@ func unmarshalDocumentResponseToDocumentsDocument(v *DocumentResponse) *document
 				continue
 			}
 			res.StructureTree[i] = unmarshalStructureNodeResponseToDocumentsStructureNode(val)
+		}
+	}
+	if v.Topics != nil {
+		res.Topics = make([]string, len(v.Topics))
+		for i, val := range v.Topics {
+			res.Topics[i] = val
+		}
+	}
+	if v.CompanyRefs != nil {
+		res.CompanyRefs = make([]string, len(v.CompanyRefs))
+		for i, val := range v.CompanyRefs {
+			res.CompanyRefs[i] = val
+		}
+	}
+	if v.PeopleRefs != nil {
+		res.PeopleRefs = make([]*documents.PersonRef, len(v.PeopleRefs))
+		for i, val := range v.PeopleRefs {
+			if val == nil {
+				res.PeopleRefs[i] = nil
+				continue
+			}
+			res.PeopleRefs[i] = unmarshalPersonRefResponseToDocumentsPersonRef(val)
+		}
+	}
+	if v.LinkedApplicationIds != nil {
+		res.LinkedApplicationIds = make([]string, len(v.LinkedApplicationIds))
+		for i, val := range v.LinkedApplicationIds {
+			res.LinkedApplicationIds[i] = val
 		}
 	}
 
@@ -580,6 +618,20 @@ func unmarshalStructureNodeResponseToDocumentsStructureNode(v *StructureNodeResp
 	return res
 }
 
+// unmarshalPersonRefResponseToDocumentsPersonRef builds a value of type
+// *documents.PersonRef from a value of type *PersonRefResponse.
+func unmarshalPersonRefResponseToDocumentsPersonRef(v *PersonRefResponse) *documents.PersonRef {
+	if v == nil {
+		return nil
+	}
+	res := &documents.PersonRef{
+		Name: *v.Name,
+		Role: v.Role,
+	}
+
+	return res
+}
+
 // unmarshalStructureNodeResponseBodyToDocumentsStructureNode builds a value of
 // type *documents.StructureNode from a value of type
 // *StructureNodeResponseBody.
@@ -600,6 +652,20 @@ func unmarshalStructureNodeResponseBodyToDocumentsStructureNode(v *StructureNode
 			continue
 		}
 		res.Children[i] = unmarshalStructureNodeResponseBodyToDocumentsStructureNode(val)
+	}
+
+	return res
+}
+
+// unmarshalPersonRefResponseBodyToDocumentsPersonRef builds a value of type
+// *documents.PersonRef from a value of type *PersonRefResponseBody.
+func unmarshalPersonRefResponseBodyToDocumentsPersonRef(v *PersonRefResponseBody) *documents.PersonRef {
+	if v == nil {
+		return nil
+	}
+	res := &documents.PersonRef{
+		Name: *v.Name,
+		Role: v.Role,
 	}
 
 	return res

@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Document Metadata Enrichment</title>
+<style>
+:root {
+  --bg: #f7f6f3;
+  --surface: #ffffff;
+  --ink: #1a1a1a;
+  --ink-2: #3d3d3d;
+  --muted: #6b6b6b;
+  --line: #e5e3dd;
+  --line-2: #efedea;
+  --accent: #2563eb;
+  --accent-soft: #eff5ff;
+  --done: #15803d;
+  --warn: #b45309;
+  --warn-soft: #fffbeb;
+  --code-bg: #f3f1ec;
+  --date: #7c3aed;
+  --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
+  --radius: 10px;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15.5px/1.65 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: 1rem;
+  transform: translateY(-150%);
+  background: var(--ink);
+  color: white;
+  padding: 0.45rem 0.7rem;
+  border-radius: 6px;
+  z-index: 10;
+}
+.skip-link:focus-visible {
+  transform: translateY(0);
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  max-width: 1240px;
+  margin: 0 auto;
+  gap: 2rem;
+  padding: 2rem;
+}
+@media (max-width: 920px) {
+  .layout { grid-template-columns: 1fr; padding: 1rem; gap: 1rem; }
+  nav.toc { position: static; max-height: none; border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem; }
+}
+nav.toc {
+  position: sticky;
+  top: 1.5rem;
+  align-self: start;
+  max-height: calc(100vh - 3rem);
+  overflow-y: auto;
+  font-size: 0.88rem;
+  padding: 1.25rem 1rem 1rem;
+}
+nav.toc h2 {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  margin: 0 0 0.85rem;
+  border: 0;
+  font-weight: 600;
+}
+nav.toc ul { list-style: none; padding: 0; margin: 0; }
+nav.toc > ul > li { margin-bottom: 0.15rem; }
+nav.toc ul ul { padding-left: 0; margin-top: 0.25rem; }
+nav.toc a {
+  color: var(--ink-2);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  transition: background 120ms, color 120ms;
+}
+nav.toc a:hover { color: var(--accent); background: var(--accent-soft); }
+nav.toc a:focus-visible,
+.totop:focus-visible,
+details.collapse summary:focus-visible,
+details.review-fold summary:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  outline-offset: 2px;
+}
+nav.toc .toc-progress {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+nav.toc .ms-link { padding-left: 1.1rem; font-size: 0.85rem; }
+main { min-width: 0; }
+.hero,
+.section {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.hero {
+  padding: 2rem 2.25rem;
+  margin-bottom: 1.25rem;
+}
+.hero h1 {
+  font-size: 1.85rem;
+  margin: 0 0 0.5rem;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+.hero .lede {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line-2);
+}
+.stat { flex: 1 1 130px; }
+.stat-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 600;
+}
+.stat-value {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin-top: 0.2rem;
+  font-variant-numeric: tabular-nums;
+}
+.section {
+  padding: 1.75rem 2rem 1.5rem;
+  margin-bottom: 1.25rem;
+}
+.section.unframed {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+}
+.section > h2:first-child,
+.section > .ms-header:first-child { margin-top: 0; }
+h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0 0 1rem;
+  border: 0;
+  scroll-margin-top: 1rem;
+}
+.ms-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 0 0.4rem;
+  scroll-margin-top: 1rem;
+}
+.ms-header h2 { margin: 0; font-size: 1.2rem; }
+.ms-header .ms-num {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-right: 0.5rem;
+  font-weight: 500;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.badge.pending {
+  background: var(--warn-soft);
+  color: var(--warn);
+  border: 1px solid #fde68a;
+}
+.badge.pending::before { content: "○"; font-size: 0.72rem; }
+.badge.done {
+  background: #ecfdf5;
+  color: var(--done);
+  border: 1px solid #bbf7d0;
+}
+.badge.done::before {
+  content: "●";
+  font-size: 0.6rem;
+}
+.ms-progress {
+  height: 4px;
+  background: var(--line-2);
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 0.4rem 0 1.25rem;
+}
+.ms-progress-bar {
+  height: 100%;
+  background: var(--done);
+  border-radius: 999px;
+}
+.goal { margin: 0 0 1.25rem; color: var(--ink-2); }
+.goal strong { font-weight: 600; color: var(--ink); }
+.subhead {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  font-weight: 600;
+  margin: 1.5rem 0 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.subhead::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line-2);
+}
+p { margin: 0.75rem 0; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code {
+  background: var(--code-bg);
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+  font: 0.84em ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color: #1f2937;
+  word-break: break-word;
+}
+pre {
+  background: var(--code-bg);
+  padding: 1rem;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+pre code { background: none; padding: 0; font-size: 0.86em; }
+ul { padding-left: 1.4rem; margin: 0.5rem 0; }
+li { margin: 0.3rem 0; }
+.acceptance ul {
+  list-style: none;
+  padding-left: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.acceptance li {
+  position: relative;
+  padding: 0.6rem 0.85rem 0.6rem 2rem;
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  margin: 0;
+}
+.acceptance li::before {
+  content: "✓";
+  position: absolute;
+  left: 0.7rem;
+  top: 0.55rem;
+  color: var(--done);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.checklist ul { list-style: none; padding-left: 0; }
+.checklist li {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: flex-start;
+  column-gap: 0.65rem;
+  row-gap: 0.35rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 6px;
+  margin: 0.1rem 0;
+  transition: background 120ms;
+}
+.checklist li:hover { background: var(--bg); }
+.checklist .task-text {
+  grid-column: 2;
+  min-width: 0;
+}
+.checklist li > details.collapse {
+  grid-column: 2;
+  display: block;
+  min-width: 0;
+  width: 100%;
+}
+input[type="checkbox"] {
+  grid-column: 1;
+  appearance: none;
+  width: 16px; height: 16px;
+  border: 1.5px solid #c7c5bf;
+  border-radius: 4px;
+  flex-shrink: 0;
+  margin-top: 0.32em;
+  position: relative;
+  background: var(--surface);
+  cursor: default;
+}
+input[type="checkbox"]:checked { background: var(--done); border-color: var(--done); }
+input[type="checkbox"]:checked::after {
+  content: "✓";
+  color: white;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+.timeline {
+  list-style: none;
+  padding: 0.5rem 0 0;
+  margin: 0;
+  position: relative;
+}
+.timeline::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 0;
+  bottom: 0.5rem;
+  width: 2px;
+  background: linear-gradient(to bottom, var(--line), var(--line-2));
+}
+.timeline li {
+  position: relative;
+  padding: 0.25rem 0 0.85rem 2rem;
+  margin: 0;
+  font-size: 0.94rem;
+  color: var(--ink-2);
+}
+.timeline li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0.55rem;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 3px var(--surface);
+}
+.timeline .date {
+  display: inline-block;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.78rem;
+  color: var(--date);
+  font-weight: 600;
+  margin-right: 0.55rem;
+  background: #f5f3ff;
+  padding: 0.05rem 0.4rem;
+  border-radius: 4px;
+}
+details.review-fold {
+  border-top: 1px solid var(--line-2);
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+}
+details.review-fold summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+details.review-fold summary::marker { color: var(--muted); }
+details.collapse { display: inline; }
+details.collapse summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 0.88rem;
+  list-style: none;
+  display: inline;
+}
+details.collapse summary::-webkit-details-marker { display: none; }
+details.collapse summary::before {
+  content: "▸ ";
+  display: inline-block;
+  transition: transform 150ms;
+}
+details.collapse[open] summary::before { content: "▾ "; }
+details.collapse[open] summary { display: block; margin-bottom: 0.4rem; }
+details.collapse pre {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.totop {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  width: 40px; height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  text-decoration: none;
+  box-shadow: var(--shadow);
+  font-size: 1.1rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms;
+}
+.totop.show { opacity: 1; pointer-events: auto; }
+.totop:hover { color: var(--accent); }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to main content</a>
+<div class="layout">
+<nav class="toc">
+  <h2>Contents</h2>
+  <ul>
+    <li><a href="#status"><span>Status</span><span class="toc-progress" data-status-count>2</span></a></li>
+    <li><a href="#milestones"><span>Milestones</span><span class="toc-progress" data-total-progress>8/60</span></a></li>
+    <li>
+      <ul>
+        <li><a class="ms-link" href="#ms-1"><span>M1 - Schema</span><span class="toc-progress" data-ms-progress="ms-1">8/8</span></a></li><li><a class="ms-link" href="#ms-2"><span>M2 - Classifier</span><span class="toc-progress" data-ms-progress="ms-2">0/11</span></a></li><li><a class="ms-link" href="#ms-3"><span>M3 - API</span><span class="toc-progress" data-ms-progress="ms-3">0/8</span></a></li><li><a class="ms-link" href="#ms-4"><span>M4 - Linking</span><span class="toc-progress" data-ms-progress="ms-4">0/10</span></a></li><li><a class="ms-link" href="#ms-5"><span>M5 - Probe</span><span class="toc-progress" data-ms-progress="ms-5">0/10</span></a></li><li><a class="ms-link" href="#ms-6"><span>M6 - Frontend</span><span class="toc-progress" data-ms-progress="ms-6">0/13</span></a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+<main id="main">
+
+<header class="hero">
+  <h1>Document Metadata Enrichment</h1>
+  <p class="lede">Add a deferred, user-triggered metadata classifier to <code>documents</code> (kind, summary, topics, people/company refs, interview stage) plus a first-class <code>library</code> boolean and a <code>document_application_links</code> join table so reusable assets (stories, baselines, cheatsheets) can be linked to many applications. Classifier follows the <code>tabular_entity.go</code> pattern: one <code>completeText</code> call to local Ollama, JSON parse, persist. Async dispatch via <code>go func()</code> + <code>context.Background()</code>, with an orthogonal <code>metadata_status</code> state machine that does not collide with the existing <code>documents.status</code>. Upload remains synchronous and untouched.</p>
+  <div class="hero-meta">
+    <div class="stat">
+      <div class="stat-label">Milestones</div>
+      <div class="stat-value" data-stat="milestones">1 / 6</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Tasks complete</div>
+      <div class="stat-value" data-stat="tasks">8 / 60</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Overall progress</div>
+      <div class="stat-value" data-stat="percent">13%</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Status updates</div>
+      <div class="stat-value" data-stat="status">2</div>
+    </div>
+  </div>
+</header>
+
+<section class="section" id="status">
+  <h2>Status</h2>
+  <ul class="timeline"><li><span class="date">2026-05-11</span>Plan created.</li><li><span class="date">2026-05-11</span>M1 (Schema and backfill) complete. 16 existing docs backfilled to <code>metadata_status="unprocessed"</code>; new fields project to HTTP responses.</li></ul>
+</section>
+
+<section class="section unframed" id="milestones"><h2>Milestones</h2>
+
+<article class="section" id="ms-1"><div class="ms-header"><h2><span class="ms-num">Milestone 1</span>Schema and backfill</h2><span class="badge done">Complete</span></div><div class="ms-progress"><div class="ms-progress-bar" style="width:100%"></div></div><p class="goal"><strong>Goal:</strong> Land the new fields and join table in SurrealKV with idempotent backfill of existing rows.</p><div class="subhead">Acceptance Criteria</div><div class="acceptance"><ul><li><code>backend-go/internal/localdata/schema.go</code> defines all new fields and the <code>document_application_links</code> table; starting the backend against a copy of <code>.tmp/luke-local/data</code> completes <code>initSchema</code> with no error.</li><li>After backfill, <code>SELECT count() FROM documents WHERE metadata_status = NONE</code> returns 0. (<code>library</code> and <code>kind</code> remain NONE on legacy rows until the classifier runs in Milestone 2.)</li><li>Running <code>migrateDocumentsLibraryFlag</code> a second time leaves the row count of changes at 0 (idempotence).</li></ul></div><details class="review-fold"><summary>Checklist 8/8</summary><div class="checklist"><ul><li><input type="checkbox" disabled checked><span class="task-text">Extend <code>backend-go/design/doc_types.go</code> <code>Document</code> with <code>library</code>, <code>library_kind</code>, <code>kind</code>, <code>interview_stage</code>, <code>topics</code>, <code>company_refs</code>, <code>people_refs</code> (new nested <code>PersonRef</code>), <code>summary</code>, <code>dated_event_at</code>, <code>derived_from_id</code>, <code>metadata_status</code>, <code>metadata_processed_at</code>, <code>metadata_error</code>, <code>linked_application_ids</code>.</span></li><li><input type="checkbox" disabled checked><span class="task-text">Append <code>DEFINE FIELD IF NOT EXISTS</code> lines for the above to the <code>documents</code> block in <code>backend-go/internal/localdata/schema.go</code> with the enum <code>ASSERT $value INSIDE [...]</code> checks listed in <code>DOCUMENT_METADATA_PLAN.md</code> "SurrealQL schema additions".</span></li><li><input type="checkbox" disabled checked><span class="task-text">Define table <code>document_application_links</code> in the same schema constant with fields <code>document_id</code>, <code>application_id</code>, <code>relation</code>, <code>created_at</code>, <code>created_by</code> and indexes <code>doc_app_unique</code> (UNIQUE on <code>document_id, application_id</code>) and <code>app_links_by_app</code> (<code>application_id, created_at</code>).</span></li><li><input type="checkbox" disabled checked><span class="task-text">Add <code>migrateDocumentsLibraryFlag</code> to <code>backend-go/internal/localdata/schema.go</code> mirroring <code>migrateApplicationsToCompanies</code> at lines 43–59; only set <code>metadata_status = "unprocessed"</code> where it is NONE. Do NOT pre-classify <code>library</code> / <code>library_kind</code>; the classifier (Milestone 2) decides those, so existing rows have <code>library = NONE</code> until processed.</span></li><li><input type="checkbox" disabled checked><span class="task-text">Call <code>migrateDocumentsLibraryFlag</code> from <code>backend-go/internal/localdata/app.go</code> lines 170–182 after the existing <code>migrateEncodedChatMessageIDs</code> call (not from <code>initSchema</code>).</span></li><li><input type="checkbox" disabled checked><span class="task-text">Run <code>cd backend-go &amp;&amp; make generate &amp;&amp; make build</code> and resolve any compile errors in <code>internal/localapi/repository.go</code> and <code>internal/localapi/api.go</code> from the expanded Document struct.</span></li><li><input type="checkbox" disabled checked><span class="task-text">Start the backend pointed at a copy of <code>.tmp/luke-local/data</code>; run <code>SELECT count() FROM documents WHERE metadata_status = NONE</code> via a debug query and confirm 0.</span></li><li><input type="checkbox" disabled checked><span class="task-text">Commit the milestone changes and push: <code>git add -A &amp;&amp; git commit -m "Add document metadata schema fields and library-link join table" &amp;&amp; git push</code>.</span></li></ul></div></details></article><article class="section" id="ms-2"><div class="ms-header"><h2><span class="ms-num">Milestone 2</span>Classifier service</h2><span class="badge pending">Pending</span></div><div class="ms-progress"><div class="ms-progress-bar" style="width:0%"></div></div><p class="goal"><strong>Goal:</strong> Implement <code>enrichDocumentMetadata</code> that reads a document's text twin, calls the local Ollama, parses the JSON, and persists structured metadata.</p><div class="subhead">Acceptance Criteria</div><div class="acceptance"><ul><li><code>backend-go/internal/localapi/document_metadata_test.go</code> parses the fixture <code>testdata/glean_transcript_llm_response.json</code> into <code>classifierResult</code> and asserts <code>kind="interview_transcript"</code>, <code>library=false</code>, <code>summary</code> non-empty.</li><li>Calling <code>enrichDocumentMetadata</code> on a seeded transcript-style document transitions <code>metadata_status</code> to <code>ready</code> and persists <code>kind</code>, <code>summary</code>, <code>topics</code>, <code>library</code> (verified manually via SurrealQL <code>SELECT</code> before the probe scenario in Milestone 5).</li><li>The function records an OTel span named <code>metadata.enrich_document</code> with attributes <code>metadata.document_id</code>, <code>metadata.kind</code>, <code>metadata.library</code>, <code>metadata.summary_chars</code>, <code>metadata.topic_count</code>.</li></ul></div><details class="review-fold" open><summary>Checklist 0/11</summary><div class="checklist"><ul><li><input type="checkbox" disabled><span class="task-text">Create <code>backend-go/internal/localapi/document_metadata.go</code> with the <code>classifierSystemPrompt</code> constant (full prompt body in <code>DOCUMENT_METADATA_PLAN.md</code> "Classifier system prompt").</span></li><li><input type="checkbox" disabled><span class="task-text">Define a <code>classifierResult</code> Go struct with <code>Kind</code>, <code>Library</code>, <code>LibraryKind</code>, <code>InterviewStage</code>, <code>Summary</code>, <code>Topics</code>, <code>CompanyRefs</code>, <code>PeopleRefs []PersonRef</code>, <code>DatedEventAt</code>, <code>SuggestedApplicationMatch</code>, <code>SuggestedDerivedFrom</code> and matching <code>json</code> tags.</span></li><li><input type="checkbox" disabled><span class="task-text">Create <code>backend-go/internal/localapi/testdata/glean_transcript_llm_response.json</code> with a representative classifier output for a Glean recruiter transcript.</span></li><li><input type="checkbox" disabled><span class="task-text">Write <code>TestClassifierResultParse</code> in <code>backend-go/internal/localapi/document_metadata_test.go</code> that reads the fixture and asserts struct fields without any LLM call.</span></li><li><input type="checkbox" disabled><span class="task-text">Implement <code>enrichDocumentMetadata(ctx, docID string) error</code>: load Document, set <code>metadata_status="processing"</code>, load latest version's <code>extracted_text</code> via the same query path used by <code>readStoredExtractedText</code> in <code>assistant_agent.go</code>; if extraction failed, set <code>metadata_status="error"</code> with a <code>metadata_error</code> field and return nil.</span></li><li><input type="checkbox" disabled><span class="task-text">Call <code>completeText(completionRequest{Model: defaultMainModel, SystemPrompt: classifierSystemPrompt, User: fmt.Sprintf("Filename: %s\n\nContent:\n%s", filename, truncated), Temperature: 0.2})</code> mirroring <code>internal/localapi/tabular_entity.go:267–279</code>; truncate <code>extracted_text</code> at 8000 chars.</span></li><li><input type="checkbox" disabled><span class="task-text">Unmarshal into <code>classifierResult</code>; validate <code>Kind</code>, <code>LibraryKind</code>, <code>InterviewStage</code> against allow-lists copied from <code>schema.go</code> enums (reject unknowns by overwriting to <code>unclassified</code> / nil); cap <code>Topics</code> at 8 entries and <code>PeopleRefs</code> at 16.</span></li><li><input type="checkbox" disabled><span class="task-text">Persist via <code>UPDATE documents SET ... WHERE id = $id</code> flipping <code>metadata_status="ready"</code> and <code>metadata_processed_at = time::now()</code>; on error path set <code>metadata_status="error"</code> and store the error message in <code>metadata_error</code> (added in Milestone 1).</span></li><li><input type="checkbox" disabled><span class="task-text">Wrap the work in an OTel span following <code>internal/textextract/textextract.go:81</code> style; record the attributes listed in the acceptance criteria.</span></li><li><input type="checkbox" disabled><span class="task-text">Run <code>cd backend-go &amp;&amp; go test ./internal/localapi/... -run TestClassifierResultParse -v</code>.</span></li><li><input type="checkbox" disabled><span class="task-text">Commit and push: <code>git add -A &amp;&amp; git commit -m "Add deferred document metadata classifier service" &amp;&amp; git push</code>.</span></li></ul></div></details></article><article class="section" id="ms-3"><div class="ms-header"><h2><span class="ms-num">Milestone 3</span>Trigger and confirmation API</h2><span class="badge pending">Pending</span></div><div class="ms-progress"><div class="ms-progress-bar" style="width:0%"></div></div><p class="goal"><strong>Goal:</strong> Expose endpoints to queue classification (single and batch), report queue state, and let the user confirm or override results.</p><div class="subhead">Acceptance Criteria</div><div class="acceptance"><ul><li>The four routes below appear in <code>backend-go/gen/http/cli/luke/cli.go</code> after <code>make generate</code>: <code>POST /single-documents/{documentId}/process-metadata</code>, <code>POST /single-documents/process-metadata</code>, <code>GET /single-documents/metadata-queue</code>, <code>PATCH /single-documents/{documentId}/metadata</code>.</li><li><code>POST /single-documents/process-metadata</code> with body <code>{"filter":"unprocessed"}</code> queues every <code>metadata_status="unprocessed"</code> document and returns 202 with the queued IDs; concurrency is capped at 5 in-flight goroutines.</li><li><code>PATCH /single-documents/{documentId}/metadata</code> with <code>{"confirm": true, "summary": "..."}</code> returns 200, persists the override, and flips <code>metadata_status</code> to <code>user_confirmed</code> (verified in Milestone 5 probe).</li></ul></div><details class="review-fold"><summary>Checklist 0/8</summary><div class="checklist"><ul><li><input type="checkbox" disabled><span class="task-text">Add the four routes to <code>backend-go/design/document_routes.go</code> against the existing <code>single_documents</code> service with <code>Result(Document)</code> for PATCH and a new <code>MetadataQueueStats</code> type for the GET (counts by status).</span></li><li><input type="checkbox" disabled><span class="task-text">Run <code>cd backend-go &amp;&amp; make generate</code> and confirm the new endpoints appear in <code>backend-go/gen/http/cli/luke/cli.go</code>.</span></li><li><input type="checkbox" disabled><span class="task-text">Implement the single-doc enqueue handler in <code>backend-go/internal/localapi/api.go</code>: flip <code>metadata_status="queued"</code>, spawn <code>go func() { ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second); defer cancel(); _ = s.enrichDocumentMetadata(ctx, docID) }()</code>, return 202.</span></li><li><input type="checkbox" disabled><span class="task-text">Implement the batch handler with a <code>make(chan struct{}, 5)</code> semaphore around each goroutine spawn; resolve <code>filter="unprocessed"</code> to the matching document IDs via SurrealQL before iterating.</span></li><li><input type="checkbox" disabled><span class="task-text">Implement the queue-status handler using <code>SELECT count() AS n, metadata_status FROM documents GROUP BY metadata_status</code>.</span></li><li><input type="checkbox" disabled><span class="task-text">Implement the PATCH handler: validate any submitted enum value against the allow-list, accept partial updates, set <code>metadata_status="user_confirmed"</code> when <code>confirm=true</code>, persist via <code>UPDATE documents MERGE { ... } WHERE id = $id</code>.</span></li><li><input type="checkbox" disabled><span class="task-text">Run <code>cd backend-go &amp;&amp; make build</code>.</span></li><li><input type="checkbox" disabled><span class="task-text">Commit and push: <code>git add -A &amp;&amp; git commit -m "Add classifier trigger and confirmation API" &amp;&amp; git push</code>.</span></li></ul></div></details></article><article class="section" id="ms-4"><div class="ms-header"><h2><span class="ms-num">Milestone 4</span>Application linking</h2><span class="badge pending">Pending</span></div><div class="ms-progress"><div class="ms-progress-bar" style="width:0%"></div></div><p class="goal"><strong>Goal:</strong> Make library documents queryable from both directions (doc → applications served, application → library docs serving it).</p><div class="subhead">Acceptance Criteria</div><div class="acceptance"><ul><li><code>POST /single-documents/{id}/application-links</code> returns HTTP 400 when the target document has <code>library=false</code>, and 201 otherwise; the inserted row has <code>created_by="user_confirmed"</code>.</li><li><code>GET /single-documents/{id}</code> populates <code>linked_application_ids</code> from a sub-select on <code>document_application_links</code> (verified in Milestone 5 probe).</li><li><code>GET /applications/{id}</code> (the existing list query in <code>backend-go/internal/localapi/repository.go:51–58</code>) includes a new <code>library_documents</code> array populated by the join table.</li></ul></div><details class="review-fold"><summary>Checklist 0/10</summary><div class="checklist"><ul><li><input type="checkbox" disabled><span class="task-text">Add <code>POST /single-documents/{documentId}/application-links</code> (body <code>{application_id, relation}</code>) and <code>DELETE /single-documents/{documentId}/application-links/{applicationId}</code> to <code>backend-go/design/document_routes.go</code>.</span></li><li><input type="checkbox" disabled><span class="task-text">Add <code>library_documents</code> ArrayOf(Document) to the <code>Application</code> type in <code>backend-go/design/application_types.go</code>.</span></li><li><input type="checkbox" disabled><span class="task-text">Run <code>cd backend-go &amp;&amp; make generate</code>.</span></li><li><input type="checkbox" disabled><span class="task-text">Extend <code>applicationListQuery</code> in <code>backend-go/internal/localapi/repository.go:51–58</code> with <code>(SELECT * FROM documents WHERE id IN (SELECT document_id FROM document_application_links WHERE application_id = $parent.id)) AS library_documents</code>.</span></li><li><input type="checkbox" disabled><span class="task-text">Extend the Document load query in <code>backend-go/internal/localapi/repository.go</code> with <code>(SELECT application_id FROM document_application_links WHERE document_id = $parent.id) AS linked_application_ids</code>.</span></li><li><input type="checkbox" disabled><span class="task-text">Implement the POST handler in <code>backend-go/internal/localapi/api.go</code>: reject with <code>goa.PermanentError("invalid_request", ...)</code> when the document has <code>library=false</code>; <code>CREATE document_application_links CONTENT { ... created_by: "user_confirmed" }</code>.</span></li><li><input type="checkbox" disabled><span class="task-text">Implement the DELETE handler with <code>DELETE FROM document_application_links WHERE document_id = $doc AND application_id = $app</code>.</span></li><li><input type="checkbox" disabled><span class="task-text">Update the classifier persistence step from Milestone 2 to also insert link rows with <code>created_by="classifier_suggested"</code> when <code>suggested_application_match</code> resolves to an existing application id.</span></li><li><input type="checkbox" disabled><span class="task-text">Run <code>cd backend-go &amp;&amp; make build</code>.</span></li><li><input type="checkbox" disabled><span class="task-text">Commit and push: <code>git add -A &amp;&amp; git commit -m "Add library-document application links and sub-select queries" &amp;&amp; git push</code>.</span></li></ul></div></details></article><article class="section" id="ms-5"><div class="ms-header"><h2><span class="ms-num">Milestone 5</span>Probe scenario and handoff</h2><span class="badge pending">Pending</span></div><div class="ms-progress"><div class="ms-progress-bar" style="width:0%"></div></div><p class="goal"><strong>Goal:</strong> Cover the full upload → classify → confirm → link flow with one probe scenario, confirm no regressions, and commit.</p><div class="subhead">Acceptance Criteria</div><div class="acceptance"><ul><li><code>cd backend-go &amp;&amp; make probe SCENARIO=document_metadata</code> exits 0, asserting: upload yields <code>status=ready</code> and <code>metadata_status=unprocessed</code>; POST process-metadata transitions to <code>ready</code> within 60s with non-empty <code>summary</code> and <code>kind</code> populated; <code>telemetry.sqlite</code> has at least one <code>metadata.enrich_document</code> span; PATCH <code>{confirm:true}</code> flips <code>metadata_status</code> to <code>user_confirmed</code>; linking a separate library story to an application makes it appear under that application's <code>library_documents</code>.</li><li>Every other probe scenario listed by <code>cd backend-go &amp;&amp; make probe-list</code> still exits 0.</li><li>Repository has one commit on <code>main</code> with subject <code>Add deferred document metadata enrichment and library/application linking</code> and no unrelated changes.</li></ul></div><details class="review-fold"><summary>Checklist 0/10</summary><div class="checklist"><ul><li><input type="checkbox" disabled><span class="task-text">Create <code>backend-go/cmd/probe/scenarios/document_metadata.go</code> with <code>Register()</code> in <code>init()</code> and a <code>Run(ctx, client, tel, result)</code> function modeled on <code>backend-go/cmd/probe/scenarios/applications.go</code>.</span></li><li><input type="checkbox" disabled><span class="task-text">In the scenario, upload an interview-transcript fixture, POST <code>/single-documents/{id}/process-metadata</code>, poll <code>GET /single-documents/{id}</code> every 2s for up to 60s asserting <code>metadata_status</code> reaches <code>ready</code>.</span></li><li><input type="checkbox" disabled><span class="task-text">Assert <code>summary</code> non-empty, <code>kind == "interview_transcript"</code>, <code>library == false</code> on the resulting document.</span></li><li><input type="checkbox" disabled><span class="task-text">Assert the telemetry span via <code>From(spans).Named("metadata.enrich_document").WithAttr("metadata.document_id", docID).RequireAtLeast(1, "classifier ran exactly once")</code>.</span></li><li><input type="checkbox" disabled><span class="task-text">In the same scenario, PATCH <code>/single-documents/{id}/metadata</code> with <code>{"confirm": true, "summary": "override"}</code>; assert <code>metadata_status == "user_confirmed"</code> and the summary is the override on the next GET.</span></li><li><input type="checkbox" disabled><span class="task-text">In the same scenario, upload a story fixture, classify it (or directly PATCH <code>library=true</code>), POST <code>/application-links</code> linking it to an existing application, GET that application, assert the story id appears in <code>library_documents</code>.</span></li><li><input type="checkbox" disabled><span class="task-text"><code>defer client.Delete(...)</code> for every document and <code>defer DELETE</code> for every link the scenario creates.</span></li><li><input type="checkbox" disabled><span class="task-text">Run <code>cd backend-go &amp;&amp; make probe SCENARIO=document_metadata</code> and confirm exit 0.</span></li><li><input type="checkbox" disabled><span class="task-text">Run <code>cd backend-go &amp;&amp; for s in $(make probe-list | tail -n +2); do make probe SCENARIO=$s || { echo "FAIL: $s"; exit 1; }; done</code> to confirm no regressions.</span></li><li><input type="checkbox" disabled><span class="task-text"><code>git add -A &amp;&amp; git commit -m "Add document metadata probe scenario" &amp;&amp; git push</code>.</span></li></ul></div></details></article><article class="section" id="ms-6"><div class="ms-header"><h2><span class="ms-num">Milestone 6</span>Frontend surface</h2><span class="badge pending">Pending</span></div><div class="ms-progress"><div class="ms-progress-bar" style="width:0%"></div></div><p class="goal"><strong>Goal:</strong> Surface metadata in the Files area so the user can see, filter, confirm, and batch-trigger classification without leaving the UI.</p><div class="subhead">Acceptance Criteria</div><div class="acceptance"><ul><li><code>frontend/src/app/components/files/FilesOverview.tsx</code> shows a <code>kind</code> badge and a <code>Library</code> / <code>Application</code> badge on every row; a filter bar narrows the list by <code>library</code> (All / Library / Application), <code>kind</code>, and <code>metadata_status</code> (unprocessed / queued / ready / user_confirmed / error).</li><li><code>FilesOverview</code> has a "Process unprocessed" button that calls <code>POST /single-documents/process-metadata</code> with <code>{"filter":"unprocessed"}</code>; a status pill polls <code>GET /single-documents/metadata-queue</code> every 5s and shows <code>{queued, processing}</code> counts; the pill disappears when both reach 0.</li><li><code>frontend/src/app/components/files/FileView.tsx</code> shows a Metadata panel with <code>summary</code>, <code>topics</code> (as chips), <code>company_refs</code>, <code>people_refs</code>, <code>interview_stage</code>, <code>dated_event_at</code>, and the application link list; each field has an inline edit control; a "Confirm" button PATCHes with <code>confirm: true</code> and the row's <code>metadata_status</code> badge flips to <code>user_confirmed</code> without a page reload.</li><li>Running <code>cd frontend &amp;&amp; npm run lint &amp;&amp; npm run build</code> exits 0.</li></ul></div><details class="review-fold"><summary>Checklist 0/13</summary><div class="checklist"><ul><li><input type="checkbox" disabled><span class="task-text">Extend the <code>Document</code> type in <code>frontend/src/app/lib/lukeApi.ts</code> (and wherever the type is mirrored — search for <code>interface Document</code> and <code>type Document</code>) with the new fields: <code>library</code>, <code>library_kind</code>, <code>kind</code>, <code>interview_stage</code>, <code>topics</code>, <code>company_refs</code>, <code>people_refs</code>, <code>summary</code>, <code>dated_event_at</code>, <code>derived_from_id</code>, <code>metadata_status</code>, <code>metadata_processed_at</code>, <code>linked_application_ids</code>.</span></li><li><input type="checkbox" disabled><span class="task-text">Add API client functions in <code>frontend/src/app/lib/lukeApi.ts</code>: <code>processDocumentMetadata(id)</code>, <code>processDocumentMetadataBatch({document_ids?, filter?})</code>, <code>getMetadataQueue()</code>, <code>patchDocumentMetadata(id, patch, confirm)</code>, <code>addDocumentApplicationLink(docId, appId, relation)</code>, <code>deleteDocumentApplicationLink(docId, appId)</code>.</span></li><li><input type="checkbox" disabled><span class="task-text">Create <code>frontend/src/app/components/files/MetadataBadges.tsx</code> rendering the <code>kind</code> badge, the <code>Library</code>/<code>Application</code> pill, and the <code>metadata_status</code> dot; import it into <code>FilesOverview.tsx</code> row rendering.</span></li><li><input type="checkbox" disabled><span class="task-text">Create <code>frontend/src/app/components/files/FilesFilterBar.tsx</code> with three controls (library scope, kind, metadata_status); wire it to the existing filter state in <code>FilesOverview.tsx</code>.</span></li><li><input type="checkbox" disabled><span class="task-text">Create <code>frontend/src/app/components/files/ProcessQueuePill.tsx</code>: a small status component that polls <code>GET /single-documents/metadata-queue</code> every 5s with <code>useEffect</code> + <code>setInterval</code>, hides itself when counts are 0; render it in the <code>FilesOverview.tsx</code> header next to the "Process unprocessed" button.</span></li><li><input type="checkbox" disabled><span class="task-text">Add the "Process unprocessed" button to the <code>FilesOverview.tsx</code> header that calls <code>processDocumentMetadataBatch({filter:"unprocessed"})</code> and toasts the queued count.</span></li><li><input type="checkbox" disabled><span class="task-text">Create <code>frontend/src/app/components/files/MetadataPanel.tsx</code> rendering the editable summary/topics/company_refs/people_refs/interview_stage/dated_event_at fields with a Confirm button; on submit, call <code>patchDocumentMetadata(id, edits, true)</code> and re-fetch the document via <code>useFetchSingleDoc</code>.</span></li><li><input type="checkbox" disabled><span class="task-text">Embed <code>MetadataPanel</code> in <code>FileView.tsx</code> below the existing document preview; when <code>metadata_status === "unprocessed"</code>, show a "Classify this document" button that calls <code>processDocumentMetadata(id)</code>.</span></li><li><input type="checkbox" disabled><span class="task-text">In <code>frontend/src/app/components/files/MetadataPanel.tsx</code>, render <code>linked_application_ids</code> as a list of chips with a Remove button (calls <code>deleteDocumentApplicationLink</code>) and an "Add link" combobox of existing applications (calls <code>addDocumentApplicationLink</code> with <code>relation="referenced"</code>); only render this section when the document has <code>library=true</code>.</span></li><li><input type="checkbox" disabled><span class="task-text">Update the application detail page under <code>frontend/src/app/(pages)/applications/</code> to render the new <code>library_documents</code> array (read from the existing application list/detail query) as a "Library documents linked to this application" section with links back to <code>/files/{id}</code>.</span></li><li><input type="checkbox" disabled><span class="task-text">Run <code>cd frontend &amp;&amp; npm run lint &amp;&amp; npm run build</code> and resolve any type errors from the expanded Document interface.</span></li><li><input type="checkbox" disabled><span class="task-text">Manually exercise the flow at <code>http://localhost:3000/files</code>: upload a transcript, click "Classify", confirm the panel updates to <code>ready</code> within ~30s with non-empty summary, click "Confirm" to flip to <code>user_confirmed</code>, link a library story to an application, navigate to the application page and confirm the library section lists the story.</span></li><li><input type="checkbox" disabled><span class="task-text"><code>git add -A &amp;&amp; git commit -m "Surface document metadata and library/application links in Files UI" &amp;&amp; git push</code>.</span></li></ul></div></details></article>
+
+</section>
+</main>
+</div>
+<a href="#" class="totop" id="totop" title="Back to top" aria-label="Back to top">↑</a>
+<script>
+const totop = document.getElementById('totop');
+window.addEventListener('scroll', () => {
+  totop.classList.toggle('show', window.scrollY > 500);
+});
+
+function updateProgress() {
+  const milestones = [...document.querySelectorAll('#milestones > article.section[id]')];
+  let totalTasks = 0;
+  let doneTasks = 0;
+  let doneMilestones = 0;
+
+  milestones.forEach((milestone) => {
+    const boxes = [...milestone.querySelectorAll('.checklist input[type="checkbox"]')];
+    const done = boxes.filter((box) => box.checked).length;
+    const total = boxes.length;
+    const complete = total > 0 && done === total;
+    const percent = total === 0 ? 0 : Math.round((done / total) * 100);
+
+    totalTasks += total;
+    doneTasks += done;
+    if (complete) doneMilestones += 1;
+
+    const progressBar = milestone.querySelector('.ms-progress-bar');
+    if (progressBar) progressBar.style.width = `${percent}%`;
+
+    const badge = milestone.querySelector('.badge');
+    if (badge) {
+      badge.textContent = complete ? 'Complete' : 'Pending';
+      badge.classList.toggle('done', complete);
+      badge.classList.toggle('pending', !complete);
+    }
+
+    const summary = milestone.querySelector('details.review-fold > summary');
+    if (summary) summary.textContent = `Checklist ${done}/${total}`;
+
+    const tocProgress = document.querySelector(`[data-ms-progress="${milestone.id}"]`);
+    if (tocProgress) {
+      tocProgress.textContent = `${done}/${total}`;
+      tocProgress.classList.toggle('done', complete);
+    }
+  });
+
+  const totalPercent = totalTasks === 0 ? 0 : Math.round((doneTasks / totalTasks) * 100);
+  const statusCount = document.querySelectorAll('#status .timeline li').length;
+
+  document.querySelector('[data-total-progress]').textContent = `${doneTasks}/${totalTasks}`;
+  document.querySelector('[data-total-progress]').classList.toggle('done', doneTasks === totalTasks && totalTasks > 0);
+  document.querySelector('[data-status-count]').textContent = String(statusCount);
+
+  document.querySelector('[data-stat="milestones"]').textContent = `${doneMilestones} / ${milestones.length}`;
+  document.querySelector('[data-stat="tasks"]').textContent = `${doneTasks} / ${totalTasks}`;
+  document.querySelector('[data-stat="percent"]').textContent = `${totalPercent}%`;
+  document.querySelector('[data-stat="status"]').textContent = String(statusCount);
+}
+
+updateProgress();
+window.setTimeout(() => {
+  window.location.reload();
+}, 30000);
+</script>
+</body>
+</html>

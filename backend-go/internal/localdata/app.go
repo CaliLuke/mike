@@ -179,6 +179,9 @@ func (app *App) initialize(ctx context.Context) error {
 	if err := migrateEncodedChatMessageIDs(ctx, app.DB); err != nil {
 		return err
 	}
+	if err := migrateDocumentsLibraryFlag(ctx, app.DB); err != nil {
+		return err
+	}
 	if err := seedBuiltinWorkflows(ctx, app.DB); err != nil {
 		return err
 	}

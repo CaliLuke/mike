@@ -130,7 +130,7 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
         size: DATA_COL_PX,
         enableSorting: false,
         header: () => (
-          <div className="flex items-center justify-between gap-3 text-left text-xs font-medium text-gray-500 normal-case">
+          <div className="flex w-full items-center justify-between gap-3 text-left text-xs font-medium text-gray-500 normal-case">
             <span className="truncate" title={col.name}>
               {col.name}
             </span>
@@ -176,7 +176,7 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
         enableSorting: false,
         meta: { stickyLeft: CHECK_COL_PX },
         cell: (info) => (
-          <span className="line-clamp-1 text-sm text-gray-800" title={info.getValue()}>
+          <span className="line-clamp-1" title={info.getValue()}>
             {info.getValue()}
           </span>
         ),
@@ -231,6 +231,7 @@ export const TRTable = forwardRef<TRTableHandle, Props>(function TRTable(
         data={documents}
         columns={tableColumns}
         widthMode="fixed"
+        density="compact"
         getRowId={(row) => row.id}
         enableRowSelection
         rowSelection={rowSelection}

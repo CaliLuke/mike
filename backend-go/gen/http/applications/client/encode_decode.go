@@ -735,7 +735,6 @@ func unmarshalApplicationResponseToApplicationsApplication(v *ApplicationRespons
 		CompanyID:     *v.CompanyID,
 		CompanyName:   v.CompanyName,
 		Name:          *v.Name,
-		CmNumber:      v.CmNumber,
 		CreatedAt:     *v.CreatedAt,
 		UpdatedAt:     *v.UpdatedAt,
 		DocumentCount: v.DocumentCount,
@@ -791,6 +790,16 @@ func unmarshalDocumentResponseToApplicationsDocument(v *DocumentResponse) *appli
 		CreatedAt:           v.CreatedAt,
 		UpdatedAt:           v.UpdatedAt,
 		LatestVersionNumber: v.LatestVersionNumber,
+		Library:             v.Library,
+		LibraryKind:         v.LibraryKind,
+		Kind:                v.Kind,
+		InterviewStage:      v.InterviewStage,
+		Summary:             v.Summary,
+		DatedEventAt:        v.DatedEventAt,
+		DerivedFromID:       v.DerivedFromID,
+		MetadataStatus:      v.MetadataStatus,
+		MetadataProcessedAt: v.MetadataProcessedAt,
+		MetadataError:       v.MetadataError,
 	}
 	if v.StructureTree != nil {
 		res.StructureTree = make([]*applications.StructureNode, len(v.StructureTree))
@@ -800,6 +809,34 @@ func unmarshalDocumentResponseToApplicationsDocument(v *DocumentResponse) *appli
 				continue
 			}
 			res.StructureTree[i] = unmarshalStructureNodeResponseToApplicationsStructureNode(val)
+		}
+	}
+	if v.Topics != nil {
+		res.Topics = make([]string, len(v.Topics))
+		for i, val := range v.Topics {
+			res.Topics[i] = val
+		}
+	}
+	if v.CompanyRefs != nil {
+		res.CompanyRefs = make([]string, len(v.CompanyRefs))
+		for i, val := range v.CompanyRefs {
+			res.CompanyRefs[i] = val
+		}
+	}
+	if v.PeopleRefs != nil {
+		res.PeopleRefs = make([]*applications.PersonRef, len(v.PeopleRefs))
+		for i, val := range v.PeopleRefs {
+			if val == nil {
+				res.PeopleRefs[i] = nil
+				continue
+			}
+			res.PeopleRefs[i] = unmarshalPersonRefResponseToApplicationsPersonRef(val)
+		}
+	}
+	if v.LinkedApplicationIds != nil {
+		res.LinkedApplicationIds = make([]string, len(v.LinkedApplicationIds))
+		for i, val := range v.LinkedApplicationIds {
+			res.LinkedApplicationIds[i] = val
 		}
 	}
 
@@ -825,6 +862,20 @@ func unmarshalStructureNodeResponseToApplicationsStructureNode(v *StructureNodeR
 			continue
 		}
 		res.Children[i] = unmarshalStructureNodeResponseToApplicationsStructureNode(val)
+	}
+
+	return res
+}
+
+// unmarshalPersonRefResponseToApplicationsPersonRef builds a value of type
+// *applications.PersonRef from a value of type *PersonRefResponse.
+func unmarshalPersonRefResponseToApplicationsPersonRef(v *PersonRefResponse) *applications.PersonRef {
+	if v == nil {
+		return nil
+	}
+	res := &applications.PersonRef{
+		Name: *v.Name,
+		Role: v.Role,
 	}
 
 	return res
@@ -870,6 +921,16 @@ func unmarshalDocumentResponseBodyToApplicationsDocument(v *DocumentResponseBody
 		CreatedAt:           v.CreatedAt,
 		UpdatedAt:           v.UpdatedAt,
 		LatestVersionNumber: v.LatestVersionNumber,
+		Library:             v.Library,
+		LibraryKind:         v.LibraryKind,
+		Kind:                v.Kind,
+		InterviewStage:      v.InterviewStage,
+		Summary:             v.Summary,
+		DatedEventAt:        v.DatedEventAt,
+		DerivedFromID:       v.DerivedFromID,
+		MetadataStatus:      v.MetadataStatus,
+		MetadataProcessedAt: v.MetadataProcessedAt,
+		MetadataError:       v.MetadataError,
 	}
 	if v.StructureTree != nil {
 		res.StructureTree = make([]*applications.StructureNode, len(v.StructureTree))
@@ -879,6 +940,34 @@ func unmarshalDocumentResponseBodyToApplicationsDocument(v *DocumentResponseBody
 				continue
 			}
 			res.StructureTree[i] = unmarshalStructureNodeResponseBodyToApplicationsStructureNode(val)
+		}
+	}
+	if v.Topics != nil {
+		res.Topics = make([]string, len(v.Topics))
+		for i, val := range v.Topics {
+			res.Topics[i] = val
+		}
+	}
+	if v.CompanyRefs != nil {
+		res.CompanyRefs = make([]string, len(v.CompanyRefs))
+		for i, val := range v.CompanyRefs {
+			res.CompanyRefs[i] = val
+		}
+	}
+	if v.PeopleRefs != nil {
+		res.PeopleRefs = make([]*applications.PersonRef, len(v.PeopleRefs))
+		for i, val := range v.PeopleRefs {
+			if val == nil {
+				res.PeopleRefs[i] = nil
+				continue
+			}
+			res.PeopleRefs[i] = unmarshalPersonRefResponseBodyToApplicationsPersonRef(val)
+		}
+	}
+	if v.LinkedApplicationIds != nil {
+		res.LinkedApplicationIds = make([]string, len(v.LinkedApplicationIds))
+		for i, val := range v.LinkedApplicationIds {
+			res.LinkedApplicationIds[i] = val
 		}
 	}
 
@@ -905,6 +994,20 @@ func unmarshalStructureNodeResponseBodyToApplicationsStructureNode(v *StructureN
 			continue
 		}
 		res.Children[i] = unmarshalStructureNodeResponseBodyToApplicationsStructureNode(val)
+	}
+
+	return res
+}
+
+// unmarshalPersonRefResponseBodyToApplicationsPersonRef builds a value of type
+// *applications.PersonRef from a value of type *PersonRefResponseBody.
+func unmarshalPersonRefResponseBodyToApplicationsPersonRef(v *PersonRefResponseBody) *applications.PersonRef {
+	if v == nil {
+		return nil
+	}
+	res := &applications.PersonRef{
+		Name: *v.Name,
+		Role: v.Role,
 	}
 
 	return res

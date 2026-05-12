@@ -16,7 +16,7 @@ import (
 var (
 	// Specs is the static list of tool specs exported by this agent.
 
-	Specs = []tools.ToolSpec{career_context.SpecCreateApplication, career_context.SpecCreateCompany, career_context.SpecEditDocument, career_context.SpecFetchDocuments, career_context.SpecFetchWebPage, career_context.SpecFindInDocument, career_context.SpecGenerateDocx, career_context.SpecListDocuments, career_context.SpecListWorkflows, career_context.SpecReadDocument, career_context.SpecReadTableCells, career_context.SpecReadWorkflow, career_context.SpecReplicateDocument}
+	Specs = []tools.ToolSpec{career_context.SpecCreateApplication, career_context.SpecCreateCompany, career_context.SpecEditDocument, career_context.SpecFetchDocuments, career_context.SpecFetchWebPage, career_context.SpecFindInDocument, career_context.SpecGenerateDocx, career_context.SpecListDocuments, career_context.SpecListWorkflows, career_context.SpecReadDocument, career_context.SpecReadTableCells, career_context.SpecReadWorkflow, career_context.SpecReplicateDocument, career_context.SpecSetApplicationCompany}
 
 	// metadata is the static list of policy metadata exported by this agent.
 
@@ -85,11 +85,16 @@ var (
 		ID:          tools.Ident("career_context.replicate_document"),
 		Tags:        []string{},
 		Title:       "Replicate Document",
+	}, {
+		Description: "Move an existing application onto a different (usually newly identified) company. Use after reading the job description to swap the application off the Unknown placeholder.",
+		ID:          tools.Ident("career_context.set_application_company"),
+		Tags:        []string{},
+		Title:       "Set Application Company",
 	}}
 
 	// names is the static list of exported tool identifiers.
 
-	names = []tools.Ident{career_context.CreateApplication, career_context.CreateCompany, career_context.EditDocument, career_context.FetchDocuments, career_context.FetchWebPage, career_context.FindInDocument, career_context.GenerateDocx, career_context.ListDocuments, career_context.ListWorkflows, career_context.ReadDocument, career_context.ReadTableCells, career_context.ReadWorkflow, career_context.ReplicateDocument}
+	names = []tools.Ident{career_context.CreateApplication, career_context.CreateCompany, career_context.EditDocument, career_context.FetchDocuments, career_context.FetchWebPage, career_context.FindInDocument, career_context.GenerateDocx, career_context.ListDocuments, career_context.ListWorkflows, career_context.ReadDocument, career_context.ReadTableCells, career_context.ReadWorkflow, career_context.ReplicateDocument, career_context.SetApplicationCompany}
 )
 
 // Names returns the tool identifiers exported by this agent.
@@ -126,6 +131,8 @@ func Spec(name tools.Ident) (*tools.ToolSpec, bool) {
 		return &career_context.SpecReadWorkflow, true
 	case tools.Ident("career_context.replicate_document"):
 		return &career_context.SpecReplicateDocument, true
+	case tools.Ident("career_context.set_application_company"):
+		return &career_context.SpecSetApplicationCompany, true
 	default:
 		return nil, false
 	}
