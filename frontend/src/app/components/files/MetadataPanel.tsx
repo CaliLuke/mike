@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Pencil, Sparkles, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { KIND_LABELS } from "@/app/components/files/MetadataBadges";
@@ -11,6 +12,7 @@ import type {
   LukeDocumentMetadataPatch,
   LukeInterviewStage,
   LukeLibraryKind,
+  LukeMetadataStatus,
   LukePersonRef,
 } from "@/app/components/shared/types";
 import {
@@ -21,11 +23,6 @@ import {
 } from "@/app/lib/documentMetadata";
 import { listApplications } from "@/app/lib/lukeApi";
 
-const LIBRARY_KINDS: { value: LukeLibraryKind; label: string }[] = [
-  { value: "shared", label: "Shared (my material)" },
-  { value: "reference", label: "Reference (external)" },
-];
-
 const INTERVIEW_STAGES: { value: LukeInterviewStage; label: string }[] = [
   { value: "recruiter", label: "Recruiter" },
   { value: "hiring_manager", label: "Hiring Manager" },
@@ -35,6 +32,21 @@ const INTERVIEW_STAGES: { value: LukeInterviewStage; label: string }[] = [
   { value: "onsite", label: "Onsite" },
   { value: "other", label: "Other" },
 ];
+
+// Kinds that are reusable across applications by default. Used to derive a
+// sensible library / library_kind when the user picks a kind in edit mode.
+const LIBRARY_KINDS_BY_DEFAULT = new Set<LukeDocumentKind>([
+  "story",
+  "about_me",
+  "answer_bank",
+  "framework",
+  "references",
+  "cheatsheet",
+  "resume_baseline",
+  "writing_sample",
+]);
+
+const REFERENCE_KINDS = new Set<LukeDocumentKind>(["cheatsheet", "framework"]);
 
 interface MetadataPanelProps {
   doc: LukeDocument;
@@ -83,31 +95,72 @@ function trimDocumentRef(value: string): string {
   return value.startsWith("documents:") ? value.slice("documents:".length) : value;
 }
 
-// MetadataPanel renders the classifier output for a single document with
-// inline editing, a "Confirm" button that flips metadata_status to
-// user_confirmed, and (for library docs only) an application-link manager.
-//
-// The component is intentionally a single file — split it only if it grows
-// past ~300 lines or shared concerns emerge between callers.
-// MetadataPanel is keyed by `doc.id + doc.metadata_processed_at` at the
-// callsite so the form remounts (and re-initialises from props) whenever
-// the classifier or a save lands fresh content — which sidesteps the
-// "setState inside effect to sync from prop" anti-pattern.
+function formatRelative(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+// statusSubtitle returns a calm, prose-style status line ("Classifying…",
+// "Classified Dec 12", "Awaiting classification") — replacing the colored
+// pill soup. Returns null when the kind already tells the user enough.
+function statusSubtitle(doc: LukeDocument): string | null {
+  const status = (doc.metadata_status ?? "unprocessed") as LukeMetadataStatus;
+  switch (status) {
+    case "unprocessed":
+      return "Awaiting classification";
+    case "queued":
+      return "Queued for classification…";
+    case "processing":
+      return "Classifying…";
+    case "error":
+      return "Classification failed";
+    case "ready":
+      return doc.metadata_processed_at
+        ? `Suggested ${formatRelative(doc.metadata_processed_at)} — review and confirm`
+        : "Awaiting your review";
+    case "user_confirmed":
+      return doc.metadata_processed_at
+        ? `Confirmed ${formatRelative(doc.metadata_processed_at)}`
+        : "Confirmed";
+    default:
+      return null;
+  }
+}
+
+// MetadataPanel is the read-first detail view for a document's classifier
+// output. Default state shows summary + chips. Click "Edit" to switch to a
+// compact inline form. The panel is keyed at the callsite so it remounts
+// (and re-initialises form state) when the backend lands fresh content.
 export function MetadataPanel({ doc, onUpdated }: MetadataPanelProps) {
   const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<FormState>(() => buildFormState(doc));
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [classifying, setClassifying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const status = doc.metadata_status ?? "unprocessed";
+  const status = (doc.metadata_status ?? "unprocessed") as LukeMetadataStatus;
+  const isUnprocessed = status === "unprocessed" || status === "error";
+  const hasContent =
+    doc.kind ||
+    doc.summary ||
+    (doc.topics?.length ?? 0) > 0 ||
+    (doc.company_refs?.length ?? 0) > 0 ||
+    (doc.people_refs?.length ?? 0) > 0;
+  const canConfirm = status === "ready" || status === "user_confirmed";
 
-  async function handleSave(confirm: boolean) {
+  async function handleSave(opts: { confirm: boolean }) {
     setError(null);
     setSaving(true);
     try {
       const patch: LukeDocumentMetadataPatch = {
-        confirm,
+        confirm: opts.confirm,
         kind: form.kind,
         library: form.library,
         library_kind: form.libraryKind || "",
@@ -120,11 +173,27 @@ export function MetadataPanel({ doc, onUpdated }: MetadataPanelProps) {
       };
       const updated = await patchDocumentMetadata(trimDocumentRef(doc.id), patch);
       onUpdated(updated);
-      // Refresh the queue pill in case our edit changed status.
+      void queryClient.invalidateQueries({ queryKey: ["metadata-queue"] });
+      setEditing(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleConfirm() {
+    // Confirm the *current* persisted state without sending edits.
+    setError(null);
+    setSaving(true);
+    try {
+      const updated = await patchDocumentMetadata(trimDocumentRef(doc.id), {
+        confirm: true,
+      });
+      onUpdated(updated);
       void queryClient.invalidateQueries({ queryKey: ["metadata-queue"] });
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      setError(message);
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
@@ -138,72 +207,395 @@ export function MetadataPanel({ doc, onUpdated }: MetadataPanelProps) {
       void queryClient.invalidateQueries({ queryKey: ["metadata-queue"] });
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      setError(message);
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setClassifying(false);
     }
   }
 
+  if (editing) {
+    return (
+      <MetadataEditForm
+        form={form}
+        setForm={setForm}
+        saving={saving}
+        error={error}
+        canConfirm={canConfirm}
+        onCancel={() => {
+          setForm(buildFormState(doc));
+          setEditing(false);
+          setError(null);
+        }}
+        onSave={() => handleSave({ confirm: false })}
+        onSaveAndConfirm={() => handleSave({ confirm: true })}
+      />
+    );
+  }
+
+  // --- Read mode ---
+  return (
+    <section className="rounded-lg border border-gray-200 bg-white">
+      <header className="flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-4">
+        <div className="min-w-0">
+          <h2 className="font-serif text-lg text-gray-900">Metadata</h2>
+          {statusSubtitle(doc) && (
+            <p className="mt-0.5 text-xs text-gray-500">{statusSubtitle(doc)}</p>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {canConfirm && status !== "user_confirmed" && (
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={saving}
+              className="rounded-md bg-gray-900 px-3 py-1 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-60"
+            >
+              Confirm
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            disabled={saving}
+            className="flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+            title="Edit metadata"
+          >
+            <Pencil className="h-3 w-3" />
+            Edit
+          </button>
+        </div>
+      </header>
+
+      {error && (
+        <div className="border-b border-rose-100 bg-rose-50/50 px-5 py-2 text-xs text-rose-700">
+          {error}
+        </div>
+      )}
+      {doc.metadata_error && (
+        <div className="border-b border-rose-100 bg-rose-50/50 px-5 py-2 text-xs text-rose-700">
+          Last classifier error: {doc.metadata_error}
+        </div>
+      )}
+
+      {isUnprocessed && !hasContent ? (
+        <div className="px-5 py-6 text-center">
+          <p className="font-serif text-sm text-gray-500">
+            No metadata yet. Run the classifier to extract a summary, topics, and references — or
+            fill them in by hand.
+          </p>
+          <div className="mt-3 flex justify-center gap-2">
+            <button
+              type="button"
+              onClick={handleClassify}
+              disabled={classifying}
+              className="flex items-center gap-1.5 rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-60"
+            >
+              <Sparkles className="h-3 w-3" />
+              {classifying
+                ? "Queueing…"
+                : status === "error"
+                  ? "Retry classification"
+                  : "Classify this document"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="rounded-md border border-gray-200 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+            >
+              Fill in by hand
+            </button>
+          </div>
+        </div>
+      ) : (
+        <ReadView doc={doc} onClassify={handleClassify} classifying={classifying} />
+      )}
+
+      {doc.library ? <LibraryLinksSection doc={doc} onUpdated={onUpdated} /> : null}
+    </section>
+  );
+}
+
+// ReadView renders the persisted metadata as prose + chips. No form controls
+// in this mode — that's the whole point of read-first.
+function ReadView({
+  doc,
+  onClassify,
+  classifying,
+}: {
+  doc: LukeDocument;
+  onClassify: () => void;
+  classifying: boolean;
+}) {
+  const kindLabel = doc.kind ? (KIND_LABELS[doc.kind] ?? doc.kind) : null;
+  const scopeLabel = doc.library
+    ? doc.library_kind === "reference"
+      ? "Reference material"
+      : "Library asset"
+    : "Application-specific";
+
+  const stageLabel = doc.interview_stage
+    ? INTERVIEW_STAGES.find((s) => s.value === doc.interview_stage)?.label
+    : null;
+
+  return (
+    <div className="space-y-4 px-5 py-4">
+      {/* Kind + scope subtitle */}
+      {kindLabel && (
+        <p className="font-serif text-sm text-gray-600">
+          <span className="text-gray-900">{kindLabel}</span>
+          <span className="mx-1.5 text-gray-300">·</span>
+          <span>{scopeLabel}</span>
+          {stageLabel && (
+            <>
+              <span className="mx-1.5 text-gray-300">·</span>
+              <span>{stageLabel} interview</span>
+            </>
+          )}
+          {doc.dated_event_at && (
+            <>
+              <span className="mx-1.5 text-gray-300">·</span>
+              <span>{formatRelative(doc.dated_event_at)}</span>
+            </>
+          )}
+        </p>
+      )}
+
+      {/* Summary as prose, the centerpiece. */}
+      {doc.summary ? (
+        <p className="font-serif text-base leading-relaxed text-gray-900">{doc.summary}</p>
+      ) : (
+        <p className="font-serif text-sm text-gray-400">
+          No summary yet.{" "}
+          <button
+            type="button"
+            onClick={onClassify}
+            disabled={classifying}
+            className="text-gray-600 underline-offset-2 hover:underline disabled:opacity-60"
+          >
+            {classifying ? "Queueing…" : "Run the classifier"}
+          </button>
+          .
+        </p>
+      )}
+
+      <ChipRow label="Topics" items={doc.topics ?? []} />
+      <ChipRow label="Companies mentioned" items={doc.company_refs ?? []} />
+
+      {(doc.people_refs?.length ?? 0) > 0 && (
+        <div className="space-y-1">
+          <div className="text-xs tracking-wide text-gray-400 uppercase">People</div>
+          <ul className="font-serif text-sm text-gray-700">
+            {(doc.people_refs ?? []).map((p, i) => (
+              <li key={i}>
+                {p.name}
+                {p.role ? <span className="text-gray-400"> — {p.role}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ChipRow({ label, items }: { label: string; items: string[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="space-y-1">
+      <div className="text-xs tracking-wide text-gray-400 uppercase">{label}</div>
+      <div className="flex flex-wrap gap-1.5">
+        {items.map((item, i) => (
+          <span
+            key={i}
+            className="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs text-gray-700"
+          >
+            {item}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// MetadataEditForm is the compact edit-mode UI. Same fields, but visually
+// recessed so the user understands they're temporarily in a write state.
+function MetadataEditForm({
+  form,
+  setForm,
+  saving,
+  error,
+  canConfirm,
+  onCancel,
+  onSave,
+  onSaveAndConfirm,
+}: {
+  form: FormState;
+  setForm: (next: FormState) => void;
+  saving: boolean;
+  error: string | null;
+  canConfirm: boolean;
+  onCancel: () => void;
+  onSave: () => void;
+  onSaveAndConfirm: () => void;
+}) {
   function addPerson() {
     setForm({ ...form, peopleRefs: [...form.peopleRefs, { name: "", role: "" }] });
   }
-  function updatePerson(index: number, patch: Partial<LukePersonRef>) {
+  function updatePerson(i: number, patch: Partial<LukePersonRef>) {
     setForm({
       ...form,
-      peopleRefs: form.peopleRefs.map((p, i) => (i === index ? { ...p, ...patch } : p)),
+      peopleRefs: form.peopleRefs.map((p, idx) => (idx === i ? { ...p, ...patch } : p)),
     });
   }
-  function removePerson(index: number) {
+  function removePerson(i: number) {
     setForm({
       ...form,
-      peopleRefs: form.peopleRefs.filter((_, i) => i !== index),
+      peopleRefs: form.peopleRefs.filter((_, idx) => idx !== i),
+    });
+  }
+
+  // When the user changes kind, derive library / library_kind defaults so
+  // they don't have to think about scope as a separate concept. They can
+  // still override via the "Treat as library asset" toggle below.
+  function setKind(nextKind: LukeDocumentKind) {
+    const isLibrary = LIBRARY_KINDS_BY_DEFAULT.has(nextKind);
+    const isReference = REFERENCE_KINDS.has(nextKind);
+    setForm({
+      ...form,
+      kind: nextKind,
+      library: isLibrary,
+      libraryKind: isLibrary ? (isReference ? "reference" : "shared") : "",
     });
   }
 
   return (
-    <section className="space-y-4 rounded-lg border border-zinc-200 bg-white p-4">
-      <header className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-zinc-800">Document metadata</h2>
-        {status === "unprocessed" || status === "error" ? (
-          <button
-            type="button"
-            disabled={classifying}
-            onClick={handleClassify}
-            className="rounded-md border border-zinc-300 bg-zinc-50 px-3 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-100 disabled:opacity-60"
-          >
-            {classifying
-              ? "Queueing…"
-              : status === "error"
-                ? "Retry classification"
-                : "Classify this document"}
-          </button>
-        ) : null}
+    <section className="rounded-lg border border-gray-300 bg-gray-50/60">
+      <header className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
+        <h2 className="font-serif text-base text-gray-900">Edit metadata</h2>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-900"
+          title="Cancel"
+        >
+          <X className="h-3 w-3" />
+          Cancel
+        </button>
       </header>
 
-      {doc.metadata_error && (
-        <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-          Last classifier error: {doc.metadata_error}
-        </p>
+      {error && (
+        <div className="border-b border-rose-100 bg-rose-50/50 px-5 py-2 text-xs text-rose-700">
+          {error}
+        </div>
       )}
 
-      <FieldRow label="Kind">
-        <select
-          className="w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm"
-          value={form.kind}
-          onChange={(e) => setForm({ ...form, kind: e.target.value as LukeDocumentKind })}
-        >
-          {Object.entries(KIND_LABELS).map(([k, label]) => (
-            <option key={k} value={k}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </FieldRow>
+      <div className="space-y-4 px-5 py-4">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Kind">
+            <select
+              className="w-full rounded-md border border-gray-200 bg-white px-2 py-1 font-serif text-sm text-gray-900"
+              value={form.kind}
+              onChange={(e) => setKind(e.target.value as LukeDocumentKind)}
+            >
+              {Object.entries(KIND_LABELS).map(([k, label]) => (
+                <option key={k} value={k}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Interview stage">
+            <select
+              className="w-full rounded-md border border-gray-200 bg-white px-2 py-1 font-serif text-sm text-gray-900"
+              value={form.interviewStage}
+              onChange={(e) =>
+                setForm({ ...form, interviewStage: e.target.value as LukeInterviewStage | "" })
+              }
+            >
+              <option value="">— not applicable —</option>
+              {INTERVIEW_STAGES.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
 
-      <FieldRow label="Scope">
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-1.5 text-sm">
+        <Field label="Summary">
+          <textarea
+            className="min-h-[72px] w-full rounded-md border border-gray-200 bg-white px-2 py-1.5 font-serif text-sm leading-relaxed text-gray-900"
+            value={form.summary}
+            onChange={(e) => setForm({ ...form, summary: e.target.value })}
+            placeholder="2-4 sentences describing what the document is."
+          />
+        </Field>
+
+        <Field label="Topics">
+          <input
+            className="w-full rounded-md border border-gray-200 bg-white px-2 py-1 font-serif text-sm text-gray-900"
+            value={form.topicsText}
+            onChange={(e) => setForm({ ...form, topicsText: e.target.value })}
+            placeholder="comma, separated, tags"
+          />
+        </Field>
+
+        <Field label="Companies mentioned">
+          <input
+            className="w-full rounded-md border border-gray-200 bg-white px-2 py-1 font-serif text-sm text-gray-900"
+            value={form.companyRefsText}
+            onChange={(e) => setForm({ ...form, companyRefsText: e.target.value })}
+            placeholder="comma, separated"
+          />
+        </Field>
+
+        <Field label="People referenced">
+          <div className="space-y-1.5">
+            {form.peopleRefs.map((p, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input
+                  className="flex-1 rounded-md border border-gray-200 bg-white px-2 py-1 font-serif text-sm text-gray-900"
+                  placeholder="Name"
+                  value={p.name}
+                  onChange={(e) => updatePerson(i, { name: e.target.value })}
+                />
+                <input
+                  className="flex-1 rounded-md border border-gray-200 bg-white px-2 py-1 font-serif text-sm text-gray-900"
+                  placeholder="Role"
+                  value={p.role ?? ""}
+                  onChange={(e) => updatePerson(i, { role: e.target.value })}
+                />
+                <button
+                  type="button"
+                  onClick={() => removePerson(i)}
+                  className="text-xs text-gray-400 hover:text-rose-600"
+                >
+                  remove
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={addPerson}
+              className="text-xs text-gray-500 underline-offset-2 hover:text-gray-900 hover:underline"
+            >
+              + add person
+            </button>
+          </div>
+        </Field>
+
+        <Field label="Event date">
+          <input
+            type="text"
+            className="w-full rounded-md border border-gray-200 bg-white px-2 py-1 font-serif text-sm text-gray-900"
+            value={form.datedEventAt}
+            onChange={(e) => setForm({ ...form, datedEventAt: e.target.value })}
+            placeholder="2025-11-25T00:00:00Z (ISO 8601)"
+          />
+        </Field>
+
+        <Field label="Scope">
+          <label className="flex items-center gap-2 text-sm text-gray-700">
             <input
               type="checkbox"
               checked={form.library}
@@ -211,163 +603,71 @@ export function MetadataPanel({ doc, onUpdated }: MetadataPanelProps) {
                 setForm({
                   ...form,
                   library: e.target.checked,
-                  // Reset library_kind when leaving library mode.
                   libraryKind: e.target.checked ? form.libraryKind || "shared" : "",
                 })
               }
             />
-            <span>Library document (reusable)</span>
-          </label>
-          {form.library && (
-            <select
-              className="rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm"
-              value={form.libraryKind}
-              onChange={(e) =>
-                setForm({ ...form, libraryKind: e.target.value as LukeLibraryKind | "" })
-              }
-            >
-              {LIBRARY_KINDS.map((k) => (
-                <option key={k.value} value={k.value}>
-                  {k.label}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-      </FieldRow>
-
-      <FieldRow label="Interview stage">
-        <select
-          className="w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm"
-          value={form.interviewStage}
-          onChange={(e) =>
-            setForm({ ...form, interviewStage: e.target.value as LukeInterviewStage | "" })
-          }
-        >
-          <option value="">— (not applicable) —</option>
-          {INTERVIEW_STAGES.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-      </FieldRow>
-
-      <FieldRow label="Summary">
-        <textarea
-          className="min-h-[64px] w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm"
-          value={form.summary}
-          onChange={(e) => setForm({ ...form, summary: e.target.value })}
-          placeholder="2-4 sentences describing what the document is."
-        />
-      </FieldRow>
-
-      <FieldRow label="Topics">
-        <input
-          className="w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm"
-          value={form.topicsText}
-          onChange={(e) => setForm({ ...form, topicsText: e.target.value })}
-          placeholder="comma, separated, tags"
-        />
-      </FieldRow>
-
-      <FieldRow label="Companies mentioned">
-        <input
-          className="w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm"
-          value={form.companyRefsText}
-          onChange={(e) => setForm({ ...form, companyRefsText: e.target.value })}
-          placeholder="Google, Lever, LinkedIn"
-        />
-      </FieldRow>
-
-      <FieldRow label="People referenced">
-        <div className="space-y-2">
-          {form.peopleRefs.map((p, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <input
-                className="flex-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm"
-                placeholder="Name"
-                value={p.name}
-                onChange={(e) => updatePerson(i, { name: e.target.value })}
-              />
-              <input
-                className="flex-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm"
-                placeholder="Role"
-                value={p.role ?? ""}
-                onChange={(e) => updatePerson(i, { role: e.target.value })}
-              />
-              <button
-                type="button"
-                onClick={() => removePerson(i)}
-                className="text-xs text-zinc-500 hover:text-rose-600"
+            <span>Reusable library asset</span>
+            {form.library && (
+              <select
+                className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs"
+                value={form.libraryKind}
+                onChange={(e) =>
+                  setForm({ ...form, libraryKind: e.target.value as LukeLibraryKind | "" })
+                }
               >
-                remove
-              </button>
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={addPerson}
-            className="text-xs text-zinc-600 underline-offset-2 hover:text-zinc-900 hover:underline"
-          >
-            + add person
-          </button>
-        </div>
-      </FieldRow>
+                <option value="shared">My material</option>
+                <option value="reference">External reference</option>
+              </select>
+            )}
+          </label>
+        </Field>
+      </div>
 
-      <FieldRow label="Event date">
-        <input
-          type="text"
-          className="w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm"
-          value={form.datedEventAt}
-          onChange={(e) => setForm({ ...form, datedEventAt: e.target.value })}
-          placeholder="2025-11-25T00:00:00Z (ISO 8601)"
-        />
-      </FieldRow>
-
-      {error && (
-        <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-          {error}
-        </p>
-      )}
-
-      <div className="flex items-center gap-2">
+      <footer className="flex items-center justify-end gap-2 border-t border-gray-200 px-5 py-3">
         <button
           type="button"
+          onClick={onCancel}
           disabled={saving}
-          onClick={() => handleSave(false)}
-          className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
+          className="rounded-md px-3 py-1.5 text-xs text-gray-600 hover:text-gray-900 disabled:opacity-60"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={saving}
+          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-60"
         >
           {saving ? "Saving…" : "Save"}
         </button>
-        <button
-          type="button"
-          disabled={saving}
-          onClick={() => handleSave(true)}
-          className="rounded-md border border-sky-300 bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-60"
-        >
-          {saving ? "Confirming…" : "Confirm"}
-        </button>
-      </div>
-
-      {form.library ? <LibraryLinksEditor doc={doc} onUpdated={onUpdated} /> : null}
+        {canConfirm && (
+          <button
+            type="button"
+            onClick={onSaveAndConfirm}
+            disabled={saving}
+            className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-60"
+          >
+            {saving ? "Saving…" : "Save & confirm"}
+          </button>
+        )}
+      </footer>
     </section>
   );
 }
 
-function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <div className="text-xs font-medium tracking-wide text-zinc-500 uppercase">{label}</div>
+      <div className="text-xs tracking-wide text-gray-400 uppercase">{label}</div>
       {children}
     </div>
   );
 }
 
-// LibraryLinksEditor manages document_application_links rows from the doc
-// side: list current links, remove with DELETE, add via a select-box of all
-// applications. Only rendered when library=true.
-function LibraryLinksEditor({
+// LibraryLinksSection lists applications this library doc is linked to,
+// with subtle chip controls — no select-box-and-button form bolted on.
+function LibraryLinksSection({
   doc,
   onUpdated,
 }: {
@@ -390,6 +690,13 @@ function LibraryLinksEditor({
     .map((a) => ({ id: trimApplicationRef(a.id) ?? a.id, name: a.name }))
     .filter((a) => a.id && !linkedSet.has(a.id));
 
+  const linkedApps = (doc.linked_application_ids ?? [])
+    .map((ref) => trimApplicationRef(ref) ?? ref)
+    .map((id) => ({
+      id,
+      name: applications.find((a) => trimApplicationRef(a.id) === id)?.name ?? id,
+    }));
+
   async function addLink() {
     if (!addingId) return;
     setBusy(true);
@@ -402,13 +709,11 @@ function LibraryLinksEditor({
       });
       setAddingId("");
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      setError(message);
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
   }
-
   async function removeLink(appId: string) {
     setBusy(true);
     setError(null);
@@ -421,40 +726,32 @@ function LibraryLinksEditor({
         ),
       });
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      setError(message);
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
   }
 
-  const linkedApps = (doc.linked_application_ids ?? [])
-    .map((ref) => trimApplicationRef(ref) ?? ref)
-    .map((id) => ({
-      id,
-      name: applications.find((a) => trimApplicationRef(a.id) === id)?.name ?? id,
-    }));
-
   return (
-    <div className="space-y-2 rounded-md border border-zinc-200 bg-zinc-50 p-3">
-      <div className="text-xs font-medium tracking-wide text-zinc-500 uppercase">
-        Applications using this library document
+    <div className="space-y-2 border-t border-gray-100 px-5 py-4">
+      <div className="text-xs tracking-wide text-gray-400 uppercase">
+        Applications using this document
       </div>
       {linkedApps.length === 0 ? (
-        <p className="text-xs text-zinc-500">Not linked to any application yet.</p>
+        <p className="font-serif text-sm text-gray-500">Not linked to any application yet.</p>
       ) : (
         <ul className="flex flex-wrap gap-1.5">
           {linkedApps.map((a) => (
             <li
               key={a.id}
-              className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-white px-2 py-0.5 text-xs text-violet-700"
+              className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs text-gray-700"
             >
               <span>{a.name}</span>
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => removeLink(a.id)}
-                className="text-violet-500 hover:text-rose-600 disabled:opacity-60"
+                className="text-gray-400 hover:text-rose-600 disabled:opacity-60"
                 title="Remove link"
               >
                 ×
@@ -463,29 +760,31 @@ function LibraryLinksEditor({
           ))}
         </ul>
       )}
-      <div className="flex items-center gap-2">
-        <select
-          className="flex-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs"
-          value={addingId}
-          onChange={(e) => setAddingId(e.target.value)}
-          disabled={candidates.length === 0 || busy}
-        >
-          <option value="">— select an application —</option>
-          {candidates.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          onClick={addLink}
-          disabled={!addingId || busy}
-          className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-100 disabled:opacity-60"
-        >
-          Link
-        </button>
-      </div>
+      {candidates.length > 0 && (
+        <div className="flex items-center gap-2 pt-1">
+          <select
+            className="flex-1 rounded-md border border-gray-200 bg-white px-2 py-1 text-xs"
+            value={addingId}
+            onChange={(e) => setAddingId(e.target.value)}
+            disabled={busy}
+          >
+            <option value="">— link to application —</option>
+            {candidates.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={addLink}
+            disabled={!addingId || busy}
+            className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+          >
+            Link
+          </button>
+        </div>
+      )}
       {error && <p className="text-xs text-rose-700">{error}</p>}
     </div>
   );

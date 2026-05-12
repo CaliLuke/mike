@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -161,9 +162,12 @@ func (s *Server) enrichDocumentMetadata(ctx context.Context, documentID string) 
 		attribute.String("metadata.document_id", documentID),
 	)
 	defer span.End()
+	slog.InfoContext(ctx, "metadata.enrich_document.enter", "document_id", documentID)
 
 	if err := s.setDocumentMetadataStatus(ctx, documentID, "processing", ""); err != nil {
 		recordSpanError(span, err)
+		slog.ErrorContext(ctx, "metadata.enrich_document.set_processing_failed",
+			"document_id", documentID, "error", err.Error())
 		return err
 	}
 
@@ -196,6 +200,8 @@ func (s *Server) enrichDocumentMetadata(ctx context.Context, documentID string) 
 		msg := "text twin unavailable"
 		_ = s.setDocumentMetadataStatus(ctx, documentID, "error", msg)
 		span.SetAttributes(attribute.String("metadata.skip_reason", msg))
+		slog.WarnContext(ctx, "metadata.enrich_document.skipped",
+			"document_id", documentID, "reason", msg)
 		return nil
 	}
 
@@ -217,6 +223,8 @@ func (s *Server) enrichDocumentMetadata(ctx context.Context, documentID string) 
 	if err != nil {
 		_ = s.setDocumentMetadataStatus(ctx, documentID, "error", err.Error())
 		recordSpanError(span, err)
+		slog.ErrorContext(ctx, "metadata.enrich_document.llm_failed",
+			"document_id", documentID, "error", err.Error())
 		return err
 	}
 
@@ -224,6 +232,8 @@ func (s *Server) enrichDocumentMetadata(ctx context.Context, documentID string) 
 	if err != nil {
 		_ = s.setDocumentMetadataStatus(ctx, documentID, "error", err.Error())
 		recordSpanError(span, err)
+		slog.ErrorContext(ctx, "metadata.enrich_document.parse_failed",
+			"document_id", documentID, "error", err.Error(), "raw_chars", len(raw))
 		return err
 	}
 
@@ -240,6 +250,8 @@ func (s *Server) enrichDocumentMetadata(ctx context.Context, documentID string) 
 	if err := s.persistClassifierResult(ctx, documentID, parsed); err != nil {
 		_ = s.setDocumentMetadataStatus(ctx, documentID, "error", err.Error())
 		recordSpanError(span, err)
+		slog.ErrorContext(ctx, "metadata.enrich_document.persist_failed",
+			"document_id", documentID, "error", err.Error())
 		return err
 	}
 
@@ -250,8 +262,17 @@ func (s *Server) enrichDocumentMetadata(ctx context.Context, documentID string) 
 	if parsed.SuggestedApplicationMatch != nil && parsed.Library != nil && *parsed.Library {
 		if err := s.upsertClassifierApplicationLink(ctx, documentID, *parsed.SuggestedApplicationMatch); err != nil {
 			span.SetAttributes(attribute.String("metadata.suggested_link_error", err.Error()))
+			slog.WarnContext(ctx, "metadata.enrich_document.suggested_link_failed",
+				"document_id", documentID, "suggested", *parsed.SuggestedApplicationMatch,
+				"error", err.Error())
 		}
 	}
+	slog.InfoContext(ctx, "metadata.enrich_document.exit_ok",
+		"document_id", documentID,
+		"kind", parsed.Kind,
+		"summary_chars", len(parsed.Summary),
+		"topic_count", len(parsed.Topics),
+		"people_ref_count", len(parsed.PeopleRefs))
 	return nil
 }
 
@@ -405,7 +426,10 @@ func (s *Server) processSingleDocumentMetadata(w http.ResponseWriter, r *http.Re
 		writeError(w, http.StatusBadRequest, fmt.Errorf("documentId required"))
 		return
 	}
+	slog.InfoContext(r.Context(), "metadata.queue.single", "document_id", docID)
 	if err := s.queueDocumentMetadataJob(r.Context(), docID); err != nil {
+		slog.ErrorContext(r.Context(), "metadata.queue.single.failed",
+			"document_id", docID, "error", err.Error())
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -457,7 +481,11 @@ func (s *Server) processDocumentMetadataBatch(w http.ResponseWriter, r *http.Req
 		seen[id] = struct{}{}
 		deduped = append(deduped, id)
 	}
+	slog.InfoContext(r.Context(), "metadata.queue.batch",
+		"filter", req.Filter, "queued_count", len(deduped))
 	if err := s.queueDocumentMetadataBatch(r.Context(), deduped); err != nil {
+		slog.ErrorContext(r.Context(), "metadata.queue.batch.failed",
+			"filter", req.Filter, "error", err.Error())
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -606,9 +634,15 @@ func (s *Server) patchDocumentMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 	query := "UPDATE " + recordID("documents", docID) + " SET " + strings.Join(sets, ", ") + ";"
 	if _, err := s.app.DB.Query(r.Context(), query); err != nil {
+		slog.ErrorContext(r.Context(), "metadata.patch.persist_failed",
+			"document_id", docID, "error", err.Error())
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
+	slog.InfoContext(r.Context(), "metadata.patch.ok",
+		"document_id", docID,
+		"confirmed", req.Confirm != nil && *req.Confirm,
+		"field_count", len(sets)-1)
 	rows, err := queryRows(r.Context(), s.app.DB, documentListQuery("id = "+recordID("documents", docID)))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
@@ -709,6 +743,8 @@ func (s *Server) addDocumentApplicationLink(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusInternalServerError, fmt.Errorf("link created but could not be read back: %v", err))
 		return
 	}
+	slog.InfoContext(r.Context(), "metadata.link.created",
+		"document_id", docID, "application_id", req.ApplicationID, "relation", relation)
 	writeJSON(w, http.StatusCreated, rows[0])
 }
 
@@ -728,9 +764,13 @@ func (s *Server) deleteDocumentApplicationLink(w http.ResponseWriter, r *http.Re
 		recordID("documents", docID),
 		recordID("applications", appID),
 	)); err != nil {
+		slog.ErrorContext(r.Context(), "metadata.link.delete_failed",
+			"document_id", docID, "application_id", appID, "error", err.Error())
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
+	slog.InfoContext(r.Context(), "metadata.link.deleted",
+		"document_id", docID, "application_id", appID)
 	w.WriteHeader(http.StatusNoContent)
 }
 

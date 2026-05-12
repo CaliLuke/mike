@@ -1,8 +1,8 @@
 "use client";
 
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
 
 import { MetadataBadges } from "@/app/components/files/MetadataBadges";
 import { MetadataPanel } from "@/app/components/files/MetadataPanel";
@@ -15,34 +15,39 @@ interface Props {
   fileId: string;
 }
 
+const DOCUMENTS_KEY = ["documents"] as const;
+
 export function FileView({ fileId }: Props) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const fullId = `documents:${fileId}`;
-  const [doc, setDoc] = useState<LukeDocument | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
+  // useQuery (not useState+useEffect) so the page reflects backend changes
+  // when the classifier finishes — invalidate ["documents"] anywhere and this
+  // view refetches. Poll every 3s while the classifier might be running so
+  // the user sees "Classifying… → Classified" without a manual refresh.
+  const {
+    data: docs = [],
+    isLoading: loading,
+    isError,
+  } = useQuery<LukeDocument[]>({
+    queryKey: DOCUMENTS_KEY,
+    queryFn: listDocuments,
+    refetchInterval: (query) => {
+      const all = query.state.data;
+      const me = all?.find((d) => d.id === fullId);
+      const inFlight = me?.metadata_status === "queued" || me?.metadata_status === "processing";
+      return inFlight ? 3000 : false;
+    },
+  });
+  const doc = docs.find((d) => d.id === fullId) ?? null;
+  const notFound = !loading && !isError && !doc;
 
-  useEffect(() => {
-    let cancelled = false;
-    listDocuments()
-      .then((rows) => {
-        if (cancelled) return;
-        const match = rows.find((d) => d.id === fullId) ?? null;
-        setDoc(match);
-        setNotFound(!match);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setNotFound(true);
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [fullId]);
+  function applyDocUpdate(updated: LukeDocument) {
+    queryClient.setQueryData<LukeDocument[]>(DOCUMENTS_KEY, (prev) => {
+      if (!prev) return [updated];
+      return prev.map((d) => (d.id === updated.id ? updated : d));
+    });
+  }
 
   async function handleDownload() {
     if (!doc) return;
@@ -123,7 +128,7 @@ export function FileView({ fileId }: Props) {
                 <MetadataPanel
                   key={`${doc.id}::${doc.metadata_processed_at ?? ""}::${doc.metadata_status ?? ""}`}
                   doc={doc}
-                  onUpdated={setDoc}
+                  onUpdated={applyDocUpdate}
                 />
               )}
             </>
