@@ -22,6 +22,7 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { LibraryDocumentsSection } from "@/app/components/applications/LibraryDocumentsSection";
 import { AddDocumentsModal } from "@/app/components/shared/AddDocumentsModal";
 import { DocViewModal } from "@/app/components/shared/DocViewModal";
 import { HeaderSearchBtn } from "@/app/components/shared/HeaderSearchBtn";
@@ -1451,6 +1452,7 @@ export function ApplicationPage({ applicationId }: Props) {
           {/* Tab: Documents */}
           {tab === "documents" && (
             <div className="flex min-h-0 flex-1 flex-col">
+              <LibraryDocumentsSection documents={application.library_documents} />
               {/* Table header */}
               <div className="flex h-8 shrink-0 items-center border-b border-gray-200 pr-8 text-xs font-medium text-gray-500 select-none">
                 <div

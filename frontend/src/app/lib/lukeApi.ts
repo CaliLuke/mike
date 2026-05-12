@@ -846,3 +846,6 @@ export async function deleteWorkflowShare(workflowId: string, shareId: string): 
     method: "DELETE",
   });
 }
+
+// Document metadata + linking moved to lib/documentMetadata.ts to keep this
+// file under the eslint max-lines cap.

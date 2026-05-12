@@ -2,14 +2,22 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createColumnHelper } from "@tanstack/react-table";
-import { FileText, Trash2, Upload } from "lucide-react";
+import { FileText, Trash2, Upload, Wand2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  DEFAULT_FILES_FILTER,
+  FilesFilterBar,
+  type FilesFilterState,
+} from "@/app/components/files/FilesFilterBar";
+import { MetadataBadges } from "@/app/components/files/MetadataBadges";
+import { ProcessQueuePill } from "@/app/components/files/ProcessQueuePill";
 import { DataTable } from "@/app/components/shared/DataTable";
 import { HeaderSearchBtn } from "@/app/components/shared/HeaderSearchBtn";
 import { RowMenu } from "@/app/components/shared/RowMenu";
 import type { LukeDocument } from "@/app/components/shared/types";
+import { processDocumentMetadataBatch } from "@/app/lib/documentMetadata";
 import { DOCUMENT_UPLOAD_ACCEPT } from "@/app/lib/documentTypes";
 import { deleteDocument, listDocuments, uploadStandaloneDocument } from "@/app/lib/lukeApi";
 import { trackClick } from "@/app/lib/telemetry";
@@ -50,6 +58,41 @@ export function FilesOverview() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null);
+  const [filter, setFilter] = useState<FilesFilterState>(DEFAULT_FILES_FILTER);
+  const [queueingBatch, setQueueingBatch] = useState(false);
+
+  const filteredDocs = useMemo(() => {
+    return docs.filter((d) => {
+      if (filter.scope === "library" && d.library !== true) return false;
+      if (filter.scope === "application" && d.library === true) return false;
+      if (filter.kind !== "all" && (d.kind ?? "unclassified") !== filter.kind) return false;
+      if (
+        filter.metadataStatus !== "all" &&
+        (d.metadata_status ?? "unprocessed") !== filter.metadataStatus
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [docs, filter]);
+
+  async function classifyUnprocessed() {
+    setErrorMessage(null);
+    setQueueingBatch(true);
+    try {
+      const ack = await processDocumentMetadataBatch({ filter: "unprocessed" });
+      void queryClient.invalidateQueries({ queryKey: ["metadata-queue"] });
+      void queryClient.invalidateQueries({ queryKey: DOCUMENTS_KEY });
+      if (ack.queued_document_ids.length === 0) {
+        setErrorMessage("No unprocessed documents to classify.");
+      }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setErrorMessage(`Failed to queue batch: ${message}`);
+    } finally {
+      setQueueingBatch(false);
+    }
+  }
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Window-level dragenter/leave fire on every child element, so track the
@@ -202,6 +245,24 @@ export function FilesOverview() {
         );
       },
     }),
+    columnHelper.display({
+      id: "metadata",
+      header: "Metadata",
+      size: 280,
+      enableSorting: false,
+      cell: (info) => {
+        const d = info.row.original;
+        return (
+          <MetadataBadges
+            kind={d.kind}
+            library={d.library}
+            libraryKind={d.library_kind}
+            metadataStatus={d.metadata_status}
+            compact
+          />
+        );
+      },
+    }),
     columnHelper.accessor("status", {
       header: "Status",
       size: 96,
@@ -256,6 +317,7 @@ export function FilesOverview() {
       <div className="flex items-center justify-between px-8 py-4">
         <h1 className="font-serif text-2xl font-medium text-gray-900">Files</h1>
         <div className="flex items-center gap-2">
+          <ProcessQueuePill />
           <HeaderSearchBtn value={search} onChange={setSearch} placeholder="Search files..." />
           <input
             ref={fileInputRef}
@@ -266,6 +328,15 @@ export function FilesOverview() {
             onChange={handleFileInputChange}
           />
           <button
+            onClick={classifyUnprocessed}
+            disabled={queueingBatch}
+            className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-60"
+            title="Run the deferred metadata classifier on every unprocessed document"
+          >
+            <Wand2 className="h-3.5 w-3.5" />
+            {queueingBatch ? "Queueing…" : "Classify unprocessed"}
+          </button>
+          <button
             onClick={() => fileInputRef.current?.click()}
             className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:bg-gray-50"
             title="Upload files"
@@ -274,6 +345,13 @@ export function FilesOverview() {
             Upload
           </button>
         </div>
+      </div>
+
+      <div className="flex items-center justify-between px-8 pb-3">
+        <FilesFilterBar state={filter} onChange={setFilter} />
+        <span className="text-xs text-gray-500">
+          {filteredDocs.length} of {docs.length}
+        </span>
       </div>
 
       {uploading && (
@@ -298,7 +376,7 @@ export function FilesOverview() {
       )}
 
       <DataTable
-        data={docs}
+        data={filteredDocs}
         columns={columns}
         onRowClick={(doc) => {
           trackClick("file.open", { "doc.id": doc.id });

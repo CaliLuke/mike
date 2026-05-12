@@ -24,12 +24,27 @@ export interface LukeApplication {
   updated_at: string;
   documents?: LukeDocument[];
   folders?: LukeFolder[];
+  /** Library documents linked into this application via
+   * document_application_links. Populated by the backend's sub-select. */
+  library_documents?: LukeLibraryDocumentBrief[];
   document_count?: number;
   chat_count?: number;
   review_count?: number;
   /** Set true on the create response when the job posting URL was fetched
    * and persisted as a Job description.md document. */
   job_description_ingested?: boolean;
+}
+
+export interface LukeLibraryDocumentBrief {
+  id: string;
+  filename: string;
+  file_type?: string | null;
+  kind?: LukeDocumentKind | null;
+  library?: boolean | null;
+  library_kind?: LukeLibraryKind | null;
+  summary?: string | null;
+  topics?: string[] | null;
+  metadata_status?: LukeMetadataStatus | null;
 }
 
 export interface LukeCompany {
@@ -40,6 +55,50 @@ export interface LukeCompany {
   created_at: string;
   updated_at: string;
   application_count?: number;
+}
+
+export type LukeDocumentKind =
+  | "resume"
+  | "resume_baseline"
+  | "job_description"
+  | "interview_transcript"
+  | "recruiter_notes"
+  | "prep_packet"
+  | "cheatsheet"
+  | "interviewer_bio"
+  | "schedule"
+  | "story"
+  | "about_me"
+  | "answer_bank"
+  | "framework"
+  | "references"
+  | "cover_letter"
+  | "writing_sample"
+  | "coaching_state"
+  | "unclassified";
+
+export type LukeLibraryKind = "shared" | "reference";
+
+export type LukeInterviewStage =
+  | "recruiter"
+  | "hiring_manager"
+  | "peer"
+  | "tech"
+  | "panel"
+  | "onsite"
+  | "other";
+
+export type LukeMetadataStatus =
+  | "unprocessed"
+  | "queued"
+  | "processing"
+  | "ready"
+  | "error"
+  | "user_confirmed";
+
+export interface LukePersonRef {
+  name: string;
+  role?: string | null;
 }
 
 export interface LukeDocument {
@@ -59,6 +118,60 @@ export interface LukeDocument {
   updated_at?: string | null;
   /** Max version_number across assistant_edit rows, null if doc is unedited. */
   latest_version_number?: number | null;
+  // ---- Deferred metadata classifier output (M1-M4) ----
+  /** True = reusable asset across applications; false = belongs to one app. */
+  library?: boolean | null;
+  library_kind?: LukeLibraryKind | null;
+  kind?: LukeDocumentKind | null;
+  interview_stage?: LukeInterviewStage | null;
+  topics?: string[] | null;
+  company_refs?: string[] | null;
+  people_refs?: LukePersonRef[] | null;
+  summary?: string | null;
+  dated_event_at?: string | null;
+  derived_from_id?: string | null;
+  metadata_status?: LukeMetadataStatus | null;
+  metadata_processed_at?: string | null;
+  metadata_error?: string | null;
+  /** Application ids this library document is linked to. */
+  linked_application_ids?: string[] | null;
+}
+
+export interface LukeMetadataQueueCount {
+  metadata_status: LukeMetadataStatus | string;
+  count: number;
+}
+
+export interface LukeMetadataQueueStats {
+  counts: LukeMetadataQueueCount[];
+}
+
+export interface LukeMetadataQueueAck {
+  queued_document_ids: string[];
+  status: string;
+}
+
+export interface LukeApplicationLink {
+  id: string;
+  document_id: string;
+  application_id: string;
+  relation: "referenced" | "derived_into";
+  created_at: string;
+  created_by: "classifier_suggested" | "user_confirmed";
+}
+
+export interface LukeDocumentMetadataPatch {
+  confirm?: boolean;
+  kind?: LukeDocumentKind;
+  library?: boolean;
+  library_kind?: LukeLibraryKind | "";
+  interview_stage?: LukeInterviewStage | "";
+  summary?: string;
+  topics?: string[];
+  company_refs?: string[];
+  people_refs?: LukePersonRef[];
+  dated_event_at?: string;
+  derived_from_id?: string;
 }
 
 export interface StructureNode {

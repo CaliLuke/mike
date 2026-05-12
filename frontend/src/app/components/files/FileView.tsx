@@ -4,6 +4,8 @@ import { Download, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { MetadataBadges } from "@/app/components/files/MetadataBadges";
+import { MetadataPanel } from "@/app/components/files/MetadataPanel";
 import { DocView } from "@/app/components/shared/DocView";
 import type { LukeDocument } from "@/app/components/shared/types";
 import { deleteDocument, getDocumentUrl, listDocuments } from "@/app/lib/lukeApi";
@@ -62,20 +64,30 @@ export function FileView({ fileId }: Props) {
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Header */}
         <div className="flex shrink-0 items-start justify-between gap-4 bg-white px-8 py-4">
-          <div className="flex min-w-0 items-center gap-1.5 font-serif text-2xl font-medium">
-            <button
-              onClick={() => router.push("/files")}
-              className="text-gray-500 transition-colors hover:text-gray-700"
-            >
-              Files
-            </button>
-            <span className="text-gray-300">›</span>
-            {loading ? (
-              <div className="h-6 w-40 animate-pulse rounded bg-gray-100" />
-            ) : (
-              <span className="truncate text-gray-900">
-                {doc?.filename ?? (notFound ? "Not found" : "")}
-              </span>
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <div className="flex min-w-0 items-center gap-1.5 font-serif text-2xl font-medium">
+              <button
+                onClick={() => router.push("/files")}
+                className="text-gray-500 transition-colors hover:text-gray-700"
+              >
+                Files
+              </button>
+              <span className="text-gray-300">›</span>
+              {loading ? (
+                <div className="h-6 w-40 animate-pulse rounded bg-gray-100" />
+              ) : (
+                <span className="truncate text-gray-900">
+                  {doc?.filename ?? (notFound ? "Not found" : "")}
+                </span>
+              )}
+            </div>
+            {doc && (
+              <MetadataBadges
+                kind={doc.kind}
+                library={doc.library}
+                libraryKind={doc.library_kind}
+                metadataStatus={doc.metadata_status}
+              />
             )}
           </div>
           {doc && (
@@ -99,13 +111,22 @@ export function FileView({ fileId }: Props) {
         </div>
 
         {/* Body */}
-        <div className="flex flex-1 flex-col overflow-hidden px-8 pb-6">
+        <div className="flex flex-1 flex-col gap-4 overflow-auto px-8 pb-6">
           {notFound ? (
             <div className="flex flex-1 items-center justify-center text-sm text-gray-500">
               This file no longer exists.
             </div>
           ) : (
-            <DocView doc={doc ? { document_id: doc.id, version_id: null } : null} />
+            <>
+              <DocView doc={doc ? { document_id: doc.id, version_id: null } : null} />
+              {doc && (
+                <MetadataPanel
+                  key={`${doc.id}::${doc.metadata_processed_at ?? ""}::${doc.metadata_status ?? ""}`}
+                  doc={doc}
+                  onUpdated={setDoc}
+                />
+              )}
+            </>
           )}
         </div>
       </div>
