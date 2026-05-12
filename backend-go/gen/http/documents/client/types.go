@@ -161,6 +161,24 @@ type PatchMetadataResponseBody struct {
 	LinkedApplicationIds []string                     `form:"linked_application_ids,omitempty" json:"linked_application_ids,omitempty" xml:"linked_application_ids,omitempty"`
 }
 
+// AddApplicationLinkRequestBody is the type of the "documents" service
+// "add_application_link" endpoint HTTP request body.
+type AddApplicationLinkRequestBody struct {
+	ApplicationID string  `form:"application_id" json:"application_id" xml:"application_id"`
+	Relation      *string `form:"relation,omitempty" json:"relation,omitempty" xml:"relation,omitempty"`
+}
+
+// AddApplicationLinkResponseBody is the type of the "documents" service
+// "add_application_link" endpoint HTTP response body.
+type AddApplicationLinkResponseBody struct {
+	ID            *string `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
+	DocumentID    *string `form:"document_id,omitempty" json:"document_id,omitempty" xml:"document_id,omitempty"`
+	ApplicationID *string `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
+	Relation      *string `form:"relation,omitempty" json:"relation,omitempty" xml:"relation,omitempty"`
+	CreatedAt     *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	CreatedBy     *string `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+}
+
 // DocumentResponse is used to define fields on response body types.
 type DocumentResponse struct {
 	ID                   *string                  `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
@@ -337,6 +355,16 @@ func NewPatchMetadataRequestBody(p *documents.MetadataPatchPayload) *PatchMetada
 			}
 			body.PeopleRefs[i] = marshalDocumentsPersonRefToPersonRefRequestBody(val)
 		}
+	}
+	return body
+}
+
+// NewAddApplicationLinkRequestBody builds the HTTP request body from the
+// payload of the "add_application_link" endpoint of the "documents" service.
+func NewAddApplicationLinkRequestBody(p *documents.ApplicationLinkPayload) *AddApplicationLinkRequestBody {
+	body := &AddApplicationLinkRequestBody{
+		ApplicationID: p.ApplicationID,
+		Relation:      p.Relation,
 	}
 	return body
 }
@@ -554,6 +582,21 @@ func NewPatchMetadataDocumentOK(body *PatchMetadataResponseBody) *documents.Docu
 	return v
 }
 
+// NewAddApplicationLinkApplicationLinkCreated builds a "documents" service
+// "add_application_link" endpoint result from a HTTP "Created" response.
+func NewAddApplicationLinkApplicationLinkCreated(body *AddApplicationLinkResponseBody) *documents.ApplicationLink {
+	v := &documents.ApplicationLink{
+		ID:            *body.ID,
+		DocumentID:    *body.DocumentID,
+		ApplicationID: *body.ApplicationID,
+		Relation:      *body.Relation,
+		CreatedAt:     *body.CreatedAt,
+		CreatedBy:     *body.CreatedBy,
+	}
+
+	return v
+}
+
 // ValidateUploadResponseBody runs the validations defined on UploadResponseBody
 func ValidateUploadResponseBody(body *UploadResponseBody) (err error) {
 	if body.ID == nil {
@@ -705,6 +748,30 @@ func ValidatePatchMetadataResponseBody(body *PatchMetadataResponseBody) (err err
 		if !(*body.MetadataStatus == "unprocessed" || *body.MetadataStatus == "queued" || *body.MetadataStatus == "processing" || *body.MetadataStatus == "ready" || *body.MetadataStatus == "error" || *body.MetadataStatus == "user_confirmed") {
 			err = loom.MergeErrors(err, loom.InvalidEnumValueError("body.metadata_status", *body.MetadataStatus, []any{"unprocessed", "queued", "processing", "ready", "error", "user_confirmed"}))
 		}
+	}
+	return
+}
+
+// ValidateAddApplicationLinkResponseBody runs the validations defined on
+// add_application_link_response_body
+func ValidateAddApplicationLinkResponseBody(body *AddApplicationLinkResponseBody) (err error) {
+	if body.ID == nil {
+		err = loom.MergeErrors(err, loom.MissingFieldError("id", "body"))
+	}
+	if body.DocumentID == nil {
+		err = loom.MergeErrors(err, loom.MissingFieldError("document_id", "body"))
+	}
+	if body.ApplicationID == nil {
+		err = loom.MergeErrors(err, loom.MissingFieldError("application_id", "body"))
+	}
+	if body.Relation == nil {
+		err = loom.MergeErrors(err, loom.MissingFieldError("relation", "body"))
+	}
+	if body.CreatedAt == nil {
+		err = loom.MergeErrors(err, loom.MissingFieldError("created_at", "body"))
+	}
+	if body.CreatedBy == nil {
+		err = loom.MergeErrors(err, loom.MissingFieldError("created_by", "body"))
 	}
 	return
 }

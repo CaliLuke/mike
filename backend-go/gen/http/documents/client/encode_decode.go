@@ -793,6 +793,143 @@ func DecodePatchMetadataResponse(decoder func(*http.Response) loomhttp.Decoder, 
 	}
 }
 
+// BuildAddApplicationLinkRequest instantiates a HTTP request object with
+// method and path set to call the "documents" service "add_application_link"
+// endpoint
+func (c *Client) BuildAddApplicationLinkRequest(ctx context.Context, v any) (*http.Request, error) {
+	var (
+		documentID string
+	)
+	{
+		p, ok := v.(*documents.ApplicationLinkPayload)
+		if !ok {
+			return nil, loomhttp.ErrInvalidType("documents", "add_application_link", "*documents.ApplicationLinkPayload", v)
+		}
+		documentID = p.DocumentID
+	}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: AddApplicationLinkDocumentsPath(documentID)}
+	req, err := http.NewRequest("POST", u.String(), nil)
+	if err != nil {
+		return nil, loomhttp.ErrInvalidURL("documents", "add_application_link", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeAddApplicationLinkRequest returns an encoder for requests sent to the
+// documents add_application_link server.
+func EncodeAddApplicationLinkRequest(encoder func(*http.Request) loomhttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*documents.ApplicationLinkPayload)
+		if !ok {
+			return loomhttp.ErrInvalidType("documents", "add_application_link", "*documents.ApplicationLinkPayload", v)
+		}
+		body := NewAddApplicationLinkRequestBody(p)
+		if err := encoder(req).Encode(&body); err != nil {
+			return loomhttp.ErrEncodingError("documents", "add_application_link", err)
+		}
+		return nil
+	}
+}
+
+// DecodeAddApplicationLinkResponse returns a decoder for responses returned by
+// the documents add_application_link endpoint. restoreBody controls whether
+// the response body should be restored after having been read.
+func DecodeAddApplicationLinkResponse(decoder func(*http.Response) loomhttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusCreated:
+			var (
+				body AddApplicationLinkResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, loomhttp.ErrDecodingError("documents", "add_application_link", err)
+			}
+			err = ValidateAddApplicationLinkResponseBody(&body)
+			if err != nil {
+				return nil, loomhttp.ErrValidationError("documents", "add_application_link", err)
+			}
+			res := NewAddApplicationLinkApplicationLinkCreated(&body)
+			return res, nil
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, loomhttp.ErrInvalidResponse("documents", "add_application_link", resp.StatusCode, string(body))
+		}
+	}
+}
+
+// BuildDeleteApplicationLinkRequest instantiates a HTTP request object with
+// method and path set to call the "documents" service
+// "delete_application_link" endpoint
+func (c *Client) BuildDeleteApplicationLinkRequest(ctx context.Context, v any) (*http.Request, error) {
+	var (
+		documentID    string
+		applicationID string
+	)
+	{
+		p, ok := v.(*documents.DeleteApplicationLinkPayload)
+		if !ok {
+			return nil, loomhttp.ErrInvalidType("documents", "delete_application_link", "*documents.DeleteApplicationLinkPayload", v)
+		}
+		documentID = p.DocumentID
+		applicationID = p.ApplicationID
+	}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: DeleteApplicationLinkDocumentsPath(documentID, applicationID)}
+	req, err := http.NewRequest("DELETE", u.String(), nil)
+	if err != nil {
+		return nil, loomhttp.ErrInvalidURL("documents", "delete_application_link", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// DecodeDeleteApplicationLinkResponse returns a decoder for responses returned
+// by the documents delete_application_link endpoint. restoreBody controls
+// whether the response body should be restored after having been read.
+func DecodeDeleteApplicationLinkResponse(decoder func(*http.Response) loomhttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusNoContent:
+			return nil, nil
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, loomhttp.ErrInvalidResponse("documents", "delete_application_link", resp.StatusCode, string(body))
+		}
+	}
+}
+
 // unmarshalDocumentResponseToDocumentsDocument builds a value of type
 // *documents.Document from a value of type *DocumentResponse.
 func unmarshalDocumentResponseToDocumentsDocument(v *DocumentResponse) *documents.Document {

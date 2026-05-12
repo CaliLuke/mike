@@ -88,6 +88,8 @@ func New(app *localdata.App, tel *telemetry.Telemetry) http.Handler {
 	mux.HandleFunc("POST /single-documents/process-metadata", server.processDocumentMetadataBatch)
 	mux.HandleFunc("GET /single-documents/metadata-queue", server.metadataQueueStats)
 	mux.HandleFunc("PATCH /single-documents/{documentId}/metadata", server.patchDocumentMetadata)
+	mux.HandleFunc("POST /single-documents/{documentId}/application-links", server.addDocumentApplicationLink)
+	mux.HandleFunc("DELETE /single-documents/{documentId}/application-links/{applicationId}", server.deleteDocumentApplicationLink)
 	mux.HandleFunc("GET /chats", server.chats)
 	mux.HandleFunc("POST /chats", server.chats)
 	mux.HandleFunc("GET /chats/{chatId}", server.chat)

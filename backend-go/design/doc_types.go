@@ -132,6 +132,23 @@ var MetadataQueueStats = Type("MetadataQueueStats", func() {
 	Required("counts")
 })
 
+var ApplicationLinkPayload = Type("ApplicationLinkPayload", func() {
+	Attribute("documentId", String)
+	Attribute("application_id", String)
+	Attribute("relation", String, func() { Enum("referenced", "derived_into") })
+	Required("documentId", "application_id")
+})
+
+var ApplicationLink = Type("ApplicationLink", func() {
+	Attribute("id", String)
+	Attribute("document_id", String)
+	Attribute("application_id", String)
+	Attribute("relation", String)
+	Attribute("created_at", String)
+	Attribute("created_by", String)
+	Required("id", "document_id", "application_id", "relation", "created_at", "created_by")
+})
+
 var MetadataPatchPayload = Type("MetadataPatchPayload", func() {
 	Attribute("documentId", String)
 	Attribute("confirm", Boolean)

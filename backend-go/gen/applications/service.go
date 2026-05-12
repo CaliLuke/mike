@@ -60,20 +60,21 @@ type AddDocumentPayload struct {
 
 // Application is the result type of the applications service create method.
 type Application struct {
-	ID            string      `json:"id"`
-	UserID        string      `json:"user_id"`
-	IsOwner       *bool       `json:"is_owner,omitempty"`
-	CompanyID     string      `json:"company_id"`
-	CompanyName   *string     `json:"company_name,omitempty"`
-	Name          string      `json:"name"`
-	SharedWith    []string    `json:"shared_with"`
-	CreatedAt     string      `json:"created_at"`
-	UpdatedAt     string      `json:"updated_at"`
-	Documents     []*Document `json:"documents,omitempty"`
-	Folders       []*Folder   `json:"folders,omitempty"`
-	DocumentCount *int        `json:"document_count,omitempty"`
-	ChatCount     *int        `json:"chat_count,omitempty"`
-	ReviewCount   *int        `json:"review_count,omitempty"`
+	ID               string      `json:"id"`
+	UserID           string      `json:"user_id"`
+	IsOwner          *bool       `json:"is_owner,omitempty"`
+	CompanyID        string      `json:"company_id"`
+	CompanyName      *string     `json:"company_name,omitempty"`
+	Name             string      `json:"name"`
+	SharedWith       []string    `json:"shared_with"`
+	CreatedAt        string      `json:"created_at"`
+	UpdatedAt        string      `json:"updated_at"`
+	Documents        []*Document `json:"documents,omitempty"`
+	Folders          []*Folder   `json:"folders,omitempty"`
+	LibraryDocuments []*Document `json:"library_documents,omitempty"`
+	DocumentCount    *int        `json:"document_count,omitempty"`
+	ChatCount        *int        `json:"chat_count,omitempty"`
+	ReviewCount      *int        `json:"review_count,omitempty"`
 }
 
 type ApplicationMember struct {

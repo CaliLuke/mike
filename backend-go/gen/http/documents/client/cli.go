@@ -23,7 +23,7 @@ func BuildUploadPayload(documentsUploadBody string) (*documents.FileUpload, erro
 	{
 		err = json.Unmarshal([]byte(documentsUploadBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"file\": \"QXRxdWUgZWEu\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"file\": \"QXV0IHNhcGllbnRlIGRvbG9yZXMu\"\n   }'")
 		}
 		if body.File == nil {
 			err = loom.MergeErrors(err, loom.MissingFieldError("file", "body"))
@@ -56,7 +56,7 @@ func BuildDisplayPayload(documentsDisplayBody string, documentsDisplayDocumentID
 	{
 		err = json.Unmarshal([]byte(documentsDisplayBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"version_id\": \"Totam libero consectetur sed consequatur ut tempora.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"version_id\": \"Quia qui quo exercitationem optio consectetur sit.\"\n   }'")
 		}
 	}
 	var documentID string
@@ -77,7 +77,7 @@ func BuildDownloadZipPayload(documentsDownloadZipBody string) (*documents.Downlo
 	{
 		err = json.Unmarshal([]byte(documentsDownloadZipBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"document_ids\": [\n         \"Quisquam libero dolor id eum.\",\n         \"Eum error deleniti laborum rerum.\",\n         \"Consequuntur et accusamus.\",\n         \"Sapiente culpa quas maxime adipisci.\"\n      ]\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"document_ids\": [\n         \"Ut illum doloribus consequatur et.\",\n         \"Unde libero qui eos.\"\n      ]\n   }'")
 		}
 		if body.DocumentIds == nil {
 			err = loom.MergeErrors(err, loom.MissingFieldError("document_ids", "body"))
@@ -105,7 +105,7 @@ func BuildURLPayload(documentsURLBody string, documentsURLDocumentID string) (*d
 	{
 		err = json.Unmarshal([]byte(documentsURLBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"version_id\": \"Sit sit officiis quos beatae voluptatem.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"version_id\": \"Qui voluptas a voluptatem quod nisi ut.\"\n   }'")
 		}
 	}
 	var documentID string
@@ -126,7 +126,7 @@ func BuildDocxPayload(documentsDocxBody string, documentsDocxDocumentID string) 
 	{
 		err = json.Unmarshal([]byte(documentsDocxBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"version_id\": \"Nisi dolore dolorum.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"version_id\": \"Possimus culpa aut doloremque deleniti temporibus ipsum.\"\n   }'")
 		}
 	}
 	var documentID string
@@ -158,7 +158,7 @@ func BuildProcessMetadataBatchPayload(documentsProcessMetadataBatchBody string) 
 	{
 		err = json.Unmarshal([]byte(documentsProcessMetadataBatchBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"document_ids\": [\n         \"Quidem officiis ratione optio at vel in.\",\n         \"Quibusdam voluptatem iusto in dolores et tenetur.\",\n         \"Ea est.\",\n         \"Et consectetur possimus culpa.\"\n      ],\n      \"filter\": \"unprocessed\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"document_ids\": [\n         \"Laborum non doloremque velit inventore et.\",\n         \"Eius ullam.\",\n         \"Autem quia.\"\n      ],\n      \"filter\": \"unprocessed\"\n   }'")
 		}
 	}
 	v := &documents.MetadataBatchRequest{
@@ -180,7 +180,7 @@ func BuildPatchMetadataPayload(documentsPatchMetadataBody string, documentsPatch
 	{
 		err = json.Unmarshal([]byte(documentsPatchMetadataBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"company_refs\": [\n         \"Nihil nulla.\",\n         \"Ut modi blanditiis sit.\"\n      ],\n      \"confirm\": false,\n      \"dated_event_at\": \"Id corrupti.\",\n      \"derived_from_id\": \"Cumque id officiis aut molestiae aut suscipit.\",\n      \"interview_stage\": \"Magnam magnam voluptatem laborum non doloremque velit.\",\n      \"kind\": \"Nihil voluptates consequuntur perferendis consequatur cumque quis.\",\n      \"library\": false,\n      \"library_kind\": \"Harum architecto explicabo qui qui.\",\n      \"people_refs\": [\n         {\n            \"name\": \"Quidem minima.\",\n            \"role\": \"Maxime tenetur et laudantium alias.\"\n         },\n         {\n            \"name\": \"Quidem minima.\",\n            \"role\": \"Maxime tenetur et laudantium alias.\"\n         },\n         {\n            \"name\": \"Quidem minima.\",\n            \"role\": \"Maxime tenetur et laudantium alias.\"\n         }\n      ],\n      \"summary\": \"Et quo eius ullam.\",\n      \"topics\": [\n         \"Quia quis at rerum sed.\",\n         \"Laborum excepturi eum maiores temporibus.\",\n         \"Nisi et omnis itaque.\"\n      ]\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"company_refs\": [\n         \"Incidunt et voluptates quo amet eveniet.\",\n         \"Aut sint totam voluptatem sit et quos.\",\n         \"Expedita voluptate nobis temporibus.\",\n         \"Debitis dolorem natus aut.\"\n      ],\n      \"confirm\": true,\n      \"dated_event_at\": \"Temporibus praesentium eos placeat ut.\",\n      \"derived_from_id\": \"Nesciunt ad debitis ipsam.\",\n      \"interview_stage\": \"Molestiae aut suscipit.\",\n      \"kind\": \"Tenetur et laudantium alias.\",\n      \"library\": true,\n      \"library_kind\": \"Corrupti impedit cumque id officiis.\",\n      \"people_refs\": [\n         {\n            \"name\": \"Quod tenetur blanditiis earum enim.\",\n            \"role\": \"Hic molestiae doloribus ad ut.\"\n         },\n         {\n            \"name\": \"Quod tenetur blanditiis earum enim.\",\n            \"role\": \"Hic molestiae doloribus ad ut.\"\n         },\n         {\n            \"name\": \"Quod tenetur blanditiis earum enim.\",\n            \"role\": \"Hic molestiae doloribus ad ut.\"\n         },\n         {\n            \"name\": \"Quod tenetur blanditiis earum enim.\",\n            \"role\": \"Hic molestiae doloribus ad ut.\"\n         }\n      ],\n      \"summary\": \"Cumque rem et est corrupti corporis magnam.\",\n      \"topics\": [\n         \"Iste repudiandae explicabo.\",\n         \"Enim vero dolore et velit officiis.\",\n         \"Necessitatibus error sed amet facere soluta est.\",\n         \"Autem dignissimos itaque corporis.\"\n      ]\n   }'")
 		}
 	}
 	var documentID string
@@ -220,6 +220,52 @@ func BuildPatchMetadataPayload(documentsPatchMetadataBody string, documentsPatch
 		}
 	}
 	v.DocumentID = documentID
+
+	return v, nil
+} // BuildAddApplicationLinkPayload builds the payload for the documents
+// add_application_link endpoint from CLI flags.
+func BuildAddApplicationLinkPayload(documentsAddApplicationLinkBody string, documentsAddApplicationLinkDocumentID string) (*documents.ApplicationLinkPayload, error) {
+	var err error
+	var body AddApplicationLinkRequestBody
+	{
+		err = json.Unmarshal([]byte(documentsAddApplicationLinkBody), &body)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"application_id\": \"Pariatur quaerat ea debitis excepturi.\",\n      \"relation\": \"referenced\"\n   }'")
+		}
+		if body.Relation != nil {
+			if !(*body.Relation == "referenced" || *body.Relation == "derived_into") {
+				err = loom.MergeErrors(err, loom.InvalidEnumValueError("body.relation", *body.Relation, []any{"referenced", "derived_into"}))
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	var documentID string
+	{
+		documentID = documentsAddApplicationLinkDocumentID
+	}
+	v := &documents.ApplicationLinkPayload{
+		ApplicationID: body.ApplicationID,
+		Relation:      body.Relation,
+	}
+	v.DocumentID = documentID
+
+	return v, nil
+} // BuildDeleteApplicationLinkPayload builds the payload for the documents
+// delete_application_link endpoint from CLI flags.
+func BuildDeleteApplicationLinkPayload(documentsDeleteApplicationLinkDocumentID string, documentsDeleteApplicationLinkApplicationID string) (*documents.DeleteApplicationLinkPayload, error) {
+	var documentID string
+	{
+		documentID = documentsDeleteApplicationLinkDocumentID
+	}
+	var applicationID string
+	{
+		applicationID = documentsDeleteApplicationLinkApplicationID
+	}
+	v := &documents.DeleteApplicationLinkPayload{}
+	v.DocumentID = documentID
+	v.ApplicationID = applicationID
 
 	return v, nil
 }

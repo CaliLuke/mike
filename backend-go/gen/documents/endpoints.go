@@ -15,33 +15,37 @@ import (
 
 // Endpoints wraps the "documents" service endpoints.
 type Endpoints struct {
-	List                 loom.Endpoint
-	Upload               loom.Endpoint
-	Delete               loom.Endpoint
-	Display              loom.Endpoint
-	DownloadZip          loom.Endpoint
-	URL                  loom.Endpoint
-	Docx                 loom.Endpoint
-	ProcessMetadata      loom.Endpoint
-	ProcessMetadataBatch loom.Endpoint
-	MetadataQueue        loom.Endpoint
-	PatchMetadata        loom.Endpoint
+	List                  loom.Endpoint
+	Upload                loom.Endpoint
+	Delete                loom.Endpoint
+	Display               loom.Endpoint
+	DownloadZip           loom.Endpoint
+	URL                   loom.Endpoint
+	Docx                  loom.Endpoint
+	ProcessMetadata       loom.Endpoint
+	ProcessMetadataBatch  loom.Endpoint
+	MetadataQueue         loom.Endpoint
+	PatchMetadata         loom.Endpoint
+	AddApplicationLink    loom.Endpoint
+	DeleteApplicationLink loom.Endpoint
 }
 
 // NewEndpoints wraps the methods of the "documents" service with endpoints.
 func NewEndpoints(s Service) *Endpoints {
 	return &Endpoints{
-		List:                 NewListEndpoint(s),
-		Upload:               NewUploadEndpoint(s),
-		Delete:               NewDeleteEndpoint(s),
-		Display:              NewDisplayEndpoint(s),
-		DownloadZip:          NewDownloadZipEndpoint(s),
-		URL:                  NewURLEndpoint(s),
-		Docx:                 NewDocxEndpoint(s),
-		ProcessMetadata:      NewProcessMetadataEndpoint(s),
-		ProcessMetadataBatch: NewProcessMetadataBatchEndpoint(s),
-		MetadataQueue:        NewMetadataQueueEndpoint(s),
-		PatchMetadata:        NewPatchMetadataEndpoint(s),
+		List:                  NewListEndpoint(s),
+		Upload:                NewUploadEndpoint(s),
+		Delete:                NewDeleteEndpoint(s),
+		Display:               NewDisplayEndpoint(s),
+		DownloadZip:           NewDownloadZipEndpoint(s),
+		URL:                   NewURLEndpoint(s),
+		Docx:                  NewDocxEndpoint(s),
+		ProcessMetadata:       NewProcessMetadataEndpoint(s),
+		ProcessMetadataBatch:  NewProcessMetadataBatchEndpoint(s),
+		MetadataQueue:         NewMetadataQueueEndpoint(s),
+		PatchMetadata:         NewPatchMetadataEndpoint(s),
+		AddApplicationLink:    NewAddApplicationLinkEndpoint(s),
+		DeleteApplicationLink: NewDeleteApplicationLinkEndpoint(s),
 	}
 }
 
@@ -58,6 +62,8 @@ func (e *Endpoints) Use(m func(loom.Endpoint) loom.Endpoint) {
 	e.ProcessMetadataBatch = m(e.ProcessMetadataBatch)
 	e.MetadataQueue = m(e.MetadataQueue)
 	e.PatchMetadata = m(e.PatchMetadata)
+	e.AddApplicationLink = m(e.AddApplicationLink)
+	e.DeleteApplicationLink = m(e.DeleteApplicationLink)
 }
 
 // NewListEndpoint returns an endpoint function that calls the method "list" of
@@ -154,5 +160,23 @@ func NewPatchMetadataEndpoint(s Service) loom.Endpoint {
 	return func(ctx context.Context, req any) (any, error) {
 		p := req.(*MetadataPatchPayload)
 		return s.PatchMetadata(ctx, p)
+	}
+}
+
+// NewAddApplicationLinkEndpoint returns an endpoint function that calls the
+// method "add_application_link" of service "documents".
+func NewAddApplicationLinkEndpoint(s Service) loom.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*ApplicationLinkPayload)
+		return s.AddApplicationLink(ctx, p)
+	}
+}
+
+// NewDeleteApplicationLinkEndpoint returns an endpoint function that calls the
+// method "delete_application_link" of service "documents".
+func NewDeleteApplicationLinkEndpoint(s Service) loom.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*DeleteApplicationLinkPayload)
+		return nil, s.DeleteApplicationLink(ctx, p)
 	}
 }

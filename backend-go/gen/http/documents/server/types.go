@@ -165,6 +165,24 @@ type PatchMetadataResponseBody struct {
 	LinkedApplicationIds []string                     `form:"linked_application_ids,omitempty" json:"linked_application_ids,omitempty" xml:"linked_application_ids,omitempty"`
 }
 
+// AddApplicationLinkRequestBody is the type of the "documents" service
+// "add_application_link" endpoint HTTP request body.
+type AddApplicationLinkRequestBody struct {
+	ApplicationID *string `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
+	Relation      *string `form:"relation,omitempty" json:"relation,omitempty" xml:"relation,omitempty"`
+}
+
+// AddApplicationLinkResponseBody is the type of the "documents" service
+// "add_application_link" endpoint HTTP response body.
+type AddApplicationLinkResponseBody struct {
+	ID            string `form:"id" json:"id" xml:"id"`
+	DocumentID    string `form:"document_id" json:"document_id" xml:"document_id"`
+	ApplicationID string `form:"application_id" json:"application_id" xml:"application_id"`
+	Relation      string `form:"relation" json:"relation" xml:"relation"`
+	CreatedAt     string `form:"created_at" json:"created_at" xml:"created_at"`
+	CreatedBy     string `form:"created_by" json:"created_by" xml:"created_by"`
+}
+
 // DocumentResponse is used to define fields on response body types.
 type DocumentResponse struct {
 	ID                   string                   `form:"id" json:"id" xml:"id"`
@@ -459,6 +477,20 @@ func NewPatchMetadataResponseBody(res *documents.Document) *PatchMetadataRespons
 	return body
 }
 
+// NewAddApplicationLinkResponseBody builds the HTTP response body from the
+// result of the "add_application_link" endpoint of the "documents" service.
+func NewAddApplicationLinkResponseBody(res *documents.ApplicationLink) *AddApplicationLinkResponseBody {
+	body := &AddApplicationLinkResponseBody{
+		ID:            res.ID,
+		DocumentID:    res.DocumentID,
+		ApplicationID: res.ApplicationID,
+		Relation:      res.Relation,
+		CreatedAt:     res.CreatedAt,
+		CreatedBy:     res.CreatedBy,
+	}
+	return body
+}
+
 // NewUploadFileUpload builds a documents service upload endpoint payload.
 func NewUploadFileUpload(body *UploadRequestBody) *documents.FileUpload {
 	v := &documents.FileUpload{
@@ -583,6 +615,28 @@ func NewPatchMetadataMetadataPatchPayload(body *PatchMetadataRequestBody, docume
 	return v
 }
 
+// NewAddApplicationLinkApplicationLinkPayload builds a documents service
+// add_application_link endpoint payload.
+func NewAddApplicationLinkApplicationLinkPayload(body *AddApplicationLinkRequestBody, documentID string) *documents.ApplicationLinkPayload {
+	v := &documents.ApplicationLinkPayload{
+		ApplicationID: *body.ApplicationID,
+		Relation:      body.Relation,
+	}
+	v.DocumentID = documentID
+
+	return v
+}
+
+// NewDeleteApplicationLinkPayload builds a documents service
+// delete_application_link endpoint payload.
+func NewDeleteApplicationLinkPayload(documentID string, applicationID string) *documents.DeleteApplicationLinkPayload {
+	v := &documents.DeleteApplicationLinkPayload{}
+	v.DocumentID = documentID
+	v.ApplicationID = applicationID
+
+	return v
+}
+
 // ValidateUploadRequestBody runs the validations defined on UploadRequestBody
 func ValidateUploadRequestBody(body *UploadRequestBody) (err error) {
 	if body.File == nil {
@@ -619,6 +673,20 @@ func ValidatePatchMetadataRequestBody(body *PatchMetadataRequestBody) (err error
 			if err2 := ValidatePersonRefRequestBody(e); err2 != nil {
 				err = loom.MergeErrors(err, err2)
 			}
+		}
+	}
+	return
+}
+
+// ValidateAddApplicationLinkRequestBody runs the validations defined on
+// add_application_link_request_body
+func ValidateAddApplicationLinkRequestBody(body *AddApplicationLinkRequestBody) (err error) {
+	if body.ApplicationID == nil {
+		err = loom.MergeErrors(err, loom.MissingFieldError("application_id", "body"))
+	}
+	if body.Relation != nil {
+		if !(*body.Relation == "referenced" || *body.Relation == "derived_into") {
+			err = loom.MergeErrors(err, loom.InvalidEnumValueError("body.relation", *body.Relation, []any{"referenced", "derived_into"}))
 		}
 	}
 	return

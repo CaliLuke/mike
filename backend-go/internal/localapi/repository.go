@@ -54,7 +54,22 @@ SELECT
 	(SELECT id, application_id, parent_folder_id, name, created_at, updated_at FROM application_folders WHERE application_id = $parent.id ORDER BY created_at) AS folders,
 	count(SELECT 1 FROM documents WHERE application_id = $parent.id) AS document_count,
 	count(SELECT 1 FROM chats WHERE application_id = $parent.id) AS chat_count,
-	count(SELECT 1 FROM tabular_reviews WHERE application_id = $parent.id) AS review_count
+	count(SELECT 1 FROM tabular_reviews WHERE application_id = $parent.id) AS review_count,
+	(SELECT
+		document_id.id AS id,
+		document_id.filename AS filename,
+		document_id.file_type AS file_type,
+		document_id.kind AS kind,
+		document_id.library AS library,
+		document_id.library_kind AS library_kind,
+		document_id.summary AS summary,
+		document_id.topics AS topics,
+		document_id.metadata_status AS metadata_status,
+		document_id.updated_at AS updated_at,
+		created_at
+		FROM document_application_links
+		WHERE application_id = $parent.id
+		ORDER BY created_at DESC) AS library_documents
 FROM applications ORDER BY updated_at DESC;`
 
 const companyListQuery = `

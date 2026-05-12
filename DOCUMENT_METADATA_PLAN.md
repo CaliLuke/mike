@@ -8,6 +8,7 @@ Add a deferred, user-triggered metadata classifier to `documents` (kind, summary
 - 2026-05-11 — M1 (Schema and backfill) complete.
 - 2026-05-11 — M2 (Classifier service) complete. 7 unit tests pass; enrichDocumentMetadata wired (M3 will expose it via HTTP). 16 existing docs backfilled to `metadata_status="unprocessed"`; new fields project to HTTP responses.
 - 2026-05-11 — M3 (Trigger and confirmation API) complete. All 4 endpoints work end-to-end against the dev DB; mock LLM now emits a valid classifier response so probe scenarios get a deterministic happy path.
+- 2026-05-11 — M4 (Application linking) complete. Library guard, link CRUD, application.library_documents and document.linked_application_ids all wired end-to-end.
 
 ## Milestones
 
@@ -97,16 +98,16 @@ Acceptance Criteria
 
 Checklist
 
-- [ ] Add `POST /single-documents/{documentId}/application-links` (body `{application_id, relation}`) and `DELETE /single-documents/{documentId}/application-links/{applicationId}` to `backend-go/design/document_routes.go`.
-- [ ] Add `library_documents` ArrayOf(Document) to the `Application` type in `backend-go/design/application_types.go`.
-- [ ] Run `cd backend-go && make generate`.
-- [ ] Extend `applicationListQuery` in `backend-go/internal/localapi/repository.go:51–58` with `(SELECT * FROM documents WHERE id IN (SELECT document_id FROM document_application_links WHERE application_id = $parent.id)) AS library_documents`.
-- [ ] Extend the Document load query in `backend-go/internal/localapi/repository.go` with `(SELECT application_id FROM document_application_links WHERE document_id = $parent.id) AS linked_application_ids`.
-- [ ] Implement the POST handler in `backend-go/internal/localapi/api.go`: reject with `goa.PermanentError("invalid_request", ...)` when the document has `library=false`; `CREATE document_application_links CONTENT { ... created_by: "user_confirmed" }`.
-- [ ] Implement the DELETE handler with `DELETE FROM document_application_links WHERE document_id = $doc AND application_id = $app`.
-- [ ] Update the classifier persistence step from Milestone 2 to also insert link rows with `created_by="classifier_suggested"` when `suggested_application_match` resolves to an existing application id.
-- [ ] Run `cd backend-go && make build`.
-- [ ] Commit and push: `git add -A && git commit -m "Add library-document application links and sub-select queries" && git push`.
+- [x] Add `POST /single-documents/{documentId}/application-links` (body `{application_id, relation}`) and `DELETE /single-documents/{documentId}/application-links/{applicationId}` to `backend-go/design/document_routes.go`.
+- [x] Add `library_documents` ArrayOf(Document) to the `Application` type in `backend-go/design/application_types.go`.
+- [x] Run `cd backend-go && make generate`.
+- [x] Extend `applicationListQuery` in `backend-go/internal/localapi/repository.go:51–58` with `(SELECT * FROM documents WHERE id IN (SELECT document_id FROM document_application_links WHERE application_id = $parent.id)) AS library_documents`.
+- [x] Extend the Document load query in `backend-go/internal/localapi/repository.go` with `(SELECT application_id FROM document_application_links WHERE document_id = $parent.id) AS linked_application_ids`.
+- [x] Implement the POST handler in `backend-go/internal/localapi/api.go`: reject with `goa.PermanentError("invalid_request", ...)` when the document has `library=false`; `CREATE document_application_links CONTENT { ... created_by: "user_confirmed" }`.
+- [x] Implement the DELETE handler with `DELETE FROM document_application_links WHERE document_id = $doc AND application_id = $app`.
+- [x] Update the classifier persistence step from Milestone 2 to also insert link rows with `created_by="classifier_suggested"` when `suggested_application_match` resolves to an existing application id.
+- [x] Run `cd backend-go && make build`.
+- [x] Commit and push: `git add -A && git commit -m "Add library-document application links and sub-select queries" && git push`.
 
 ### Milestone 5: Probe scenario and handoff
 

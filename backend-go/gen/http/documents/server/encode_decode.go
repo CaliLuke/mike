@@ -438,6 +438,83 @@ func DecodePatchMetadataRequest(mux loomhttp.Muxer, decoder func(*http.Request) 
 	}
 }
 
+// EncodeAddApplicationLinkResponse returns an encoder for responses returned
+// by the documents add_application_link endpoint.
+func EncodeAddApplicationLinkResponse(encoder func(context.Context, http.ResponseWriter) loomhttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+	return func(ctx context.Context, w http.ResponseWriter, v any) error {
+		res, _ := v.(*documents.ApplicationLink)
+		enc := encoder(ctx, w)
+		body := NewAddApplicationLinkResponseBody(res)
+		w.WriteHeader(http.StatusCreated)
+		return enc.Encode(body)
+	}
+}
+
+// DecodeAddApplicationLinkRequest returns a decoder for requests sent to the
+// documents add_application_link endpoint.
+func DecodeAddApplicationLinkRequest(mux loomhttp.Muxer, decoder func(*http.Request) loomhttp.Decoder) func(*http.Request) (*documents.ApplicationLinkPayload, error) {
+	return func(r *http.Request) (*documents.ApplicationLinkPayload, error) {
+		var payload *documents.ApplicationLinkPayload
+		var (
+			body AddApplicationLinkRequestBody
+			err  error
+		)
+		err = decoder(r).Decode(&body)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return payload, loom.MissingPayloadError()
+			}
+			var gerr *loom.ServiceError
+			if errors.As(err, &gerr) {
+				return payload, gerr
+			}
+			return payload, loom.DecodePayloadError(err.Error())
+		}
+		err = ValidateAddApplicationLinkRequestBody(&body)
+		if err != nil {
+			return payload, err
+		}
+
+		var (
+			documentID string
+
+			params = mux.Vars(r)
+		)
+		documentID = params["documentId"]
+		payload = NewAddApplicationLinkApplicationLinkPayload(&body, documentID)
+
+		return payload, nil
+	}
+}
+
+// EncodeDeleteApplicationLinkResponse returns an encoder for responses
+// returned by the documents delete_application_link endpoint.
+func EncodeDeleteApplicationLinkResponse(encoder func(context.Context, http.ResponseWriter) loomhttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+	return func(ctx context.Context, w http.ResponseWriter, v any) error {
+		w.WriteHeader(http.StatusNoContent)
+		return nil
+	}
+}
+
+// DecodeDeleteApplicationLinkRequest returns a decoder for requests sent to
+// the documents delete_application_link endpoint.
+func DecodeDeleteApplicationLinkRequest(mux loomhttp.Muxer, decoder func(*http.Request) loomhttp.Decoder) func(*http.Request) (*documents.DeleteApplicationLinkPayload, error) {
+	return func(r *http.Request) (*documents.DeleteApplicationLinkPayload, error) {
+		var payload *documents.DeleteApplicationLinkPayload
+		var (
+			documentID    string
+			applicationID string
+
+			params = mux.Vars(r)
+		)
+		documentID = params["documentId"]
+		applicationID = params["applicationId"]
+		payload = NewDeleteApplicationLinkPayload(documentID, applicationID)
+
+		return payload, nil
+	}
+}
+
 // marshalDocumentsDocumentToDocumentResponse builds a value of type
 // *DocumentResponse from a value of type *documents.Document.
 func marshalDocumentsDocumentToDocumentResponse(v *documents.Document) *DocumentResponse {

@@ -18,18 +18,20 @@ import (
 
 // Server lists the documents service endpoint HTTP handlers.
 type Server struct {
-	Mounts               []*MountPoint
-	List                 http.Handler
-	Upload               http.Handler
-	Delete               http.Handler
-	Display              http.Handler
-	DownloadZip          http.Handler
-	URL                  http.Handler
-	Docx                 http.Handler
-	ProcessMetadata      http.Handler
-	ProcessMetadataBatch http.Handler
-	MetadataQueue        http.Handler
-	PatchMetadata        http.Handler
+	Mounts                []*MountPoint
+	List                  http.Handler
+	Upload                http.Handler
+	Delete                http.Handler
+	Display               http.Handler
+	DownloadZip           http.Handler
+	URL                   http.Handler
+	Docx                  http.Handler
+	ProcessMetadata       http.Handler
+	ProcessMetadataBatch  http.Handler
+	MetadataQueue         http.Handler
+	PatchMetadata         http.Handler
+	AddApplicationLink    http.Handler
+	DeleteApplicationLink http.Handler
 } // MountPoint holds information about the mounted endpoints.
 type MountPoint struct {
 	// Method is the name of the service method served by the mounted HTTP handler.
@@ -61,18 +63,22 @@ func New(e *documents.Endpoints, mux loomhttp.Muxer, decoder func(*http.Request)
 			{"ProcessMetadataBatch", "POST", "/single-documents/process-metadata"},
 			{"MetadataQueue", "GET", "/single-documents/metadata-queue"},
 			{"PatchMetadata", "PATCH", "/single-documents/{documentId}/metadata"},
+			{"AddApplicationLink", "POST", "/single-documents/{documentId}/application-links"},
+			{"DeleteApplicationLink", "DELETE", "/single-documents/{documentId}/application-links/{applicationId}"},
 		},
-		List:                 NewListHandler(e.List, mux, decoder, encoder, errhandler, formatter),
-		Upload:               NewUploadHandler(e.Upload, mux, decoder, encoder, errhandler, formatter),
-		Delete:               NewDeleteHandler(e.Delete, mux, decoder, encoder, errhandler, formatter),
-		Display:              NewDisplayHandler(e.Display, mux, decoder, encoder, errhandler, formatter),
-		DownloadZip:          NewDownloadZipHandler(e.DownloadZip, mux, decoder, encoder, errhandler, formatter),
-		URL:                  NewURLHandler(e.URL, mux, decoder, encoder, errhandler, formatter),
-		Docx:                 NewDocxHandler(e.Docx, mux, decoder, encoder, errhandler, formatter),
-		ProcessMetadata:      NewProcessMetadataHandler(e.ProcessMetadata, mux, decoder, encoder, errhandler, formatter),
-		ProcessMetadataBatch: NewProcessMetadataBatchHandler(e.ProcessMetadataBatch, mux, decoder, encoder, errhandler, formatter),
-		MetadataQueue:        NewMetadataQueueHandler(e.MetadataQueue, mux, decoder, encoder, errhandler, formatter),
-		PatchMetadata:        NewPatchMetadataHandler(e.PatchMetadata, mux, decoder, encoder, errhandler, formatter),
+		List:                  NewListHandler(e.List, mux, decoder, encoder, errhandler, formatter),
+		Upload:                NewUploadHandler(e.Upload, mux, decoder, encoder, errhandler, formatter),
+		Delete:                NewDeleteHandler(e.Delete, mux, decoder, encoder, errhandler, formatter),
+		Display:               NewDisplayHandler(e.Display, mux, decoder, encoder, errhandler, formatter),
+		DownloadZip:           NewDownloadZipHandler(e.DownloadZip, mux, decoder, encoder, errhandler, formatter),
+		URL:                   NewURLHandler(e.URL, mux, decoder, encoder, errhandler, formatter),
+		Docx:                  NewDocxHandler(e.Docx, mux, decoder, encoder, errhandler, formatter),
+		ProcessMetadata:       NewProcessMetadataHandler(e.ProcessMetadata, mux, decoder, encoder, errhandler, formatter),
+		ProcessMetadataBatch:  NewProcessMetadataBatchHandler(e.ProcessMetadataBatch, mux, decoder, encoder, errhandler, formatter),
+		MetadataQueue:         NewMetadataQueueHandler(e.MetadataQueue, mux, decoder, encoder, errhandler, formatter),
+		PatchMetadata:         NewPatchMetadataHandler(e.PatchMetadata, mux, decoder, encoder, errhandler, formatter),
+		AddApplicationLink:    NewAddApplicationLinkHandler(e.AddApplicationLink, mux, decoder, encoder, errhandler, formatter),
+		DeleteApplicationLink: NewDeleteApplicationLinkHandler(e.DeleteApplicationLink, mux, decoder, encoder, errhandler, formatter),
 	}
 } // Service returns the name of the service served.
 func (s *Server) Service() string {
@@ -90,6 +96,8 @@ func (s *Server) Use(m func(http.Handler) http.Handler) {
 	s.ProcessMetadataBatch = m(s.ProcessMetadataBatch)
 	s.MetadataQueue = m(s.MetadataQueue)
 	s.PatchMetadata = m(s.PatchMetadata)
+	s.AddApplicationLink = m(s.AddApplicationLink)
+	s.DeleteApplicationLink = m(s.DeleteApplicationLink)
 } // MethodNames returns the methods served.
 func (s *Server) MethodNames() []string {
 	return documents.MethodNames[:]
@@ -106,6 +114,8 @@ func Mount(mux loomhttp.Muxer, h *Server) {
 	MountProcessMetadataBatchHandler(mux, h.ProcessMetadataBatch)
 	MountMetadataQueueHandler(mux, h.MetadataQueue)
 	MountPatchMetadataHandler(mux, h.PatchMetadata)
+	MountAddApplicationLinkHandler(mux, h.AddApplicationLink)
+	MountDeleteApplicationLinkHandler(mux, h.DeleteApplicationLink)
 }
 
 // Mount configures the mux to serve the documents endpoints.
@@ -635,6 +645,108 @@ func NewPatchMetadataHandler(
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, loom.MethodKey, "patch_metadata")
+		ctx = context.WithValue(ctx, loom.ServiceKey, "documents")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountAddApplicationLinkHandler configures the mux to serve the "documents"
+// service "add_application_link" endpoint.
+func MountAddApplicationLinkHandler(mux loomhttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("POST", "/single-documents/{documentId}/application-links", f)
+} // NewAddApplicationLinkHandler creates a HTTP handler which loads the HTTP
+// request and calls the "documents" service "add_application_link" endpoint.
+func NewAddApplicationLinkHandler(
+	endpoint loom.Endpoint,
+	mux loomhttp.Muxer,
+	decoder func(*http.Request) loomhttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) loomhttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) loomhttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeAddApplicationLinkRequest(mux, decoder)
+		encodeResponse = EncodeAddApplicationLinkResponse(encoder)
+		encodeError    = loomhttp.ErrorEncoder(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, loom.MethodKey, "add_application_link")
+		ctx = context.WithValue(ctx, loom.ServiceKey, "documents")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountDeleteApplicationLinkHandler configures the mux to serve the
+// "documents" service "delete_application_link" endpoint.
+func MountDeleteApplicationLinkHandler(mux loomhttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("DELETE", "/single-documents/{documentId}/application-links/{applicationId}", f)
+} // NewDeleteApplicationLinkHandler creates a HTTP handler which loads the HTTP
+// request and calls the "documents" service "delete_application_link" endpoint.
+func NewDeleteApplicationLinkHandler(
+	endpoint loom.Endpoint,
+	mux loomhttp.Muxer,
+	decoder func(*http.Request) loomhttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) loomhttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) loomhttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeDeleteApplicationLinkRequest(mux, decoder)
+		encodeResponse = EncodeDeleteApplicationLinkResponse(encoder)
+		encodeError    = loomhttp.ErrorEncoder(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, loom.MethodKey, "delete_application_link")
 		ctx = context.WithValue(ctx, loom.ServiceKey, "documents")
 		payload, err := decodeRequest(r)
 		if err != nil {

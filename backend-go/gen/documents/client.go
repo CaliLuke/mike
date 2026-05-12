@@ -15,22 +15,24 @@ import (
 
 // Client is the "documents" service client.
 type Client struct {
-	ListEndpoint                 loom.Endpoint
-	UploadEndpoint               loom.Endpoint
-	DeleteEndpoint               loom.Endpoint
-	DisplayEndpoint              loom.Endpoint
-	DownloadZipEndpoint          loom.Endpoint
-	URLEndpoint                  loom.Endpoint
-	DocxEndpoint                 loom.Endpoint
-	ProcessMetadataEndpoint      loom.Endpoint
-	ProcessMetadataBatchEndpoint loom.Endpoint
-	MetadataQueueEndpoint        loom.Endpoint
-	PatchMetadataEndpoint        loom.Endpoint
+	ListEndpoint                  loom.Endpoint
+	UploadEndpoint                loom.Endpoint
+	DeleteEndpoint                loom.Endpoint
+	DisplayEndpoint               loom.Endpoint
+	DownloadZipEndpoint           loom.Endpoint
+	URLEndpoint                   loom.Endpoint
+	DocxEndpoint                  loom.Endpoint
+	ProcessMetadataEndpoint       loom.Endpoint
+	ProcessMetadataBatchEndpoint  loom.Endpoint
+	MetadataQueueEndpoint         loom.Endpoint
+	PatchMetadataEndpoint         loom.Endpoint
+	AddApplicationLinkEndpoint    loom.Endpoint
+	DeleteApplicationLinkEndpoint loom.Endpoint
 }
 
 // NewClient initializes a "documents" service client given the endpoints.
-func NewClient(list, upload, delete_, display, downloadZip, url_, docx, processMetadata, processMetadataBatch, metadataQueue, patchMetadata loom.Endpoint) *Client {
-	return &Client{ListEndpoint: list, UploadEndpoint: upload, DeleteEndpoint: delete_, DisplayEndpoint: display, DownloadZipEndpoint: downloadZip, URLEndpoint: url_, DocxEndpoint: docx, ProcessMetadataEndpoint: processMetadata, ProcessMetadataBatchEndpoint: processMetadataBatch, MetadataQueueEndpoint: metadataQueue, PatchMetadataEndpoint: patchMetadata}
+func NewClient(list, upload, delete_, display, downloadZip, url_, docx, processMetadata, processMetadataBatch, metadataQueue, patchMetadata, addApplicationLink, deleteApplicationLink loom.Endpoint) *Client {
+	return &Client{ListEndpoint: list, UploadEndpoint: upload, DeleteEndpoint: delete_, DisplayEndpoint: display, DownloadZipEndpoint: downloadZip, URLEndpoint: url_, DocxEndpoint: docx, ProcessMetadataEndpoint: processMetadata, ProcessMetadataBatchEndpoint: processMetadataBatch, MetadataQueueEndpoint: metadataQueue, PatchMetadataEndpoint: patchMetadata, AddApplicationLinkEndpoint: addApplicationLink, DeleteApplicationLinkEndpoint: deleteApplicationLink}
 }
 
 // List calls the "list" endpoint of the "documents" service.
@@ -139,4 +141,22 @@ func (c *Client) PatchMetadata(ctx context.Context, p *MetadataPatchPayload) (re
 		return
 	}
 	return ires.(*Document), nil
+}
+
+// AddApplicationLink calls the "add_application_link" endpoint of the
+// "documents" service.
+func (c *Client) AddApplicationLink(ctx context.Context, p *ApplicationLinkPayload) (res *ApplicationLink, err error) {
+	var ires any
+	ires, err = c.AddApplicationLinkEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*ApplicationLink), nil
+}
+
+// DeleteApplicationLink calls the "delete_application_link" endpoint of the
+// "documents" service.
+func (c *Client) DeleteApplicationLink(ctx context.Context, p *DeleteApplicationLinkPayload) (err error) {
+	_, err = c.DeleteApplicationLinkEndpoint(ctx, p)
+	return
 }

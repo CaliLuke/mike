@@ -23,39 +23,41 @@ type CreateRequestBody struct {
 // CreateResponseBody is the type of the "applications" service "create"
 // endpoint HTTP response body.
 type CreateResponseBody struct {
-	ID            *string                 `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
-	UserID        *string                 `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
-	IsOwner       *bool                   `form:"is_owner,omitempty" json:"is_owner,omitempty" xml:"is_owner,omitempty"`
-	CompanyID     *string                 `form:"company_id,omitempty" json:"company_id,omitempty" xml:"company_id,omitempty"`
-	CompanyName   *string                 `form:"company_name,omitempty" json:"company_name,omitempty" xml:"company_name,omitempty"`
-	Name          *string                 `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
-	SharedWith    []string                `form:"shared_with,omitempty" json:"shared_with,omitempty" xml:"shared_with,omitempty"`
-	CreatedAt     *string                 `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
-	UpdatedAt     *string                 `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
-	Documents     []*DocumentResponseBody `form:"documents,omitempty" json:"documents,omitempty" xml:"documents,omitempty"`
-	Folders       []*FolderResponseBody   `form:"folders,omitempty" json:"folders,omitempty" xml:"folders,omitempty"`
-	DocumentCount *int                    `form:"document_count,omitempty" json:"document_count,omitempty" xml:"document_count,omitempty"`
-	ChatCount     *int                    `form:"chat_count,omitempty" json:"chat_count,omitempty" xml:"chat_count,omitempty"`
-	ReviewCount   *int                    `form:"review_count,omitempty" json:"review_count,omitempty" xml:"review_count,omitempty"`
+	ID               *string                 `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
+	UserID           *string                 `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
+	IsOwner          *bool                   `form:"is_owner,omitempty" json:"is_owner,omitempty" xml:"is_owner,omitempty"`
+	CompanyID        *string                 `form:"company_id,omitempty" json:"company_id,omitempty" xml:"company_id,omitempty"`
+	CompanyName      *string                 `form:"company_name,omitempty" json:"company_name,omitempty" xml:"company_name,omitempty"`
+	Name             *string                 `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	SharedWith       []string                `form:"shared_with,omitempty" json:"shared_with,omitempty" xml:"shared_with,omitempty"`
+	CreatedAt        *string                 `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	UpdatedAt        *string                 `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+	Documents        []*DocumentResponseBody `form:"documents,omitempty" json:"documents,omitempty" xml:"documents,omitempty"`
+	Folders          []*FolderResponseBody   `form:"folders,omitempty" json:"folders,omitempty" xml:"folders,omitempty"`
+	LibraryDocuments []*DocumentResponseBody `form:"library_documents,omitempty" json:"library_documents,omitempty" xml:"library_documents,omitempty"`
+	DocumentCount    *int                    `form:"document_count,omitempty" json:"document_count,omitempty" xml:"document_count,omitempty"`
+	ChatCount        *int                    `form:"chat_count,omitempty" json:"chat_count,omitempty" xml:"chat_count,omitempty"`
+	ReviewCount      *int                    `form:"review_count,omitempty" json:"review_count,omitempty" xml:"review_count,omitempty"`
 }
 
 // GetResponseBody is the type of the "applications" service "get" endpoint
 // HTTP response body.
 type GetResponseBody struct {
-	ID            *string                 `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
-	UserID        *string                 `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
-	IsOwner       *bool                   `form:"is_owner,omitempty" json:"is_owner,omitempty" xml:"is_owner,omitempty"`
-	CompanyID     *string                 `form:"company_id,omitempty" json:"company_id,omitempty" xml:"company_id,omitempty"`
-	CompanyName   *string                 `form:"company_name,omitempty" json:"company_name,omitempty" xml:"company_name,omitempty"`
-	Name          *string                 `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
-	SharedWith    []string                `form:"shared_with,omitempty" json:"shared_with,omitempty" xml:"shared_with,omitempty"`
-	CreatedAt     *string                 `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
-	UpdatedAt     *string                 `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
-	Documents     []*DocumentResponseBody `form:"documents,omitempty" json:"documents,omitempty" xml:"documents,omitempty"`
-	Folders       []*FolderResponseBody   `form:"folders,omitempty" json:"folders,omitempty" xml:"folders,omitempty"`
-	DocumentCount *int                    `form:"document_count,omitempty" json:"document_count,omitempty" xml:"document_count,omitempty"`
-	ChatCount     *int                    `form:"chat_count,omitempty" json:"chat_count,omitempty" xml:"chat_count,omitempty"`
-	ReviewCount   *int                    `form:"review_count,omitempty" json:"review_count,omitempty" xml:"review_count,omitempty"`
+	ID               *string                 `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
+	UserID           *string                 `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
+	IsOwner          *bool                   `form:"is_owner,omitempty" json:"is_owner,omitempty" xml:"is_owner,omitempty"`
+	CompanyID        *string                 `form:"company_id,omitempty" json:"company_id,omitempty" xml:"company_id,omitempty"`
+	CompanyName      *string                 `form:"company_name,omitempty" json:"company_name,omitempty" xml:"company_name,omitempty"`
+	Name             *string                 `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	SharedWith       []string                `form:"shared_with,omitempty" json:"shared_with,omitempty" xml:"shared_with,omitempty"`
+	CreatedAt        *string                 `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	UpdatedAt        *string                 `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+	Documents        []*DocumentResponseBody `form:"documents,omitempty" json:"documents,omitempty" xml:"documents,omitempty"`
+	Folders          []*FolderResponseBody   `form:"folders,omitempty" json:"folders,omitempty" xml:"folders,omitempty"`
+	LibraryDocuments []*DocumentResponseBody `form:"library_documents,omitempty" json:"library_documents,omitempty" xml:"library_documents,omitempty"`
+	DocumentCount    *int                    `form:"document_count,omitempty" json:"document_count,omitempty" xml:"document_count,omitempty"`
+	ChatCount        *int                    `form:"chat_count,omitempty" json:"chat_count,omitempty" xml:"chat_count,omitempty"`
+	ReviewCount      *int                    `form:"review_count,omitempty" json:"review_count,omitempty" xml:"review_count,omitempty"`
 }
 
 // UpdateRequestBody is the type of the "applications" service "update"
@@ -69,20 +71,21 @@ type UpdateRequestBody struct {
 // UpdateResponseBody is the type of the "applications" service "update"
 // endpoint HTTP response body.
 type UpdateResponseBody struct {
-	ID            *string                 `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
-	UserID        *string                 `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
-	IsOwner       *bool                   `form:"is_owner,omitempty" json:"is_owner,omitempty" xml:"is_owner,omitempty"`
-	CompanyID     *string                 `form:"company_id,omitempty" json:"company_id,omitempty" xml:"company_id,omitempty"`
-	CompanyName   *string                 `form:"company_name,omitempty" json:"company_name,omitempty" xml:"company_name,omitempty"`
-	Name          *string                 `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
-	SharedWith    []string                `form:"shared_with,omitempty" json:"shared_with,omitempty" xml:"shared_with,omitempty"`
-	CreatedAt     *string                 `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
-	UpdatedAt     *string                 `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
-	Documents     []*DocumentResponseBody `form:"documents,omitempty" json:"documents,omitempty" xml:"documents,omitempty"`
-	Folders       []*FolderResponseBody   `form:"folders,omitempty" json:"folders,omitempty" xml:"folders,omitempty"`
-	DocumentCount *int                    `form:"document_count,omitempty" json:"document_count,omitempty" xml:"document_count,omitempty"`
-	ChatCount     *int                    `form:"chat_count,omitempty" json:"chat_count,omitempty" xml:"chat_count,omitempty"`
-	ReviewCount   *int                    `form:"review_count,omitempty" json:"review_count,omitempty" xml:"review_count,omitempty"`
+	ID               *string                 `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
+	UserID           *string                 `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
+	IsOwner          *bool                   `form:"is_owner,omitempty" json:"is_owner,omitempty" xml:"is_owner,omitempty"`
+	CompanyID        *string                 `form:"company_id,omitempty" json:"company_id,omitempty" xml:"company_id,omitempty"`
+	CompanyName      *string                 `form:"company_name,omitempty" json:"company_name,omitempty" xml:"company_name,omitempty"`
+	Name             *string                 `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	SharedWith       []string                `form:"shared_with,omitempty" json:"shared_with,omitempty" xml:"shared_with,omitempty"`
+	CreatedAt        *string                 `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	UpdatedAt        *string                 `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+	Documents        []*DocumentResponseBody `form:"documents,omitempty" json:"documents,omitempty" xml:"documents,omitempty"`
+	Folders          []*FolderResponseBody   `form:"folders,omitempty" json:"folders,omitempty" xml:"folders,omitempty"`
+	LibraryDocuments []*DocumentResponseBody `form:"library_documents,omitempty" json:"library_documents,omitempty" xml:"library_documents,omitempty"`
+	DocumentCount    *int                    `form:"document_count,omitempty" json:"document_count,omitempty" xml:"document_count,omitempty"`
+	ChatCount        *int                    `form:"chat_count,omitempty" json:"chat_count,omitempty" xml:"chat_count,omitempty"`
+	ReviewCount      *int                    `form:"review_count,omitempty" json:"review_count,omitempty" xml:"review_count,omitempty"`
 }
 
 // PeopleResponseBody is the type of the "applications" service "people"
@@ -168,20 +171,21 @@ type UploadDocumentResponseBody struct {
 
 // ApplicationResponse is used to define fields on response body types.
 type ApplicationResponse struct {
-	ID            *string             `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
-	UserID        *string             `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
-	IsOwner       *bool               `form:"is_owner,omitempty" json:"is_owner,omitempty" xml:"is_owner,omitempty"`
-	CompanyID     *string             `form:"company_id,omitempty" json:"company_id,omitempty" xml:"company_id,omitempty"`
-	CompanyName   *string             `form:"company_name,omitempty" json:"company_name,omitempty" xml:"company_name,omitempty"`
-	Name          *string             `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
-	SharedWith    []string            `form:"shared_with,omitempty" json:"shared_with,omitempty" xml:"shared_with,omitempty"`
-	CreatedAt     *string             `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
-	UpdatedAt     *string             `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
-	Documents     []*DocumentResponse `form:"documents,omitempty" json:"documents,omitempty" xml:"documents,omitempty"`
-	Folders       []*FolderResponse   `form:"folders,omitempty" json:"folders,omitempty" xml:"folders,omitempty"`
-	DocumentCount *int                `form:"document_count,omitempty" json:"document_count,omitempty" xml:"document_count,omitempty"`
-	ChatCount     *int                `form:"chat_count,omitempty" json:"chat_count,omitempty" xml:"chat_count,omitempty"`
-	ReviewCount   *int                `form:"review_count,omitempty" json:"review_count,omitempty" xml:"review_count,omitempty"`
+	ID               *string             `form:"id,omitempty" json:"id,omitempty" xml:"id,omitempty"`
+	UserID           *string             `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
+	IsOwner          *bool               `form:"is_owner,omitempty" json:"is_owner,omitempty" xml:"is_owner,omitempty"`
+	CompanyID        *string             `form:"company_id,omitempty" json:"company_id,omitempty" xml:"company_id,omitempty"`
+	CompanyName      *string             `form:"company_name,omitempty" json:"company_name,omitempty" xml:"company_name,omitempty"`
+	Name             *string             `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	SharedWith       []string            `form:"shared_with,omitempty" json:"shared_with,omitempty" xml:"shared_with,omitempty"`
+	CreatedAt        *string             `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	UpdatedAt        *string             `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+	Documents        []*DocumentResponse `form:"documents,omitempty" json:"documents,omitempty" xml:"documents,omitempty"`
+	Folders          []*FolderResponse   `form:"folders,omitempty" json:"folders,omitempty" xml:"folders,omitempty"`
+	LibraryDocuments []*DocumentResponse `form:"library_documents,omitempty" json:"library_documents,omitempty" xml:"library_documents,omitempty"`
+	DocumentCount    *int                `form:"document_count,omitempty" json:"document_count,omitempty" xml:"document_count,omitempty"`
+	ChatCount        *int                `form:"chat_count,omitempty" json:"chat_count,omitempty" xml:"chat_count,omitempty"`
+	ReviewCount      *int                `form:"review_count,omitempty" json:"review_count,omitempty" xml:"review_count,omitempty"`
 }
 
 // DocumentResponse is used to define fields on response body types.
@@ -421,6 +425,16 @@ func NewCreateApplicationCreated(body *CreateResponseBody) *applications.Applica
 			v.Folders[i] = unmarshalFolderResponseBodyToApplicationsFolder(val)
 		}
 	}
+	if body.LibraryDocuments != nil {
+		v.LibraryDocuments = make([]*applications.Document, len(body.LibraryDocuments))
+		for i, val := range body.LibraryDocuments {
+			if val == nil {
+				v.LibraryDocuments[i] = nil
+				continue
+			}
+			v.LibraryDocuments[i] = unmarshalDocumentResponseBodyToApplicationsDocument(val)
+		}
+	}
 
 	return v
 }
@@ -465,6 +479,16 @@ func NewGetApplicationOK(body *GetResponseBody) *applications.Application {
 			v.Folders[i] = unmarshalFolderResponseBodyToApplicationsFolder(val)
 		}
 	}
+	if body.LibraryDocuments != nil {
+		v.LibraryDocuments = make([]*applications.Document, len(body.LibraryDocuments))
+		for i, val := range body.LibraryDocuments {
+			if val == nil {
+				v.LibraryDocuments[i] = nil
+				continue
+			}
+			v.LibraryDocuments[i] = unmarshalDocumentResponseBodyToApplicationsDocument(val)
+		}
+	}
 
 	return v
 }
@@ -507,6 +531,16 @@ func NewUpdateApplicationOK(body *UpdateResponseBody) *applications.Application 
 				continue
 			}
 			v.Folders[i] = unmarshalFolderResponseBodyToApplicationsFolder(val)
+		}
+	}
+	if body.LibraryDocuments != nil {
+		v.LibraryDocuments = make([]*applications.Document, len(body.LibraryDocuments))
+		for i, val := range body.LibraryDocuments {
+			if val == nil {
+				v.LibraryDocuments[i] = nil
+				continue
+			}
+			v.LibraryDocuments[i] = unmarshalDocumentResponseBodyToApplicationsDocument(val)
 		}
 	}
 
@@ -739,6 +773,13 @@ func ValidateCreateResponseBody(body *CreateResponseBody) (err error) {
 			}
 		}
 	}
+	for _, e := range body.LibraryDocuments {
+		if e != nil {
+			if err2 := ValidateDocumentResponseBody(e); err2 != nil {
+				err = loom.MergeErrors(err, err2)
+			}
+		}
+	}
 	return
 }
 
@@ -779,6 +820,13 @@ func ValidateGetResponseBody(body *GetResponseBody) (err error) {
 			}
 		}
 	}
+	for _, e := range body.LibraryDocuments {
+		if e != nil {
+			if err2 := ValidateDocumentResponseBody(e); err2 != nil {
+				err = loom.MergeErrors(err, err2)
+			}
+		}
+	}
 	return
 }
 
@@ -815,6 +863,13 @@ func ValidateUpdateResponseBody(body *UpdateResponseBody) (err error) {
 	for _, e := range body.Folders {
 		if e != nil {
 			if err2 := ValidateFolderResponseBody(e); err2 != nil {
+				err = loom.MergeErrors(err, err2)
+			}
+		}
+	}
+	for _, e := range body.LibraryDocuments {
+		if e != nil {
+			if err2 := ValidateDocumentResponseBody(e); err2 != nil {
 				err = loom.MergeErrors(err, err2)
 			}
 		}
@@ -987,6 +1042,13 @@ func ValidateApplicationResponse(body *ApplicationResponse) (err error) {
 	for _, e := range body.Folders {
 		if e != nil {
 			if err2 := ValidateFolderResponse(e); err2 != nil {
+				err = loom.MergeErrors(err, err2)
+			}
+		}
+	}
+	for _, e := range body.LibraryDocuments {
+		if e != nil {
+			if err2 := ValidateDocumentResponse(e); err2 != nil {
 				err = loom.MergeErrors(err, err2)
 			}
 		}

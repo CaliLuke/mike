@@ -47,6 +47,12 @@ type Client struct {
 	// PatchMetadata Doer is the HTTP client used to make requests to the
 	// patch_metadata endpoint.
 	PatchMetadataDoer loomhttp.Doer
+	// AddApplicationLink Doer is the HTTP client used to make requests to the
+	// add_application_link endpoint.
+	AddApplicationLinkDoer loomhttp.Doer
+	// DeleteApplicationLink Doer is the HTTP client used to make requests to the
+	// delete_application_link endpoint.
+	DeleteApplicationLinkDoer loomhttp.Doer
 	// RestoreResponseBody controls whether the response bodies are reset after
 	// decoding so they can be read again.
 	RestoreResponseBody bool
@@ -63,7 +69,7 @@ type DocumentsUploadEncoderFunc func(*multipart.Writer, *documents.FileUpload) e
 
 // NewClient instantiates HTTP clients for all the documents service servers.
 func NewClient(scheme string, host string, doer loomhttp.Doer, enc func(*http.Request) loomhttp.Encoder, dec func(*http.Response) loomhttp.Decoder, restoreBody bool) *Client {
-	return &Client{ListDoer: doer, UploadDoer: doer, DeleteDoer: doer, DisplayDoer: doer, DownloadZipDoer: doer, URLDoer: doer, DocxDoer: doer, ProcessMetadataDoer: doer, ProcessMetadataBatchDoer: doer, MetadataQueueDoer: doer, PatchMetadataDoer: doer, RestoreResponseBody: restoreBody, scheme: scheme, host: host, decoder: dec, encoder: enc}
+	return &Client{ListDoer: doer, UploadDoer: doer, DeleteDoer: doer, DisplayDoer: doer, DownloadZipDoer: doer, URLDoer: doer, DocxDoer: doer, ProcessMetadataDoer: doer, ProcessMetadataBatchDoer: doer, MetadataQueueDoer: doer, PatchMetadataDoer: doer, AddApplicationLinkDoer: doer, DeleteApplicationLinkDoer: doer, RestoreResponseBody: restoreBody, scheme: scheme, host: host, decoder: dec, encoder: enc}
 } // List returns an endpoint that makes HTTP requests to the documents service
 // list server.
 func (c *Client) List() loom.Endpoint {
@@ -283,6 +289,45 @@ func (c *Client) PatchMetadata() loom.Endpoint {
 		resp, err := c.PatchMetadataDoer.Do(req)
 		if err != nil {
 			return nil, loomhttp.ErrRequestError("documents", "patch_metadata", err)
+		}
+		return decodeResponse(resp)
+	}
+} // AddApplicationLink returns an endpoint that makes HTTP requests to the
+// documents service add_application_link server.
+func (c *Client) AddApplicationLink() loom.Endpoint {
+	var (
+		encodeRequest  = EncodeAddApplicationLinkRequest(c.encoder)
+		decodeResponse = DecodeAddApplicationLinkResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildAddApplicationLinkRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.AddApplicationLinkDoer.Do(req)
+		if err != nil {
+			return nil, loomhttp.ErrRequestError("documents", "add_application_link", err)
+		}
+		return decodeResponse(resp)
+	}
+} // DeleteApplicationLink returns an endpoint that makes HTTP requests to the
+// documents service delete_application_link server.
+func (c *Client) DeleteApplicationLink() loom.Endpoint {
+	var (
+		decodeResponse = DecodeDeleteApplicationLinkResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildDeleteApplicationLinkRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.DeleteApplicationLinkDoer.Do(req)
+		if err != nil {
+			return nil, loomhttp.ErrRequestError("documents", "delete_application_link", err)
 		}
 		return decodeResponse(resp)
 	}

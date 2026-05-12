@@ -65,3 +65,13 @@ func MetadataQueueDocumentsPath() string {
 func PatchMetadataDocumentsPath(documentID string) string {
 	return fmt.Sprintf("/single-documents/%v/metadata", documentID)
 }
+
+// AddApplicationLinkDocumentsPath returns the URL path to the documents service add_application_link HTTP endpoint.
+func AddApplicationLinkDocumentsPath(documentID string) string {
+	return fmt.Sprintf("/single-documents/%v/application-links", documentID)
+}
+
+// DeleteApplicationLinkDocumentsPath returns the URL path to the documents service delete_application_link HTTP endpoint.
+func DeleteApplicationLinkDocumentsPath(documentID string, applicationID string) string {
+	return fmt.Sprintf("/single-documents/%v/application-links/%v", documentID, applicationID)
+}

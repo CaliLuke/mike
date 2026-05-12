@@ -23,7 +23,7 @@ func BuildCreatePayload(applicationsCreateBody string) (*applications.CreatePayl
 	{
 		err = json.Unmarshal([]byte(applicationsCreateBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"company_id\": \"Iste sunt repudiandae quisquam quod saepe.\",\n      \"name\": \"Minima quibusdam excepturi voluptatibus rerum.\",\n      \"shared_with\": [\n         \"Et sint.\",\n         \"Dolorem optio.\",\n         \"Nemo consequatur voluptas hic voluptatem totam.\"\n      ]\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"company_id\": \"Exercitationem qui nihil est ut.\",\n      \"name\": \"Quasi facilis quia a dolor voluptatibus.\",\n      \"shared_with\": [\n         \"Saepe est quasi.\",\n         \"Eaque illo minima est cumque mollitia odio.\",\n         \"Accusamus nihil eum repudiandae iusto.\"\n      ]\n   }'")
 		}
 	}
 	v := &applications.CreatePayload{
@@ -57,7 +57,7 @@ func BuildUpdatePayload(applicationsUpdateBody string, applicationsUpdateApplica
 	{
 		err = json.Unmarshal([]byte(applicationsUpdateBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"company_id\": \"Soluta aliquam occaecati consequatur.\",\n      \"name\": \"Officia expedita expedita facilis voluptatem dolorem quia.\",\n      \"shared_with\": [\n         \"Atque dolorem sequi officia.\",\n         \"Voluptas placeat.\",\n         \"Ut sint quisquam.\"\n      ]\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"company_id\": \"Id cumque doloribus.\",\n      \"name\": \"Iure perferendis.\",\n      \"shared_with\": [\n         \"Sequi sed et quam aspernatur officiis.\",\n         \"Dolorem nesciunt facilis voluptatem sint.\",\n         \"Quia explicabo.\",\n         \"Blanditiis voluptatem illo qui ut architecto.\"\n      ]\n   }'")
 		}
 	}
 	var applicationID string
@@ -134,7 +134,7 @@ func BuildUploadDocumentPayload(applicationsUploadDocumentBody string, applicati
 	{
 		err = json.Unmarshal([]byte(applicationsUploadDocumentBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"file\": \"RXggb3B0aW8gZXN0IHV0Lg==\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"file\": \"TWF4aW1lIHJlcHJlaGVuZGVyaXQgaW4gdm9sdXB0YXR1bSBvZmZpY2lhIG9mZmljaWEgdGVuZXR1ci4=\"\n   }'")
 		}
 		if body.File == nil {
 			err = loom.MergeErrors(err, loom.MissingFieldError("file", "body"))

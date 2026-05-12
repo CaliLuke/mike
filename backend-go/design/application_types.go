@@ -14,6 +14,7 @@ var Application = Type("Application", func() {
 	Attribute("updated_at", String)
 	Attribute("documents", ArrayOf(Document))
 	Attribute("folders", ArrayOf(Folder))
+	Attribute("library_documents", ArrayOf(Document))
 	Attribute("document_count", Int)
 	Attribute("chat_count", Int)
 	Attribute("review_count", Int)

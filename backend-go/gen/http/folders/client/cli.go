@@ -22,7 +22,7 @@ func BuildCreatePayload(foldersCreateBody string, foldersCreateApplicationID str
 	{
 		err = json.Unmarshal([]byte(foldersCreateBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"name\": \"Quidem voluptatum.\",\n      \"parent_folder_id\": \"In odit impedit odit recusandae ut.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"name\": \"Facilis eveniet ut consequatur fuga ratione.\",\n      \"parent_folder_id\": \"Voluptates ut non.\"\n   }'")
 		}
 	}
 	var applicationID string
@@ -44,7 +44,7 @@ func BuildUpdatePayload(foldersUpdateBody string, foldersUpdateApplicationID str
 	{
 		err = json.Unmarshal([]byte(foldersUpdateBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"name\": \"Sunt voluptas sit qui veritatis consectetur dolor.\",\n      \"parent_folder_id\": \"Modi earum cumque inventore nisi.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"name\": \"Perspiciatis ut iste ipsa.\",\n      \"parent_folder_id\": \"Aspernatur est alias hic.\"\n   }'")
 		}
 	}
 	var applicationID string
@@ -87,7 +87,7 @@ func BuildMoveDocumentPayload(foldersMoveDocumentBody string, foldersMoveDocumen
 	{
 		err = json.Unmarshal([]byte(foldersMoveDocumentBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"folder_id\": \"Ut non nostrum voluptas sit ex.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"folder_id\": \"Sit pariatur quod autem est eum.\"\n   }'")
 		}
 	}
 	var applicationID string

@@ -41,6 +41,12 @@ type Service interface {
 	// Apply user overrides to a document's classifier output. When confirm=true,
 	// flips metadata_status to user_confirmed.
 	PatchMetadata(context.Context, *MetadataPatchPayload) (res *Document, err error)
+	// Link a library document to an application so it surfaces in that
+	// application's library_documents. Library docs only; requesting on a
+	// library=false document returns 400.
+	AddApplicationLink(context.Context, *ApplicationLinkPayload) (res *ApplicationLink, err error)
+	// DeleteApplicationLink implements delete_application_link.
+	DeleteApplicationLink(context.Context, *DeleteApplicationLinkPayload) (err error)
 }
 
 // APIName is the name of the API as defined in the design.
@@ -57,7 +63,26 @@ const ServiceName = "documents"
 // MethodNames lists the service method names as defined in the design. These
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
-var MethodNames = [11]string{"list", "upload", "delete", "display", "download_zip", "url", "docx", "process_metadata", "process_metadata_batch", "metadata_queue", "patch_metadata"}
+var MethodNames = [13]string{"list", "upload", "delete", "display", "download_zip", "url", "docx", "process_metadata", "process_metadata_batch", "metadata_queue", "patch_metadata", "add_application_link", "delete_application_link"}
+
+// ApplicationLink is the result type of the documents service
+// add_application_link method.
+type ApplicationLink struct {
+	ID            string `json:"id"`
+	DocumentID    string `json:"document_id"`
+	ApplicationID string `json:"application_id"`
+	Relation      string `json:"relation"`
+	CreatedAt     string `json:"created_at"`
+	CreatedBy     string `json:"created_by"`
+}
+
+// ApplicationLinkPayload is the payload type of the documents service
+// add_application_link method.
+type ApplicationLinkPayload struct {
+	DocumentID    string  `json:"documentId"`
+	ApplicationID string  `json:"application_id"`
+	Relation      *string `json:"relation,omitempty"`
+}
 
 type AssistantCreateApplicationArgs struct {
 	// Application name, usually the role title from the job ad
@@ -454,6 +479,13 @@ type AssistantWorkflowText struct {
 	ColumnsConfig []any `json:"columns_config,omitempty"`
 	// Workflow practice or category
 	Practice *string `json:"practice,omitempty"`
+}
+
+// DeleteApplicationLinkPayload is the payload type of the documents service
+// delete_application_link method.
+type DeleteApplicationLinkPayload struct {
+	DocumentID    string `json:"documentId"`
+	ApplicationID string `json:"applicationId"`
 }
 
 // DeletePayload is the payload type of the documents service delete method.

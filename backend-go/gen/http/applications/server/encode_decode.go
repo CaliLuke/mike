@@ -414,6 +414,16 @@ func marshalApplicationsApplicationToApplicationResponse(v *applications.Applica
 			res.Folders[i] = marshalApplicationsFolderToFolderResponse(val)
 		}
 	}
+	if v.LibraryDocuments != nil {
+		res.LibraryDocuments = make([]*DocumentResponse, len(v.LibraryDocuments))
+		for i, val := range v.LibraryDocuments {
+			if val == nil {
+				res.LibraryDocuments[i] = nil
+				continue
+			}
+			res.LibraryDocuments[i] = marshalApplicationsDocumentToDocumentResponse(val)
+		}
+	}
 
 	return res
 }

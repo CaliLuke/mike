@@ -124,4 +124,26 @@ var _ = Service("documents", func() {
 			Response(StatusOK)
 		})
 	})
+
+	Method("add_application_link", func() {
+		Description("Link a library document to an application so it surfaces in that application's library_documents. Library docs only; requesting on a library=false document returns 400.")
+		Payload(ApplicationLinkPayload)
+		Result(ApplicationLink)
+		HTTP(func() {
+			POST("/single-documents/{documentId}/application-links")
+			Response(StatusCreated)
+		})
+	})
+
+	Method("delete_application_link", func() {
+		Payload(func() {
+			Attribute("documentId", String)
+			Attribute("applicationId", String)
+			Required("documentId", "applicationId")
+		})
+		HTTP(func() {
+			DELETE("/single-documents/{documentId}/application-links/{applicationId}")
+			Response(StatusNoContent)
+		})
+	})
 })

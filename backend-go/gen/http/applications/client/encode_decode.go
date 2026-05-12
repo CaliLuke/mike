@@ -765,6 +765,16 @@ func unmarshalApplicationResponseToApplicationsApplication(v *ApplicationRespons
 			res.Folders[i] = unmarshalFolderResponseToApplicationsFolder(val)
 		}
 	}
+	if v.LibraryDocuments != nil {
+		res.LibraryDocuments = make([]*applications.Document, len(v.LibraryDocuments))
+		for i, val := range v.LibraryDocuments {
+			if val == nil {
+				res.LibraryDocuments[i] = nil
+				continue
+			}
+			res.LibraryDocuments[i] = unmarshalDocumentResponseToApplicationsDocument(val)
+		}
+	}
 
 	return res
 }

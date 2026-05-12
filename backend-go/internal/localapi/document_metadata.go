@@ -242,6 +242,16 @@ func (s *Server) enrichDocumentMetadata(ctx context.Context, documentID string) 
 		recordSpanError(span, err)
 		return err
 	}
+
+	// Best-effort: when the classifier suggests an application match AND the
+	// document is library-scope (suggestion only makes sense as a reusable
+	// asset), drop a "classifier_suggested" link row. Failure here does not
+	// fail the whole job — the user can still link manually.
+	if parsed.SuggestedApplicationMatch != nil && parsed.Library != nil && *parsed.Library {
+		if err := s.upsertClassifierApplicationLink(ctx, documentID, *parsed.SuggestedApplicationMatch); err != nil {
+			span.SetAttributes(attribute.String("metadata.suggested_link_error", err.Error()))
+		}
+	}
 	return nil
 }
 
@@ -609,6 +619,156 @@ func (s *Server) patchDocumentMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, rows[0])
+}
+
+// addDocumentApplicationLink links a library document to an application. Only
+// library=true documents may be linked; an attempt to link an
+// application-scoped doc returns 400.
+func (s *Server) addDocumentApplicationLink(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed"))
+		return
+	}
+	docID := r.PathValue("documentId")
+	if docID == "" {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("documentId required"))
+		return
+	}
+	var req struct {
+		ApplicationID string `json:"application_id"`
+		Relation      string `json:"relation"`
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<16))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	if len(body) > 0 {
+		if err := json.Unmarshal(body, &req); err != nil {
+			writeError(w, http.StatusBadRequest, fmt.Errorf("invalid JSON: %w", err))
+			return
+		}
+	}
+	if req.ApplicationID == "" {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("application_id required"))
+		return
+	}
+	relation := req.Relation
+	if relation == "" {
+		relation = "referenced"
+	}
+	if relation != "referenced" && relation != "derived_into" {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("invalid relation %q", relation))
+		return
+	}
+
+	// Guard: only library docs may be linked. Read library flag fresh from DB.
+	docRows, err := queryRows(r.Context(), s.app.DB,
+		"SELECT library FROM "+recordID("documents", docID)+";")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if len(docRows) == 0 {
+		writeError(w, http.StatusNotFound, fmt.Errorf("document not found"))
+		return
+	}
+	libraryVal, _ := docRows[0]["library"].(bool)
+	if !libraryVal {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("document is not a library document; set library=true via PATCH /metadata first"))
+		return
+	}
+
+	linkID := newID("doclink")
+	if _, err := s.app.DB.Query(r.Context(), fmt.Sprintf(
+		`CREATE %s CONTENT {
+			document_id: %s,
+			application_id: %s,
+			relation: %s,
+			created_at: time::now(),
+			created_by: "user_confirmed"
+		};`,
+		recordID("document_application_links", linkID),
+		recordID("documents", docID),
+		recordID("applications", req.ApplicationID),
+		surrealString(relation),
+	)); err != nil {
+		// SurrealKV reports a unique-index violation if the (doc,app) pair
+		// already exists. Re-raise as 409 so the UI can distinguish.
+		if strings.Contains(err.Error(), "already exists") || strings.Contains(err.Error(), "index") {
+			writeError(w, http.StatusConflict, err)
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	rows, err := queryRows(r.Context(), s.app.DB,
+		"SELECT id, document_id, application_id, relation, created_at, created_by FROM "+recordID("document_application_links", linkID)+";")
+	if err != nil || len(rows) == 0 {
+		writeError(w, http.StatusInternalServerError, fmt.Errorf("link created but could not be read back: %v", err))
+		return
+	}
+	writeJSON(w, http.StatusCreated, rows[0])
+}
+
+func (s *Server) deleteDocumentApplicationLink(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		writeError(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed"))
+		return
+	}
+	docID := r.PathValue("documentId")
+	appID := r.PathValue("applicationId")
+	if docID == "" || appID == "" {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("documentId and applicationId required"))
+		return
+	}
+	if _, err := s.app.DB.Query(r.Context(), fmt.Sprintf(
+		"DELETE FROM document_application_links WHERE document_id = %s AND application_id = %s;",
+		recordID("documents", docID),
+		recordID("applications", appID),
+	)); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// upsertClassifierApplicationLink is invoked by enrichDocumentMetadata when the
+// classifier suggested an application match. It writes a link row with
+// created_by="classifier_suggested" so the UI can distinguish from
+// user-confirmed links. Silently no-ops when the application id can't be
+// resolved (the suggestion was just a string the model produced).
+func (s *Server) upsertClassifierApplicationLink(ctx context.Context, documentID, suggestedAppName string) error {
+	if suggestedAppName == "" {
+		return nil
+	}
+	rows, err := queryRows(ctx, s.app.DB,
+		"SELECT id FROM applications WHERE name = "+surrealString(suggestedAppName)+" LIMIT 1;")
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	appID := trimRecord(asString(rows[0]["id"]))
+	if appID == "" {
+		return nil
+	}
+	linkID := newID("doclink")
+	_, err = s.app.DB.Query(ctx, fmt.Sprintf(
+		`UPSERT %s CONTENT {
+			document_id: %s,
+			application_id: %s,
+			relation: "referenced",
+			created_at: time::now(),
+			created_by: "classifier_suggested"
+		};`,
+		recordID("document_application_links", linkID),
+		recordID("documents", documentID),
+		recordID("applications", appID),
+	))
+	return err
 }
 
 func surrealPeopleRefs(refs []classifierPersonRef) string {
