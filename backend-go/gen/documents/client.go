@@ -15,18 +15,22 @@ import (
 
 // Client is the "documents" service client.
 type Client struct {
-	ListEndpoint        loom.Endpoint
-	UploadEndpoint      loom.Endpoint
-	DeleteEndpoint      loom.Endpoint
-	DisplayEndpoint     loom.Endpoint
-	DownloadZipEndpoint loom.Endpoint
-	URLEndpoint         loom.Endpoint
-	DocxEndpoint        loom.Endpoint
+	ListEndpoint                 loom.Endpoint
+	UploadEndpoint               loom.Endpoint
+	DeleteEndpoint               loom.Endpoint
+	DisplayEndpoint              loom.Endpoint
+	DownloadZipEndpoint          loom.Endpoint
+	URLEndpoint                  loom.Endpoint
+	DocxEndpoint                 loom.Endpoint
+	ProcessMetadataEndpoint      loom.Endpoint
+	ProcessMetadataBatchEndpoint loom.Endpoint
+	MetadataQueueEndpoint        loom.Endpoint
+	PatchMetadataEndpoint        loom.Endpoint
 }
 
 // NewClient initializes a "documents" service client given the endpoints.
-func NewClient(list, upload, delete_, display, downloadZip, url_, docx loom.Endpoint) *Client {
-	return &Client{ListEndpoint: list, UploadEndpoint: upload, DeleteEndpoint: delete_, DisplayEndpoint: display, DownloadZipEndpoint: downloadZip, URLEndpoint: url_, DocxEndpoint: docx}
+func NewClient(list, upload, delete_, display, downloadZip, url_, docx, processMetadata, processMetadataBatch, metadataQueue, patchMetadata loom.Endpoint) *Client {
+	return &Client{ListEndpoint: list, UploadEndpoint: upload, DeleteEndpoint: delete_, DisplayEndpoint: display, DownloadZipEndpoint: downloadZip, URLEndpoint: url_, DocxEndpoint: docx, ProcessMetadataEndpoint: processMetadata, ProcessMetadataBatchEndpoint: processMetadataBatch, MetadataQueueEndpoint: metadataQueue, PatchMetadataEndpoint: patchMetadata}
 }
 
 // List calls the "list" endpoint of the "documents" service.
@@ -93,4 +97,46 @@ func (c *Client) Docx(ctx context.Context, p *DocxPayload) (res []byte, err erro
 		return
 	}
 	return ires.([]byte), nil
+}
+
+// ProcessMetadata calls the "process_metadata" endpoint of the "documents"
+// service.
+func (c *Client) ProcessMetadata(ctx context.Context, p *ProcessMetadataPayload) (res *MetadataQueueAck, err error) {
+	var ires any
+	ires, err = c.ProcessMetadataEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*MetadataQueueAck), nil
+}
+
+// ProcessMetadataBatch calls the "process_metadata_batch" endpoint of the
+// "documents" service.
+func (c *Client) ProcessMetadataBatch(ctx context.Context, p *MetadataBatchRequest) (res *MetadataQueueAck, err error) {
+	var ires any
+	ires, err = c.ProcessMetadataBatchEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*MetadataQueueAck), nil
+}
+
+// MetadataQueue calls the "metadata_queue" endpoint of the "documents" service.
+func (c *Client) MetadataQueue(ctx context.Context) (res *MetadataQueueStats, err error) {
+	var ires any
+	ires, err = c.MetadataQueueEndpoint(ctx, nil)
+	if err != nil {
+		return
+	}
+	return ires.(*MetadataQueueStats), nil
+}
+
+// PatchMetadata calls the "patch_metadata" endpoint of the "documents" service.
+func (c *Client) PatchMetadata(ctx context.Context, p *MetadataPatchPayload) (res *Document, err error) {
+	var ires any
+	ires, err = c.PatchMetadataEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*Document), nil
 }

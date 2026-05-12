@@ -35,6 +35,18 @@ type Client struct {
 	URLDoer loomhttp.Doer
 	// Docx Doer is the HTTP client used to make requests to the docx endpoint.
 	DocxDoer loomhttp.Doer
+	// ProcessMetadata Doer is the HTTP client used to make requests to the
+	// process_metadata endpoint.
+	ProcessMetadataDoer loomhttp.Doer
+	// ProcessMetadataBatch Doer is the HTTP client used to make requests to the
+	// process_metadata_batch endpoint.
+	ProcessMetadataBatchDoer loomhttp.Doer
+	// MetadataQueue Doer is the HTTP client used to make requests to the
+	// metadata_queue endpoint.
+	MetadataQueueDoer loomhttp.Doer
+	// PatchMetadata Doer is the HTTP client used to make requests to the
+	// patch_metadata endpoint.
+	PatchMetadataDoer loomhttp.Doer
 	// RestoreResponseBody controls whether the response bodies are reset after
 	// decoding so they can be read again.
 	RestoreResponseBody bool
@@ -51,7 +63,7 @@ type DocumentsUploadEncoderFunc func(*multipart.Writer, *documents.FileUpload) e
 
 // NewClient instantiates HTTP clients for all the documents service servers.
 func NewClient(scheme string, host string, doer loomhttp.Doer, enc func(*http.Request) loomhttp.Encoder, dec func(*http.Response) loomhttp.Decoder, restoreBody bool) *Client {
-	return &Client{ListDoer: doer, UploadDoer: doer, DeleteDoer: doer, DisplayDoer: doer, DownloadZipDoer: doer, URLDoer: doer, DocxDoer: doer, RestoreResponseBody: restoreBody, scheme: scheme, host: host, decoder: dec, encoder: enc}
+	return &Client{ListDoer: doer, UploadDoer: doer, DeleteDoer: doer, DisplayDoer: doer, DownloadZipDoer: doer, URLDoer: doer, DocxDoer: doer, ProcessMetadataDoer: doer, ProcessMetadataBatchDoer: doer, MetadataQueueDoer: doer, PatchMetadataDoer: doer, RestoreResponseBody: restoreBody, scheme: scheme, host: host, decoder: dec, encoder: enc}
 } // List returns an endpoint that makes HTTP requests to the documents service
 // list server.
 func (c *Client) List() loom.Endpoint {
@@ -193,6 +205,84 @@ func (c *Client) Docx() loom.Endpoint {
 		resp, err := c.DocxDoer.Do(req)
 		if err != nil {
 			return nil, loomhttp.ErrRequestError("documents", "docx", err)
+		}
+		return decodeResponse(resp)
+	}
+} // ProcessMetadata returns an endpoint that makes HTTP requests to the
+// documents service process_metadata server.
+func (c *Client) ProcessMetadata() loom.Endpoint {
+	var (
+		decodeResponse = DecodeProcessMetadataResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildProcessMetadataRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.ProcessMetadataDoer.Do(req)
+		if err != nil {
+			return nil, loomhttp.ErrRequestError("documents", "process_metadata", err)
+		}
+		return decodeResponse(resp)
+	}
+} // ProcessMetadataBatch returns an endpoint that makes HTTP requests to the
+// documents service process_metadata_batch server.
+func (c *Client) ProcessMetadataBatch() loom.Endpoint {
+	var (
+		encodeRequest  = EncodeProcessMetadataBatchRequest(c.encoder)
+		decodeResponse = DecodeProcessMetadataBatchResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildProcessMetadataBatchRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.ProcessMetadataBatchDoer.Do(req)
+		if err != nil {
+			return nil, loomhttp.ErrRequestError("documents", "process_metadata_batch", err)
+		}
+		return decodeResponse(resp)
+	}
+} // MetadataQueue returns an endpoint that makes HTTP requests to the documents
+// service metadata_queue server.
+func (c *Client) MetadataQueue() loom.Endpoint {
+	var (
+		decodeResponse = DecodeMetadataQueueResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildMetadataQueueRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.MetadataQueueDoer.Do(req)
+		if err != nil {
+			return nil, loomhttp.ErrRequestError("documents", "metadata_queue", err)
+		}
+		return decodeResponse(resp)
+	}
+} // PatchMetadata returns an endpoint that makes HTTP requests to the documents
+// service patch_metadata server.
+func (c *Client) PatchMetadata() loom.Endpoint {
+	var (
+		encodeRequest  = EncodePatchMetadataRequest(c.encoder)
+		decodeResponse = DecodePatchMetadataResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildPatchMetadataRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.PatchMetadataDoer.Do(req)
+		if err != nil {
+			return nil, loomhttp.ErrRequestError("documents", "patch_metadata", err)
 		}
 		return decodeResponse(resp)
 	}

@@ -82,4 +82,46 @@ var _ = Service("documents", func() {
 			Response(StatusOK)
 		})
 	})
+
+	Method("process_metadata", func() {
+		Description("Queue a single document for deferred metadata classification. Spawns a background goroutine that runs the classifier against the document's stored text twin.")
+		Payload(func() {
+			Attribute("documentId", String)
+			Required("documentId")
+		})
+		Result(MetadataQueueAck)
+		HTTP(func() {
+			POST("/single-documents/{documentId}/process-metadata")
+			Response(StatusAccepted)
+		})
+	})
+
+	Method("process_metadata_batch", func() {
+		Description("Queue many documents for deferred metadata classification. Either pass an explicit document_ids list, or a filter like 'unprocessed' to enqueue every matching row.")
+		Payload(MetadataBatchRequest)
+		Result(MetadataQueueAck)
+		HTTP(func() {
+			POST("/single-documents/process-metadata")
+			Response(StatusAccepted)
+		})
+	})
+
+	Method("metadata_queue", func() {
+		Description("Return the current metadata-processing queue counts grouped by metadata_status.")
+		Result(MetadataQueueStats)
+		HTTP(func() {
+			GET("/single-documents/metadata-queue")
+			Response(StatusOK)
+		})
+	})
+
+	Method("patch_metadata", func() {
+		Description("Apply user overrides to a document's classifier output. When confirm=true, flips metadata_status to user_confirmed.")
+		Payload(MetadataPatchPayload)
+		Result(Document)
+		HTTP(func() {
+			PATCH("/single-documents/{documentId}/metadata")
+			Response(StatusOK)
+		})
+	})
 })

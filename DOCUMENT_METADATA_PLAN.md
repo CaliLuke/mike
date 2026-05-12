@@ -7,6 +7,7 @@ Add a deferred, user-triggered metadata classifier to `documents` (kind, summary
 - 2026-05-11 — Plan created.
 - 2026-05-11 — M1 (Schema and backfill) complete.
 - 2026-05-11 — M2 (Classifier service) complete. 7 unit tests pass; enrichDocumentMetadata wired (M3 will expose it via HTTP). 16 existing docs backfilled to `metadata_status="unprocessed"`; new fields project to HTTP responses.
+- 2026-05-11 — M3 (Trigger and confirmation API) complete. All 4 endpoints work end-to-end against the dev DB; mock LLM now emits a valid classifier response so probe scenarios get a deterministic happy path.
 
 ## Milestones
 
@@ -73,14 +74,14 @@ Acceptance Criteria
 
 Checklist
 
-- [ ] Add the four routes to `backend-go/design/document_routes.go` against the existing `single_documents` service with `Result(Document)` for PATCH and a new `MetadataQueueStats` type for the GET (counts by status).
-- [ ] Run `cd backend-go && make generate` and confirm the new endpoints appear in `backend-go/gen/http/cli/luke/cli.go`.
-- [ ] Implement the single-doc enqueue handler in `backend-go/internal/localapi/api.go`: flip `metadata_status="queued"`, spawn `go func() { ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second); defer cancel(); _ = s.enrichDocumentMetadata(ctx, docID) }()`, return 202.
-- [ ] Implement the batch handler with a `make(chan struct{}, 5)` semaphore around each goroutine spawn; resolve `filter="unprocessed"` to the matching document IDs via SurrealQL before iterating.
-- [ ] Implement the queue-status handler using `SELECT count() AS n, metadata_status FROM documents GROUP BY metadata_status`.
-- [ ] Implement the PATCH handler: validate any submitted enum value against the allow-list, accept partial updates, set `metadata_status="user_confirmed"` when `confirm=true`, persist via `UPDATE documents MERGE { ... } WHERE id = $id`.
-- [ ] Run `cd backend-go && make build`.
-- [ ] Commit and push: `git add -A && git commit -m "Add classifier trigger and confirmation API" && git push`.
+- [x] Add the four routes to `backend-go/design/document_routes.go` against the existing `single_documents` service with `Result(Document)` for PATCH and a new `MetadataQueueStats` type for the GET (counts by status).
+- [x] Run `cd backend-go && make generate` and confirm the new endpoints appear in `backend-go/gen/http/cli/luke/cli.go`.
+- [x] Implement the single-doc enqueue handler in `backend-go/internal/localapi/api.go`: flip `metadata_status="queued"`, spawn `go func() { ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second); defer cancel(); _ = s.enrichDocumentMetadata(ctx, docID) }()`, return 202.
+- [x] Implement the batch handler with a `make(chan struct{}, 5)` semaphore around each goroutine spawn; resolve `filter="unprocessed"` to the matching document IDs via SurrealQL before iterating.
+- [x] Implement the queue-status handler using `SELECT count() AS n, metadata_status FROM documents GROUP BY metadata_status`.
+- [x] Implement the PATCH handler: validate any submitted enum value against the allow-list, accept partial updates, set `metadata_status="user_confirmed"` when `confirm=true`, persist via `UPDATE documents MERGE { ... } WHERE id = $id`.
+- [x] Run `cd backend-go && make build`.
+- [x] Commit and push: `git add -A && git commit -m "Add classifier trigger and confirmation API" && git push`.
 
 ### Milestone 4: Application linking
 

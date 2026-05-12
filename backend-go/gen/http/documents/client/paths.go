@@ -45,3 +45,23 @@ func URLDocumentsPath(documentID string) string {
 func DocxDocumentsPath(documentID string) string {
 	return fmt.Sprintf("/single-documents/%v/docx", documentID)
 }
+
+// ProcessMetadataDocumentsPath returns the URL path to the documents service process_metadata HTTP endpoint.
+func ProcessMetadataDocumentsPath(documentID string) string {
+	return fmt.Sprintf("/single-documents/%v/process-metadata", documentID)
+}
+
+// ProcessMetadataBatchDocumentsPath returns the URL path to the documents service process_metadata_batch HTTP endpoint.
+func ProcessMetadataBatchDocumentsPath() string {
+	return "/single-documents/process-metadata"
+}
+
+// MetadataQueueDocumentsPath returns the URL path to the documents service metadata_queue HTTP endpoint.
+func MetadataQueueDocumentsPath() string {
+	return "/single-documents/metadata-queue"
+}
+
+// PatchMetadataDocumentsPath returns the URL path to the documents service patch_metadata HTTP endpoint.
+func PatchMetadataDocumentsPath(documentID string) string {
+	return fmt.Sprintf("/single-documents/%v/metadata", documentID)
+}

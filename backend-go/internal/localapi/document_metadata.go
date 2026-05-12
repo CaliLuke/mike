@@ -5,9 +5,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
+)
+
+const (
+	metadataMaxConcurrentClassifiers = 5
+	metadataClassifyTimeout          = 60 * time.Second
 )
 
 // classifierSystemPrompt instructs the model to produce a single JSON object
@@ -309,6 +317,298 @@ func surrealStringArray(items []string) string {
 		quoted[i] = surrealString(s)
 	}
 	return "[" + strings.Join(quoted, ", ") + "]"
+}
+
+// queueDocumentMetadataJob marks a document as queued and spawns a background
+// goroutine that runs the classifier. Returns whether the queue actually
+// accepted the doc (false when the doc was already processing).
+func (s *Server) queueDocumentMetadataJob(ctx context.Context, documentID string) error {
+	if err := s.setDocumentMetadataStatus(ctx, documentID, "queued", ""); err != nil {
+		return err
+	}
+	go func() {
+		bg, cancel := context.WithTimeout(context.Background(), metadataClassifyTimeout)
+		defer cancel()
+		_ = s.enrichDocumentMetadata(bg, documentID)
+	}()
+	return nil
+}
+
+// queueDocumentMetadataBatch runs multiple classifier jobs with a fixed
+// concurrency cap. Each job has its own timeout context derived from
+// context.Background so it survives the originating HTTP request.
+func (s *Server) queueDocumentMetadataBatch(ctx context.Context, documentIDs []string) error {
+	if len(documentIDs) == 0 {
+		return nil
+	}
+	for _, id := range documentIDs {
+		if err := s.setDocumentMetadataStatus(ctx, id, "queued", ""); err != nil {
+			return fmt.Errorf("mark queued %s: %w", id, err)
+		}
+	}
+	sem := make(chan struct{}, metadataMaxConcurrentClassifiers)
+	for _, id := range documentIDs {
+		docID := id
+		sem <- struct{}{}
+		go func() {
+			defer func() { <-sem }()
+			bg, cancel := context.WithTimeout(context.Background(), metadataClassifyTimeout)
+			defer cancel()
+			_ = s.enrichDocumentMetadata(bg, docID)
+		}()
+	}
+	return nil
+}
+
+// findDocumentIDsForFilter resolves a batch filter ("unprocessed", "error",
+// "all") to the matching document ID list.
+func (s *Server) findDocumentIDsForFilter(ctx context.Context, filter string) ([]string, error) {
+	where := ""
+	switch filter {
+	case "unprocessed":
+		where = "metadata_status = \"unprocessed\" OR metadata_status = NONE"
+	case "error":
+		where = "metadata_status = \"error\""
+	case "all":
+		where = "true"
+	default:
+		return nil, fmt.Errorf("unknown filter %q", filter)
+	}
+	rows, err := queryRows(ctx, s.app.DB, "SELECT id FROM documents WHERE "+where+";")
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, trimRecord(asString(r["id"])))
+	}
+	return ids, nil
+}
+
+func (s *Server) processSingleDocumentMetadata(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed"))
+		return
+	}
+	docID := r.PathValue("documentId")
+	if docID == "" {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("documentId required"))
+		return
+	}
+	if err := s.queueDocumentMetadataJob(r.Context(), docID); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{
+		"queued_document_ids": []string{docID},
+		"status":              "queued",
+	})
+}
+
+func (s *Server) processDocumentMetadataBatch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed"))
+		return
+	}
+	var req struct {
+		DocumentIDs []string `json:"document_ids"`
+		Filter      string   `json:"filter"`
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	if len(body) > 0 {
+		if err := json.Unmarshal(body, &req); err != nil {
+			writeError(w, http.StatusBadRequest, fmt.Errorf("invalid JSON: %w", err))
+			return
+		}
+	}
+	ids := req.DocumentIDs
+	if req.Filter != "" {
+		filteredIDs, err := s.findDocumentIDsForFilter(r.Context(), req.Filter)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		ids = append(ids, filteredIDs...)
+	}
+	// Dedupe while preserving order.
+	seen := make(map[string]struct{}, len(ids))
+	deduped := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		deduped = append(deduped, id)
+	}
+	if err := s.queueDocumentMetadataBatch(r.Context(), deduped); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{
+		"queued_document_ids": deduped,
+		"status":              "queued",
+	})
+}
+
+func (s *Server) metadataQueueStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed"))
+		return
+	}
+	rows, err := queryRows(r.Context(), s.app.DB,
+		"SELECT metadata_status, count() AS count FROM documents GROUP BY metadata_status;")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	counts := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		statusVal := asString(row["metadata_status"])
+		if statusVal == "" {
+			statusVal = "unprocessed"
+		}
+		counts = append(counts, map[string]any{
+			"metadata_status": statusVal,
+			"count":           row["count"],
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"counts": counts})
+}
+
+func (s *Server) patchDocumentMetadata(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch {
+		writeError(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed"))
+		return
+	}
+	docID := r.PathValue("documentId")
+	if docID == "" {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("documentId required"))
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	var req struct {
+		Confirm        *bool                  `json:"confirm"`
+		Kind           *string                `json:"kind"`
+		Library        *bool                  `json:"library"`
+		LibraryKind    *string                `json:"library_kind"`
+		InterviewStage *string                `json:"interview_stage"`
+		Summary        *string                `json:"summary"`
+		Topics         *[]string              `json:"topics"`
+		CompanyRefs    *[]string              `json:"company_refs"`
+		PeopleRefs     *[]classifierPersonRef `json:"people_refs"`
+		DatedEventAt   *string                `json:"dated_event_at"`
+		DerivedFromID  *string                `json:"derived_from_id"`
+	}
+	if len(body) > 0 {
+		if err := json.Unmarshal(body, &req); err != nil {
+			writeError(w, http.StatusBadRequest, fmt.Errorf("invalid JSON: %w", err))
+			return
+		}
+	}
+	sets := []string{"updated_at = time::now()"}
+	if req.Kind != nil {
+		if _, ok := classifierKindAllowList[*req.Kind]; !ok {
+			writeError(w, http.StatusBadRequest, fmt.Errorf("invalid kind %q", *req.Kind))
+			return
+		}
+		sets = append(sets, "kind = "+surrealString(*req.Kind))
+	}
+	if req.Library != nil {
+		if *req.Library {
+			sets = append(sets, "library = true")
+		} else {
+			sets = append(sets, "library = false")
+		}
+	}
+	if req.LibraryKind != nil {
+		if *req.LibraryKind == "" {
+			sets = append(sets, "library_kind = NONE")
+		} else if _, ok := classifierLibraryKindAllowList[*req.LibraryKind]; !ok {
+			writeError(w, http.StatusBadRequest, fmt.Errorf("invalid library_kind %q", *req.LibraryKind))
+			return
+		} else {
+			sets = append(sets, "library_kind = "+surrealString(*req.LibraryKind))
+		}
+	}
+	if req.InterviewStage != nil {
+		if *req.InterviewStage == "" {
+			sets = append(sets, "interview_stage = NONE")
+		} else if _, ok := classifierInterviewStageAllowList[*req.InterviewStage]; !ok {
+			writeError(w, http.StatusBadRequest, fmt.Errorf("invalid interview_stage %q", *req.InterviewStage))
+			return
+		} else {
+			sets = append(sets, "interview_stage = "+surrealString(*req.InterviewStage))
+		}
+	}
+	if req.Summary != nil {
+		sets = append(sets, "summary = "+surrealString(*req.Summary))
+	}
+	if req.Topics != nil {
+		topics := *req.Topics
+		if len(topics) > 8 {
+			topics = topics[:8]
+		}
+		sets = append(sets, "topics = "+surrealStringArray(topics))
+	}
+	if req.CompanyRefs != nil {
+		refs := *req.CompanyRefs
+		if len(refs) > 16 {
+			refs = refs[:16]
+		}
+		sets = append(sets, "company_refs = "+surrealStringArray(refs))
+	}
+	if req.PeopleRefs != nil {
+		refs := *req.PeopleRefs
+		if len(refs) > 16 {
+			refs = refs[:16]
+		}
+		sets = append(sets, "people_refs = "+surrealPeopleRefs(refs))
+	}
+	if req.DatedEventAt != nil {
+		if *req.DatedEventAt == "" {
+			sets = append(sets, "dated_event_at = NONE")
+		} else {
+			sets = append(sets, "dated_event_at = <datetime>"+surrealString(*req.DatedEventAt))
+		}
+	}
+	if req.DerivedFromID != nil {
+		if *req.DerivedFromID == "" {
+			sets = append(sets, "derived_from_id = NONE")
+		} else {
+			sets = append(sets, "derived_from_id = "+recordID("documents", *req.DerivedFromID))
+		}
+	}
+	if req.Confirm != nil && *req.Confirm {
+		sets = append(sets, "metadata_status = \"user_confirmed\"",
+			"metadata_processed_at = time::now()",
+			"metadata_error = NONE")
+	}
+	query := "UPDATE " + recordID("documents", docID) + " SET " + strings.Join(sets, ", ") + ";"
+	if _, err := s.app.DB.Query(r.Context(), query); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	rows, err := queryRows(r.Context(), s.app.DB, documentListQuery("id = "+recordID("documents", docID)))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if len(rows) == 0 {
+		writeError(w, http.StatusNotFound, fmt.Errorf("document not found"))
+		return
+	}
+	writeJSON(w, http.StatusOK, rows[0])
 }
 
 func surrealPeopleRefs(refs []classifierPersonRef) string {

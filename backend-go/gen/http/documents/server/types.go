@@ -88,6 +88,83 @@ type DocxRequestBody struct {
 	VersionID *string `form:"version_id,omitempty" json:"version_id,omitempty" xml:"version_id,omitempty"`
 }
 
+// ProcessMetadataResponseBody is the type of the "documents" service
+// "process_metadata" endpoint HTTP response body.
+type ProcessMetadataResponseBody struct {
+	QueuedDocumentIds []string `form:"queued_document_ids" json:"queued_document_ids" xml:"queued_document_ids"`
+	Status            string   `form:"status" json:"status" xml:"status"`
+}
+
+// ProcessMetadataBatchRequestBody is the type of the "documents" service
+// "process_metadata_batch" endpoint HTTP request body.
+type ProcessMetadataBatchRequestBody struct {
+	DocumentIds []string `form:"document_ids,omitempty" json:"document_ids,omitempty" xml:"document_ids,omitempty"`
+	Filter      *string  `form:"filter,omitempty" json:"filter,omitempty" xml:"filter,omitempty"`
+}
+
+// ProcessMetadataBatchResponseBody is the type of the "documents" service
+// "process_metadata_batch" endpoint HTTP response body.
+type ProcessMetadataBatchResponseBody struct {
+	QueuedDocumentIds []string `form:"queued_document_ids" json:"queued_document_ids" xml:"queued_document_ids"`
+	Status            string   `form:"status" json:"status" xml:"status"`
+}
+
+// MetadataQueueResponseBody is the type of the "documents" service
+// "metadata_queue" endpoint HTTP response body.
+type MetadataQueueResponseBody struct {
+	Counts []*MetadataStatusCountResponseBody `form:"counts" json:"counts" xml:"counts"`
+}
+
+// PatchMetadataRequestBody is the type of the "documents" service
+// "patch_metadata" endpoint HTTP request body.
+type PatchMetadataRequestBody struct {
+	Confirm        *bool                   `form:"confirm,omitempty" json:"confirm,omitempty" xml:"confirm,omitempty"`
+	Kind           *string                 `form:"kind,omitempty" json:"kind,omitempty" xml:"kind,omitempty"`
+	Library        *bool                   `form:"library,omitempty" json:"library,omitempty" xml:"library,omitempty"`
+	LibraryKind    *string                 `form:"library_kind,omitempty" json:"library_kind,omitempty" xml:"library_kind,omitempty"`
+	InterviewStage *string                 `form:"interview_stage,omitempty" json:"interview_stage,omitempty" xml:"interview_stage,omitempty"`
+	Summary        *string                 `form:"summary,omitempty" json:"summary,omitempty" xml:"summary,omitempty"`
+	Topics         []string                `form:"topics,omitempty" json:"topics,omitempty" xml:"topics,omitempty"`
+	CompanyRefs    []string                `form:"company_refs,omitempty" json:"company_refs,omitempty" xml:"company_refs,omitempty"`
+	PeopleRefs     []*PersonRefRequestBody `form:"people_refs,omitempty" json:"people_refs,omitempty" xml:"people_refs,omitempty"`
+	DatedEventAt   *string                 `form:"dated_event_at,omitempty" json:"dated_event_at,omitempty" xml:"dated_event_at,omitempty"`
+	DerivedFromID  *string                 `form:"derived_from_id,omitempty" json:"derived_from_id,omitempty" xml:"derived_from_id,omitempty"`
+}
+
+// PatchMetadataResponseBody is the type of the "documents" service
+// "patch_metadata" endpoint HTTP response body.
+type PatchMetadataResponseBody struct {
+	ID                   string                       `form:"id" json:"id" xml:"id"`
+	UserID               *string                      `form:"user_id,omitempty" json:"user_id,omitempty" xml:"user_id,omitempty"`
+	ApplicationID        *string                      `form:"application_id,omitempty" json:"application_id,omitempty" xml:"application_id,omitempty"`
+	FolderID             *string                      `form:"folder_id,omitempty" json:"folder_id,omitempty" xml:"folder_id,omitempty"`
+	Filename             string                       `form:"filename" json:"filename" xml:"filename"`
+	FileType             *string                      `form:"file_type,omitempty" json:"file_type,omitempty" xml:"file_type,omitempty"`
+	StoragePath          *string                      `form:"storage_path,omitempty" json:"storage_path,omitempty" xml:"storage_path,omitempty"`
+	PdfStoragePath       *string                      `form:"pdf_storage_path,omitempty" json:"pdf_storage_path,omitempty" xml:"pdf_storage_path,omitempty"`
+	SizeBytes            *int64                       `form:"size_bytes,omitempty" json:"size_bytes,omitempty" xml:"size_bytes,omitempty"`
+	PageCount            *int                         `form:"page_count,omitempty" json:"page_count,omitempty" xml:"page_count,omitempty"`
+	StructureTree        []*StructureNodeResponseBody `form:"structure_tree,omitempty" json:"structure_tree,omitempty" xml:"structure_tree,omitempty"`
+	Status               string                       `form:"status" json:"status" xml:"status"`
+	CreatedAt            *string                      `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	UpdatedAt            *string                      `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+	LatestVersionNumber  *int                         `form:"latest_version_number,omitempty" json:"latest_version_number,omitempty" xml:"latest_version_number,omitempty"`
+	Library              *bool                        `form:"library,omitempty" json:"library,omitempty" xml:"library,omitempty"`
+	LibraryKind          *string                      `form:"library_kind,omitempty" json:"library_kind,omitempty" xml:"library_kind,omitempty"`
+	Kind                 *string                      `form:"kind,omitempty" json:"kind,omitempty" xml:"kind,omitempty"`
+	InterviewStage       *string                      `form:"interview_stage,omitempty" json:"interview_stage,omitempty" xml:"interview_stage,omitempty"`
+	Topics               []string                     `form:"topics,omitempty" json:"topics,omitempty" xml:"topics,omitempty"`
+	CompanyRefs          []string                     `form:"company_refs,omitempty" json:"company_refs,omitempty" xml:"company_refs,omitempty"`
+	PeopleRefs           []*PersonRefResponseBody     `form:"people_refs,omitempty" json:"people_refs,omitempty" xml:"people_refs,omitempty"`
+	Summary              *string                      `form:"summary,omitempty" json:"summary,omitempty" xml:"summary,omitempty"`
+	DatedEventAt         *string                      `form:"dated_event_at,omitempty" json:"dated_event_at,omitempty" xml:"dated_event_at,omitempty"`
+	DerivedFromID        *string                      `form:"derived_from_id,omitempty" json:"derived_from_id,omitempty" xml:"derived_from_id,omitempty"`
+	MetadataStatus       *string                      `form:"metadata_status,omitempty" json:"metadata_status,omitempty" xml:"metadata_status,omitempty"`
+	MetadataProcessedAt  *string                      `form:"metadata_processed_at,omitempty" json:"metadata_processed_at,omitempty" xml:"metadata_processed_at,omitempty"`
+	MetadataError        *string                      `form:"metadata_error,omitempty" json:"metadata_error,omitempty" xml:"metadata_error,omitempty"`
+	LinkedApplicationIds []string                     `form:"linked_application_ids,omitempty" json:"linked_application_ids,omitempty" xml:"linked_application_ids,omitempty"`
+}
+
 // DocumentResponse is used to define fields on response body types.
 type DocumentResponse struct {
 	ID                   string                   `form:"id" json:"id" xml:"id"`
@@ -148,6 +225,19 @@ type StructureNodeResponseBody struct {
 // PersonRefResponseBody is used to define fields on response body types.
 type PersonRefResponseBody struct {
 	Name string  `form:"name" json:"name" xml:"name"`
+	Role *string `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
+}
+
+// MetadataStatusCountResponseBody is used to define fields on response body
+// types.
+type MetadataStatusCountResponseBody struct {
+	MetadataStatus string `form:"metadata_status" json:"metadata_status" xml:"metadata_status"`
+	Count          int    `form:"count" json:"count" xml:"count"`
+}
+
+// PersonRefRequestBody is used to define fields on request body types.
+type PersonRefRequestBody struct {
+	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
 	Role *string `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
 }
 
@@ -246,6 +336,129 @@ func NewURLResponseBody(res *documents.URLResponse) *URLResponseBody {
 	return body
 }
 
+// NewProcessMetadataResponseBody builds the HTTP response body from the result
+// of the "process_metadata" endpoint of the "documents" service.
+func NewProcessMetadataResponseBody(res *documents.MetadataQueueAck) *ProcessMetadataResponseBody {
+	body := &ProcessMetadataResponseBody{
+		Status: res.Status,
+	}
+	if res.QueuedDocumentIds != nil {
+		body.QueuedDocumentIds = make([]string, len(res.QueuedDocumentIds))
+		for i, val := range res.QueuedDocumentIds {
+			body.QueuedDocumentIds[i] = val
+		}
+	} else {
+		body.QueuedDocumentIds = []string{}
+	}
+	return body
+}
+
+// NewProcessMetadataBatchResponseBody builds the HTTP response body from the
+// result of the "process_metadata_batch" endpoint of the "documents" service.
+func NewProcessMetadataBatchResponseBody(res *documents.MetadataQueueAck) *ProcessMetadataBatchResponseBody {
+	body := &ProcessMetadataBatchResponseBody{
+		Status: res.Status,
+	}
+	if res.QueuedDocumentIds != nil {
+		body.QueuedDocumentIds = make([]string, len(res.QueuedDocumentIds))
+		for i, val := range res.QueuedDocumentIds {
+			body.QueuedDocumentIds[i] = val
+		}
+	} else {
+		body.QueuedDocumentIds = []string{}
+	}
+	return body
+}
+
+// NewMetadataQueueResponseBody builds the HTTP response body from the result
+// of the "metadata_queue" endpoint of the "documents" service.
+func NewMetadataQueueResponseBody(res *documents.MetadataQueueStats) *MetadataQueueResponseBody {
+	body := &MetadataQueueResponseBody{}
+	if res.Counts != nil {
+		body.Counts = make([]*MetadataStatusCountResponseBody, len(res.Counts))
+		for i, val := range res.Counts {
+			if val == nil {
+				body.Counts[i] = nil
+				continue
+			}
+			body.Counts[i] = marshalDocumentsMetadataStatusCountToMetadataStatusCountResponseBody(val)
+		}
+	} else {
+		body.Counts = []*MetadataStatusCountResponseBody{}
+	}
+	return body
+}
+
+// NewPatchMetadataResponseBody builds the HTTP response body from the result
+// of the "patch_metadata" endpoint of the "documents" service.
+func NewPatchMetadataResponseBody(res *documents.Document) *PatchMetadataResponseBody {
+	body := &PatchMetadataResponseBody{
+		ID:                  res.ID,
+		UserID:              res.UserID,
+		ApplicationID:       res.ApplicationID,
+		FolderID:            res.FolderID,
+		Filename:            res.Filename,
+		FileType:            res.FileType,
+		StoragePath:         res.StoragePath,
+		PdfStoragePath:      res.PdfStoragePath,
+		SizeBytes:           res.SizeBytes,
+		PageCount:           res.PageCount,
+		Status:              res.Status,
+		CreatedAt:           res.CreatedAt,
+		UpdatedAt:           res.UpdatedAt,
+		LatestVersionNumber: res.LatestVersionNumber,
+		Library:             res.Library,
+		LibraryKind:         res.LibraryKind,
+		Kind:                res.Kind,
+		InterviewStage:      res.InterviewStage,
+		Summary:             res.Summary,
+		DatedEventAt:        res.DatedEventAt,
+		DerivedFromID:       res.DerivedFromID,
+		MetadataStatus:      res.MetadataStatus,
+		MetadataProcessedAt: res.MetadataProcessedAt,
+		MetadataError:       res.MetadataError,
+	}
+	if res.StructureTree != nil {
+		body.StructureTree = make([]*StructureNodeResponseBody, len(res.StructureTree))
+		for i, val := range res.StructureTree {
+			if val == nil {
+				body.StructureTree[i] = nil
+				continue
+			}
+			body.StructureTree[i] = marshalDocumentsStructureNodeToStructureNodeResponseBody(val)
+		}
+	}
+	if res.Topics != nil {
+		body.Topics = make([]string, len(res.Topics))
+		for i, val := range res.Topics {
+			body.Topics[i] = val
+		}
+	}
+	if res.CompanyRefs != nil {
+		body.CompanyRefs = make([]string, len(res.CompanyRefs))
+		for i, val := range res.CompanyRefs {
+			body.CompanyRefs[i] = val
+		}
+	}
+	if res.PeopleRefs != nil {
+		body.PeopleRefs = make([]*PersonRefResponseBody, len(res.PeopleRefs))
+		for i, val := range res.PeopleRefs {
+			if val == nil {
+				body.PeopleRefs[i] = nil
+				continue
+			}
+			body.PeopleRefs[i] = marshalDocumentsPersonRefToPersonRefResponseBody(val)
+		}
+	}
+	if res.LinkedApplicationIds != nil {
+		body.LinkedApplicationIds = make([]string, len(res.LinkedApplicationIds))
+		for i, val := range res.LinkedApplicationIds {
+			body.LinkedApplicationIds[i] = val
+		}
+	}
+	return body
+}
+
 // NewUploadFileUpload builds a documents service upload endpoint payload.
 func NewUploadFileUpload(body *UploadRequestBody) *documents.FileUpload {
 	v := &documents.FileUpload{
@@ -305,6 +518,71 @@ func NewDocxPayload(body *DocxRequestBody, documentID string) *documents.DocxPay
 	return v
 }
 
+// NewProcessMetadataPayload builds a documents service process_metadata
+// endpoint payload.
+func NewProcessMetadataPayload(documentID string) *documents.ProcessMetadataPayload {
+	v := &documents.ProcessMetadataPayload{}
+	v.DocumentID = documentID
+
+	return v
+}
+
+// NewProcessMetadataBatchMetadataBatchRequest builds a documents service
+// process_metadata_batch endpoint payload.
+func NewProcessMetadataBatchMetadataBatchRequest(body *ProcessMetadataBatchRequestBody) *documents.MetadataBatchRequest {
+	v := &documents.MetadataBatchRequest{
+		Filter: body.Filter,
+	}
+	if body.DocumentIds != nil {
+		v.DocumentIds = make([]string, len(body.DocumentIds))
+		for i, val := range body.DocumentIds {
+			v.DocumentIds[i] = val
+		}
+	}
+
+	return v
+}
+
+// NewPatchMetadataMetadataPatchPayload builds a documents service
+// patch_metadata endpoint payload.
+func NewPatchMetadataMetadataPatchPayload(body *PatchMetadataRequestBody, documentID string) *documents.MetadataPatchPayload {
+	v := &documents.MetadataPatchPayload{
+		Confirm:        body.Confirm,
+		Kind:           body.Kind,
+		Library:        body.Library,
+		LibraryKind:    body.LibraryKind,
+		InterviewStage: body.InterviewStage,
+		Summary:        body.Summary,
+		DatedEventAt:   body.DatedEventAt,
+		DerivedFromID:  body.DerivedFromID,
+	}
+	if body.Topics != nil {
+		v.Topics = make([]string, len(body.Topics))
+		for i, val := range body.Topics {
+			v.Topics[i] = val
+		}
+	}
+	if body.CompanyRefs != nil {
+		v.CompanyRefs = make([]string, len(body.CompanyRefs))
+		for i, val := range body.CompanyRefs {
+			v.CompanyRefs[i] = val
+		}
+	}
+	if body.PeopleRefs != nil {
+		v.PeopleRefs = make([]*documents.PersonRef, len(body.PeopleRefs))
+		for i, val := range body.PeopleRefs {
+			if val == nil {
+				v.PeopleRefs[i] = nil
+				continue
+			}
+			v.PeopleRefs[i] = unmarshalPersonRefRequestBodyToDocumentsPersonRef(val)
+		}
+	}
+	v.DocumentID = documentID
+
+	return v
+}
+
 // ValidateUploadRequestBody runs the validations defined on UploadRequestBody
 func ValidateUploadRequestBody(body *UploadRequestBody) (err error) {
 	if body.File == nil {
@@ -318,6 +596,39 @@ func ValidateUploadRequestBody(body *UploadRequestBody) (err error) {
 func ValidateDownloadZipRequestBody(body *DownloadZipRequestBody) (err error) {
 	if body.DocumentIds == nil {
 		err = loom.MergeErrors(err, loom.MissingFieldError("document_ids", "body"))
+	}
+	return
+}
+
+// ValidateProcessMetadataBatchRequestBody runs the validations defined on
+// process_metadata_batch_request_body
+func ValidateProcessMetadataBatchRequestBody(body *ProcessMetadataBatchRequestBody) (err error) {
+	if body.Filter != nil {
+		if !(*body.Filter == "unprocessed" || *body.Filter == "error" || *body.Filter == "all") {
+			err = loom.MergeErrors(err, loom.InvalidEnumValueError("body.filter", *body.Filter, []any{"unprocessed", "error", "all"}))
+		}
+	}
+	return
+}
+
+// ValidatePatchMetadataRequestBody runs the validations defined on
+// patch_metadata_request_body
+func ValidatePatchMetadataRequestBody(body *PatchMetadataRequestBody) (err error) {
+	for _, e := range body.PeopleRefs {
+		if e != nil {
+			if err2 := ValidatePersonRefRequestBody(e); err2 != nil {
+				err = loom.MergeErrors(err, err2)
+			}
+		}
+	}
+	return
+}
+
+// ValidatePersonRefRequestBody runs the validations defined on
+// PersonRefRequestBody
+func ValidatePersonRefRequestBody(body *PersonRefRequestBody) (err error) {
+	if body.Name == nil {
+		err = loom.MergeErrors(err, loom.MissingFieldError("name", "body"))
 	}
 	return
 }

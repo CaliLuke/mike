@@ -244,7 +244,9 @@ DEFINE FIELD IF NOT EXISTS interview_stage ON TABLE documents TYPE option<string
 	];
 DEFINE FIELD IF NOT EXISTS topics ON TABLE documents TYPE option<array<string>>;
 DEFINE FIELD IF NOT EXISTS company_refs ON TABLE documents TYPE option<array<string>>;
-DEFINE FIELD IF NOT EXISTS people_refs ON TABLE documents TYPE option<array<object>> FLEXIBLE;
+DEFINE FIELD IF NOT EXISTS people_refs ON TABLE documents TYPE option<array<object>>;
+DEFINE FIELD IF NOT EXISTS people_refs.*.name ON TABLE documents TYPE string;
+DEFINE FIELD IF NOT EXISTS people_refs.*.role ON TABLE documents TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS summary ON TABLE documents TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS dated_event_at ON TABLE documents TYPE option<datetime>;
 DEFINE FIELD IF NOT EXISTS derived_from_id ON TABLE documents TYPE option<record<documents>>;

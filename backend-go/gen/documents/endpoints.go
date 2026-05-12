@@ -15,25 +15,33 @@ import (
 
 // Endpoints wraps the "documents" service endpoints.
 type Endpoints struct {
-	List        loom.Endpoint
-	Upload      loom.Endpoint
-	Delete      loom.Endpoint
-	Display     loom.Endpoint
-	DownloadZip loom.Endpoint
-	URL         loom.Endpoint
-	Docx        loom.Endpoint
+	List                 loom.Endpoint
+	Upload               loom.Endpoint
+	Delete               loom.Endpoint
+	Display              loom.Endpoint
+	DownloadZip          loom.Endpoint
+	URL                  loom.Endpoint
+	Docx                 loom.Endpoint
+	ProcessMetadata      loom.Endpoint
+	ProcessMetadataBatch loom.Endpoint
+	MetadataQueue        loom.Endpoint
+	PatchMetadata        loom.Endpoint
 }
 
 // NewEndpoints wraps the methods of the "documents" service with endpoints.
 func NewEndpoints(s Service) *Endpoints {
 	return &Endpoints{
-		List:        NewListEndpoint(s),
-		Upload:      NewUploadEndpoint(s),
-		Delete:      NewDeleteEndpoint(s),
-		Display:     NewDisplayEndpoint(s),
-		DownloadZip: NewDownloadZipEndpoint(s),
-		URL:         NewURLEndpoint(s),
-		Docx:        NewDocxEndpoint(s),
+		List:                 NewListEndpoint(s),
+		Upload:               NewUploadEndpoint(s),
+		Delete:               NewDeleteEndpoint(s),
+		Display:              NewDisplayEndpoint(s),
+		DownloadZip:          NewDownloadZipEndpoint(s),
+		URL:                  NewURLEndpoint(s),
+		Docx:                 NewDocxEndpoint(s),
+		ProcessMetadata:      NewProcessMetadataEndpoint(s),
+		ProcessMetadataBatch: NewProcessMetadataBatchEndpoint(s),
+		MetadataQueue:        NewMetadataQueueEndpoint(s),
+		PatchMetadata:        NewPatchMetadataEndpoint(s),
 	}
 }
 
@@ -46,6 +54,10 @@ func (e *Endpoints) Use(m func(loom.Endpoint) loom.Endpoint) {
 	e.DownloadZip = m(e.DownloadZip)
 	e.URL = m(e.URL)
 	e.Docx = m(e.Docx)
+	e.ProcessMetadata = m(e.ProcessMetadata)
+	e.ProcessMetadataBatch = m(e.ProcessMetadataBatch)
+	e.MetadataQueue = m(e.MetadataQueue)
+	e.PatchMetadata = m(e.PatchMetadata)
 }
 
 // NewListEndpoint returns an endpoint function that calls the method "list" of
@@ -107,5 +119,40 @@ func NewDocxEndpoint(s Service) loom.Endpoint {
 	return func(ctx context.Context, req any) (any, error) {
 		p := req.(*DocxPayload)
 		return s.Docx(ctx, p)
+	}
+}
+
+// NewProcessMetadataEndpoint returns an endpoint function that calls the
+// method "process_metadata" of service "documents".
+func NewProcessMetadataEndpoint(s Service) loom.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*ProcessMetadataPayload)
+		return s.ProcessMetadata(ctx, p)
+	}
+}
+
+// NewProcessMetadataBatchEndpoint returns an endpoint function that calls the
+// method "process_metadata_batch" of service "documents".
+func NewProcessMetadataBatchEndpoint(s Service) loom.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*MetadataBatchRequest)
+		return s.ProcessMetadataBatch(ctx, p)
+	}
+}
+
+// NewMetadataQueueEndpoint returns an endpoint function that calls the method
+// "metadata_queue" of service "documents".
+func NewMetadataQueueEndpoint(s Service) loom.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		return s.MetadataQueue(ctx)
+	}
+}
+
+// NewPatchMetadataEndpoint returns an endpoint function that calls the method
+// "patch_metadata" of service "documents".
+func NewPatchMetadataEndpoint(s Service) loom.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*MetadataPatchPayload)
+		return s.PatchMetadata(ctx, p)
 	}
 }

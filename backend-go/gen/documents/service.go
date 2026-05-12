@@ -27,6 +27,20 @@ type Service interface {
 	URL(context.Context, *URLPayload) (res *URLResponse, err error)
 	// Docx implements docx.
 	Docx(context.Context, *DocxPayload) (res []byte, err error)
+	// Queue a single document for deferred metadata classification. Spawns a
+	// background goroutine that runs the classifier against the document's stored
+	// text twin.
+	ProcessMetadata(context.Context, *ProcessMetadataPayload) (res *MetadataQueueAck, err error)
+	// Queue many documents for deferred metadata classification. Either pass an
+	// explicit document_ids list, or a filter like 'unprocessed' to enqueue every
+	// matching row.
+	ProcessMetadataBatch(context.Context, *MetadataBatchRequest) (res *MetadataQueueAck, err error)
+	// Return the current metadata-processing queue counts grouped by
+	// metadata_status.
+	MetadataQueue(context.Context) (res *MetadataQueueStats, err error)
+	// Apply user overrides to a document's classifier output. When confirm=true,
+	// flips metadata_status to user_confirmed.
+	PatchMetadata(context.Context, *MetadataPatchPayload) (res *Document, err error)
 }
 
 // APIName is the name of the API as defined in the design.
@@ -43,7 +57,7 @@ const ServiceName = "documents"
 // MethodNames lists the service method names as defined in the design. These
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
-var MethodNames = [7]string{"list", "upload", "delete", "display", "download_zip", "url", "docx"}
+var MethodNames = [11]string{"list", "upload", "delete", "display", "download_zip", "url", "docx", "process_metadata", "process_metadata_batch", "metadata_queue", "patch_metadata"}
 
 type AssistantCreateApplicationArgs struct {
 	// Application name, usually the role title from the job ad
@@ -503,9 +517,57 @@ type FileUpload struct {
 	File []byte `json:"file"`
 }
 
+// MetadataBatchRequest is the payload type of the documents service
+// process_metadata_batch method.
+type MetadataBatchRequest struct {
+	DocumentIds []string `json:"document_ids,omitempty"`
+	Filter      *string  `json:"filter,omitempty"`
+}
+
+// MetadataPatchPayload is the payload type of the documents service
+// patch_metadata method.
+type MetadataPatchPayload struct {
+	DocumentID     string       `json:"documentId"`
+	Confirm        *bool        `json:"confirm,omitempty"`
+	Kind           *string      `json:"kind,omitempty"`
+	Library        *bool        `json:"library,omitempty"`
+	LibraryKind    *string      `json:"library_kind,omitempty"`
+	InterviewStage *string      `json:"interview_stage,omitempty"`
+	Summary        *string      `json:"summary,omitempty"`
+	Topics         []string     `json:"topics,omitempty"`
+	CompanyRefs    []string     `json:"company_refs,omitempty"`
+	PeopleRefs     []*PersonRef `json:"people_refs,omitempty"`
+	DatedEventAt   *string      `json:"dated_event_at,omitempty"`
+	DerivedFromID  *string      `json:"derived_from_id,omitempty"`
+}
+
+// MetadataQueueAck is the result type of the documents service
+// process_metadata method.
+type MetadataQueueAck struct {
+	QueuedDocumentIds []string `json:"queued_document_ids"`
+	Status            string   `json:"status"`
+}
+
+// MetadataQueueStats is the result type of the documents service
+// metadata_queue method.
+type MetadataQueueStats struct {
+	Counts []*MetadataStatusCount `json:"counts"`
+}
+
+type MetadataStatusCount struct {
+	MetadataStatus string `json:"metadata_status"`
+	Count          int    `json:"count"`
+}
+
 type PersonRef struct {
 	Name string  `json:"name"`
 	Role *string `json:"role,omitempty"`
+}
+
+// ProcessMetadataPayload is the payload type of the documents service
+// process_metadata method.
+type ProcessMetadataPayload struct {
+	DocumentID string `json:"documentId"`
 }
 
 type StructureNode struct {

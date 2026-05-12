@@ -365,6 +365,13 @@ func mockCompletion(user string) string {
 	if strings.Contains(lower, "generate a concise title") {
 		return "Mock Chat Title"
 	}
+	// Document metadata classifier user message always opens with
+	// "Filename: ...\n\nContent: ...". Mock a plausible interview-transcript
+	// response so probe scenarios get a deterministic happy path with
+	// LUKE_MOCK_LLM=1, without needing a running Ollama.
+	if strings.HasPrefix(user, "Filename:") {
+		return `{"kind":"interview_transcript","library":false,"library_kind":null,"interview_stage":"recruiter","summary":"Mocked classifier output for probe scenarios. The document looks like an interview transcript.","topics":["mock","probe","interview"],"company_refs":["Mock Co"],"people_refs":[{"name":"Mock Interviewer","role":"Recruiter"}],"dated_event_at":null,"suggested_application_match":null,"suggested_derived_from":null}`
+	}
 	return "Mock completion"
 }
 

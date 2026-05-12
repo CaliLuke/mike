@@ -109,3 +109,41 @@ var TrackedChangeIDs = Type("TrackedChangeIDs", func() {
 	Attribute("ids", ArrayOf(String))
 	Required("ids")
 })
+
+var MetadataQueueAck = Type("MetadataQueueAck", func() {
+	Attribute("queued_document_ids", ArrayOf(String))
+	Attribute("status", String)
+	Required("queued_document_ids", "status")
+})
+
+var MetadataBatchRequest = Type("MetadataBatchRequest", func() {
+	Attribute("document_ids", ArrayOf(String))
+	Attribute("filter", String, func() { Enum("unprocessed", "error", "all") })
+})
+
+var MetadataStatusCount = Type("MetadataStatusCount", func() {
+	Attribute("metadata_status", String)
+	Attribute("count", Int)
+	Required("metadata_status", "count")
+})
+
+var MetadataQueueStats = Type("MetadataQueueStats", func() {
+	Attribute("counts", ArrayOf(MetadataStatusCount))
+	Required("counts")
+})
+
+var MetadataPatchPayload = Type("MetadataPatchPayload", func() {
+	Attribute("documentId", String)
+	Attribute("confirm", Boolean)
+	Attribute("kind", String)
+	Attribute("library", Boolean)
+	Attribute("library_kind", String)
+	Attribute("interview_stage", String)
+	Attribute("summary", String)
+	Attribute("topics", ArrayOf(String))
+	Attribute("company_refs", ArrayOf(String))
+	Attribute("people_refs", ArrayOf(PersonRef))
+	Attribute("dated_event_at", String)
+	Attribute("derived_from_id", String)
+	Required("documentId")
+})

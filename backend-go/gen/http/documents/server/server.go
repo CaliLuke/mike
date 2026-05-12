@@ -18,14 +18,18 @@ import (
 
 // Server lists the documents service endpoint HTTP handlers.
 type Server struct {
-	Mounts      []*MountPoint
-	List        http.Handler
-	Upload      http.Handler
-	Delete      http.Handler
-	Display     http.Handler
-	DownloadZip http.Handler
-	URL         http.Handler
-	Docx        http.Handler
+	Mounts               []*MountPoint
+	List                 http.Handler
+	Upload               http.Handler
+	Delete               http.Handler
+	Display              http.Handler
+	DownloadZip          http.Handler
+	URL                  http.Handler
+	Docx                 http.Handler
+	ProcessMetadata      http.Handler
+	ProcessMetadataBatch http.Handler
+	MetadataQueue        http.Handler
+	PatchMetadata        http.Handler
 } // MountPoint holds information about the mounted endpoints.
 type MountPoint struct {
 	// Method is the name of the service method served by the mounted HTTP handler.
@@ -53,14 +57,22 @@ func New(e *documents.Endpoints, mux loomhttp.Muxer, decoder func(*http.Request)
 			{"DownloadZip", "POST", "/single-documents/download-zip"},
 			{"URL", "GET", "/single-documents/{documentId}/url"},
 			{"Docx", "GET", "/single-documents/{documentId}/docx"},
+			{"ProcessMetadata", "POST", "/single-documents/{documentId}/process-metadata"},
+			{"ProcessMetadataBatch", "POST", "/single-documents/process-metadata"},
+			{"MetadataQueue", "GET", "/single-documents/metadata-queue"},
+			{"PatchMetadata", "PATCH", "/single-documents/{documentId}/metadata"},
 		},
-		List:        NewListHandler(e.List, mux, decoder, encoder, errhandler, formatter),
-		Upload:      NewUploadHandler(e.Upload, mux, decoder, encoder, errhandler, formatter),
-		Delete:      NewDeleteHandler(e.Delete, mux, decoder, encoder, errhandler, formatter),
-		Display:     NewDisplayHandler(e.Display, mux, decoder, encoder, errhandler, formatter),
-		DownloadZip: NewDownloadZipHandler(e.DownloadZip, mux, decoder, encoder, errhandler, formatter),
-		URL:         NewURLHandler(e.URL, mux, decoder, encoder, errhandler, formatter),
-		Docx:        NewDocxHandler(e.Docx, mux, decoder, encoder, errhandler, formatter),
+		List:                 NewListHandler(e.List, mux, decoder, encoder, errhandler, formatter),
+		Upload:               NewUploadHandler(e.Upload, mux, decoder, encoder, errhandler, formatter),
+		Delete:               NewDeleteHandler(e.Delete, mux, decoder, encoder, errhandler, formatter),
+		Display:              NewDisplayHandler(e.Display, mux, decoder, encoder, errhandler, formatter),
+		DownloadZip:          NewDownloadZipHandler(e.DownloadZip, mux, decoder, encoder, errhandler, formatter),
+		URL:                  NewURLHandler(e.URL, mux, decoder, encoder, errhandler, formatter),
+		Docx:                 NewDocxHandler(e.Docx, mux, decoder, encoder, errhandler, formatter),
+		ProcessMetadata:      NewProcessMetadataHandler(e.ProcessMetadata, mux, decoder, encoder, errhandler, formatter),
+		ProcessMetadataBatch: NewProcessMetadataBatchHandler(e.ProcessMetadataBatch, mux, decoder, encoder, errhandler, formatter),
+		MetadataQueue:        NewMetadataQueueHandler(e.MetadataQueue, mux, decoder, encoder, errhandler, formatter),
+		PatchMetadata:        NewPatchMetadataHandler(e.PatchMetadata, mux, decoder, encoder, errhandler, formatter),
 	}
 } // Service returns the name of the service served.
 func (s *Server) Service() string {
@@ -74,6 +86,10 @@ func (s *Server) Use(m func(http.Handler) http.Handler) {
 	s.DownloadZip = m(s.DownloadZip)
 	s.URL = m(s.URL)
 	s.Docx = m(s.Docx)
+	s.ProcessMetadata = m(s.ProcessMetadata)
+	s.ProcessMetadataBatch = m(s.ProcessMetadataBatch)
+	s.MetadataQueue = m(s.MetadataQueue)
+	s.PatchMetadata = m(s.PatchMetadata)
 } // MethodNames returns the methods served.
 func (s *Server) MethodNames() []string {
 	return documents.MethodNames[:]
@@ -86,6 +102,10 @@ func Mount(mux loomhttp.Muxer, h *Server) {
 	MountDownloadZipHandler(mux, h.DownloadZip)
 	MountURLHandler(mux, h.URL)
 	MountDocxHandler(mux, h.Docx)
+	MountProcessMetadataHandler(mux, h.ProcessMetadata)
+	MountProcessMetadataBatchHandler(mux, h.ProcessMetadataBatch)
+	MountMetadataQueueHandler(mux, h.MetadataQueue)
+	MountPatchMetadataHandler(mux, h.PatchMetadata)
 }
 
 // Mount configures the mux to serve the documents endpoints.
@@ -418,6 +438,203 @@ func NewDocxHandler(
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, loom.MethodKey, "docx")
+		ctx = context.WithValue(ctx, loom.ServiceKey, "documents")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountProcessMetadataHandler configures the mux to serve the "documents"
+// service "process_metadata" endpoint.
+func MountProcessMetadataHandler(mux loomhttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("POST", "/single-documents/{documentId}/process-metadata", f)
+} // NewProcessMetadataHandler creates a HTTP handler which loads the HTTP
+// request and calls the "documents" service "process_metadata" endpoint.
+func NewProcessMetadataHandler(
+	endpoint loom.Endpoint,
+	mux loomhttp.Muxer,
+	decoder func(*http.Request) loomhttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) loomhttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) loomhttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeProcessMetadataRequest(mux, decoder)
+		encodeResponse = EncodeProcessMetadataResponse(encoder)
+		encodeError    = loomhttp.ErrorEncoder(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, loom.MethodKey, "process_metadata")
+		ctx = context.WithValue(ctx, loom.ServiceKey, "documents")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountProcessMetadataBatchHandler configures the mux to serve the "documents"
+// service "process_metadata_batch" endpoint.
+func MountProcessMetadataBatchHandler(mux loomhttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("POST", "/single-documents/process-metadata", f)
+} // NewProcessMetadataBatchHandler creates a HTTP handler which loads the HTTP
+// request and calls the "documents" service "process_metadata_batch" endpoint.
+func NewProcessMetadataBatchHandler(
+	endpoint loom.Endpoint,
+	mux loomhttp.Muxer,
+	decoder func(*http.Request) loomhttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) loomhttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) loomhttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeProcessMetadataBatchRequest(mux, decoder)
+		encodeResponse = EncodeProcessMetadataBatchResponse(encoder)
+		encodeError    = loomhttp.ErrorEncoder(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, loom.MethodKey, "process_metadata_batch")
+		ctx = context.WithValue(ctx, loom.ServiceKey, "documents")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountMetadataQueueHandler configures the mux to serve the "documents"
+// service "metadata_queue" endpoint.
+func MountMetadataQueueHandler(mux loomhttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("GET", "/single-documents/metadata-queue", f)
+} // NewMetadataQueueHandler creates a HTTP handler which loads the HTTP request
+// and calls the "documents" service "metadata_queue" endpoint.
+func NewMetadataQueueHandler(
+	endpoint loom.Endpoint,
+	mux loomhttp.Muxer,
+	decoder func(*http.Request) loomhttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) loomhttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) loomhttp.Statuser,
+) http.Handler {
+	var (
+		encodeResponse = EncodeMetadataQueueResponse(encoder)
+		encodeError    = loomhttp.ErrorEncoder(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, loom.MethodKey, "metadata_queue")
+		ctx = context.WithValue(ctx, loom.ServiceKey, "documents")
+		var err error
+		res, err := endpoint(ctx, nil)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountPatchMetadataHandler configures the mux to serve the "documents"
+// service "patch_metadata" endpoint.
+func MountPatchMetadataHandler(mux loomhttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("PATCH", "/single-documents/{documentId}/metadata", f)
+} // NewPatchMetadataHandler creates a HTTP handler which loads the HTTP request
+// and calls the "documents" service "patch_metadata" endpoint.
+func NewPatchMetadataHandler(
+	endpoint loom.Endpoint,
+	mux loomhttp.Muxer,
+	decoder func(*http.Request) loomhttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) loomhttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) loomhttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodePatchMetadataRequest(mux, decoder)
+		encodeResponse = EncodePatchMetadataResponse(encoder)
+		encodeError    = loomhttp.ErrorEncoder(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, loom.MethodKey, "patch_metadata")
 		ctx = context.WithValue(ctx, loom.ServiceKey, "documents")
 		payload, err := decodeRequest(r)
 		if err != nil {

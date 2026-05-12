@@ -520,6 +520,279 @@ func DecodeDocxResponse(decoder func(*http.Response) loomhttp.Decoder, restoreBo
 	}
 }
 
+// BuildProcessMetadataRequest instantiates a HTTP request object with method
+// and path set to call the "documents" service "process_metadata" endpoint
+func (c *Client) BuildProcessMetadataRequest(ctx context.Context, v any) (*http.Request, error) {
+	var (
+		documentID string
+	)
+	{
+		p, ok := v.(*documents.ProcessMetadataPayload)
+		if !ok {
+			return nil, loomhttp.ErrInvalidType("documents", "process_metadata", "*documents.ProcessMetadataPayload", v)
+		}
+		documentID = p.DocumentID
+	}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: ProcessMetadataDocumentsPath(documentID)}
+	req, err := http.NewRequest("POST", u.String(), nil)
+	if err != nil {
+		return nil, loomhttp.ErrInvalidURL("documents", "process_metadata", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// DecodeProcessMetadataResponse returns a decoder for responses returned by
+// the documents process_metadata endpoint. restoreBody controls whether the
+// response body should be restored after having been read.
+func DecodeProcessMetadataResponse(decoder func(*http.Response) loomhttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusAccepted:
+			var (
+				body ProcessMetadataResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, loomhttp.ErrDecodingError("documents", "process_metadata", err)
+			}
+			err = ValidateProcessMetadataResponseBody(&body)
+			if err != nil {
+				return nil, loomhttp.ErrValidationError("documents", "process_metadata", err)
+			}
+			res := NewProcessMetadataMetadataQueueAckAccepted(&body)
+			return res, nil
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, loomhttp.ErrInvalidResponse("documents", "process_metadata", resp.StatusCode, string(body))
+		}
+	}
+}
+
+// BuildProcessMetadataBatchRequest instantiates a HTTP request object with
+// method and path set to call the "documents" service "process_metadata_batch"
+// endpoint
+func (c *Client) BuildProcessMetadataBatchRequest(ctx context.Context, v any) (*http.Request, error) {
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: ProcessMetadataBatchDocumentsPath()}
+	req, err := http.NewRequest("POST", u.String(), nil)
+	if err != nil {
+		return nil, loomhttp.ErrInvalidURL("documents", "process_metadata_batch", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodeProcessMetadataBatchRequest returns an encoder for requests sent to
+// the documents process_metadata_batch server.
+func EncodeProcessMetadataBatchRequest(encoder func(*http.Request) loomhttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*documents.MetadataBatchRequest)
+		if !ok {
+			return loomhttp.ErrInvalidType("documents", "process_metadata_batch", "*documents.MetadataBatchRequest", v)
+		}
+		body := NewProcessMetadataBatchRequestBody(p)
+		if err := encoder(req).Encode(&body); err != nil {
+			return loomhttp.ErrEncodingError("documents", "process_metadata_batch", err)
+		}
+		return nil
+	}
+}
+
+// DecodeProcessMetadataBatchResponse returns a decoder for responses returned
+// by the documents process_metadata_batch endpoint. restoreBody controls
+// whether the response body should be restored after having been read.
+func DecodeProcessMetadataBatchResponse(decoder func(*http.Response) loomhttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusAccepted:
+			var (
+				body ProcessMetadataBatchResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, loomhttp.ErrDecodingError("documents", "process_metadata_batch", err)
+			}
+			err = ValidateProcessMetadataBatchResponseBody(&body)
+			if err != nil {
+				return nil, loomhttp.ErrValidationError("documents", "process_metadata_batch", err)
+			}
+			res := NewProcessMetadataBatchMetadataQueueAckAccepted(&body)
+			return res, nil
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, loomhttp.ErrInvalidResponse("documents", "process_metadata_batch", resp.StatusCode, string(body))
+		}
+	}
+}
+
+// BuildMetadataQueueRequest instantiates a HTTP request object with method and
+// path set to call the "documents" service "metadata_queue" endpoint
+func (c *Client) BuildMetadataQueueRequest(ctx context.Context, v any) (*http.Request, error) {
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: MetadataQueueDocumentsPath()}
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, loomhttp.ErrInvalidURL("documents", "metadata_queue", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// DecodeMetadataQueueResponse returns a decoder for responses returned by the
+// documents metadata_queue endpoint. restoreBody controls whether the response
+// body should be restored after having been read.
+func DecodeMetadataQueueResponse(decoder func(*http.Response) loomhttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var (
+				body MetadataQueueResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, loomhttp.ErrDecodingError("documents", "metadata_queue", err)
+			}
+			err = ValidateMetadataQueueResponseBody(&body)
+			if err != nil {
+				return nil, loomhttp.ErrValidationError("documents", "metadata_queue", err)
+			}
+			res := NewMetadataQueueStatsOK(&body)
+			return res, nil
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, loomhttp.ErrInvalidResponse("documents", "metadata_queue", resp.StatusCode, string(body))
+		}
+	}
+}
+
+// BuildPatchMetadataRequest instantiates a HTTP request object with method and
+// path set to call the "documents" service "patch_metadata" endpoint
+func (c *Client) BuildPatchMetadataRequest(ctx context.Context, v any) (*http.Request, error) {
+	var (
+		documentID string
+	)
+	{
+		p, ok := v.(*documents.MetadataPatchPayload)
+		if !ok {
+			return nil, loomhttp.ErrInvalidType("documents", "patch_metadata", "*documents.MetadataPatchPayload", v)
+		}
+		documentID = p.DocumentID
+	}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: PatchMetadataDocumentsPath(documentID)}
+	req, err := http.NewRequest("PATCH", u.String(), nil)
+	if err != nil {
+		return nil, loomhttp.ErrInvalidURL("documents", "patch_metadata", u.String(), err)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
+	return req, nil
+}
+
+// EncodePatchMetadataRequest returns an encoder for requests sent to the
+// documents patch_metadata server.
+func EncodePatchMetadataRequest(encoder func(*http.Request) loomhttp.Encoder) func(*http.Request, any) error {
+	return func(req *http.Request, v any) error {
+		p, ok := v.(*documents.MetadataPatchPayload)
+		if !ok {
+			return loomhttp.ErrInvalidType("documents", "patch_metadata", "*documents.MetadataPatchPayload", v)
+		}
+		body := NewPatchMetadataRequestBody(p)
+		if err := encoder(req).Encode(&body); err != nil {
+			return loomhttp.ErrEncodingError("documents", "patch_metadata", err)
+		}
+		return nil
+	}
+}
+
+// DecodePatchMetadataResponse returns a decoder for responses returned by the
+// documents patch_metadata endpoint. restoreBody controls whether the response
+// body should be restored after having been read.
+func DecodePatchMetadataResponse(decoder func(*http.Response) loomhttp.Decoder, restoreBody bool) func(*http.Response) (any, error) {
+	return func(resp *http.Response) (any, error) {
+		if restoreBody {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			defer func() {
+				resp.Body = io.NopCloser(bytes.NewBuffer(b))
+			}()
+		} else {
+			defer resp.Body.Close()
+		}
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var (
+				body PatchMetadataResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, loomhttp.ErrDecodingError("documents", "patch_metadata", err)
+			}
+			err = ValidatePatchMetadataResponseBody(&body)
+			if err != nil {
+				return nil, loomhttp.ErrValidationError("documents", "patch_metadata", err)
+			}
+			res := NewPatchMetadataDocumentOK(&body)
+			return res, nil
+		default:
+			body, _ := io.ReadAll(resp.Body)
+			return nil, loomhttp.ErrInvalidResponse("documents", "patch_metadata", resp.StatusCode, string(body))
+		}
+	}
+}
+
 // unmarshalDocumentResponseToDocumentsDocument builds a value of type
 // *documents.Document from a value of type *DocumentResponse.
 func unmarshalDocumentResponseToDocumentsDocument(v *DocumentResponse) *documents.Document {
@@ -665,6 +938,49 @@ func unmarshalPersonRefResponseBodyToDocumentsPersonRef(v *PersonRefResponseBody
 	}
 	res := &documents.PersonRef{
 		Name: *v.Name,
+		Role: v.Role,
+	}
+
+	return res
+}
+
+// unmarshalMetadataStatusCountResponseBodyToDocumentsMetadataStatusCount
+// builds a value of type *documents.MetadataStatusCount from a value of type
+// *MetadataStatusCountResponseBody.
+func unmarshalMetadataStatusCountResponseBodyToDocumentsMetadataStatusCount(v *MetadataStatusCountResponseBody) *documents.MetadataStatusCount {
+	if v == nil {
+		return nil
+	}
+	res := &documents.MetadataStatusCount{
+		MetadataStatus: *v.MetadataStatus,
+		Count:          *v.Count,
+	}
+
+	return res
+}
+
+// marshalDocumentsPersonRefToPersonRefRequestBody builds a value of type
+// *PersonRefRequestBody from a value of type *documents.PersonRef.
+func marshalDocumentsPersonRefToPersonRefRequestBody(v *documents.PersonRef) *PersonRefRequestBody {
+	if v == nil {
+		return nil
+	}
+	res := &PersonRefRequestBody{
+		Name: v.Name,
+		Role: v.Role,
+	}
+
+	return res
+}
+
+// marshalPersonRefRequestBodyToDocumentsPersonRef builds a value of type
+// *documents.PersonRef from a value of type *PersonRefRequestBody.
+func marshalPersonRefRequestBodyToDocumentsPersonRef(v *PersonRefRequestBody) *documents.PersonRef {
+	if v == nil {
+		return nil
+	}
+	res := &documents.PersonRef{
+		Name: v.Name,
 		Role: v.Role,
 	}
 

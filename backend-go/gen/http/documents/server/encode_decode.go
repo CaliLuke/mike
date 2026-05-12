@@ -306,6 +306,138 @@ func DecodeDocxRequest(mux loomhttp.Muxer, decoder func(*http.Request) loomhttp.
 	}
 }
 
+// EncodeProcessMetadataResponse returns an encoder for responses returned by
+// the documents process_metadata endpoint.
+func EncodeProcessMetadataResponse(encoder func(context.Context, http.ResponseWriter) loomhttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+	return func(ctx context.Context, w http.ResponseWriter, v any) error {
+		res, _ := v.(*documents.MetadataQueueAck)
+		enc := encoder(ctx, w)
+		body := NewProcessMetadataResponseBody(res)
+		w.WriteHeader(http.StatusAccepted)
+		return enc.Encode(body)
+	}
+}
+
+// DecodeProcessMetadataRequest returns a decoder for requests sent to the
+// documents process_metadata endpoint.
+func DecodeProcessMetadataRequest(mux loomhttp.Muxer, decoder func(*http.Request) loomhttp.Decoder) func(*http.Request) (*documents.ProcessMetadataPayload, error) {
+	return func(r *http.Request) (*documents.ProcessMetadataPayload, error) {
+		var payload *documents.ProcessMetadataPayload
+		var (
+			documentID string
+
+			params = mux.Vars(r)
+		)
+		documentID = params["documentId"]
+		payload = NewProcessMetadataPayload(documentID)
+
+		return payload, nil
+	}
+}
+
+// EncodeProcessMetadataBatchResponse returns an encoder for responses returned
+// by the documents process_metadata_batch endpoint.
+func EncodeProcessMetadataBatchResponse(encoder func(context.Context, http.ResponseWriter) loomhttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+	return func(ctx context.Context, w http.ResponseWriter, v any) error {
+		res, _ := v.(*documents.MetadataQueueAck)
+		enc := encoder(ctx, w)
+		body := NewProcessMetadataBatchResponseBody(res)
+		w.WriteHeader(http.StatusAccepted)
+		return enc.Encode(body)
+	}
+}
+
+// DecodeProcessMetadataBatchRequest returns a decoder for requests sent to the
+// documents process_metadata_batch endpoint.
+func DecodeProcessMetadataBatchRequest(mux loomhttp.Muxer, decoder func(*http.Request) loomhttp.Decoder) func(*http.Request) (*documents.MetadataBatchRequest, error) {
+	return func(r *http.Request) (*documents.MetadataBatchRequest, error) {
+		var payload *documents.MetadataBatchRequest
+		var (
+			body ProcessMetadataBatchRequestBody
+			err  error
+		)
+		err = decoder(r).Decode(&body)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return payload, loom.MissingPayloadError()
+			}
+			var gerr *loom.ServiceError
+			if errors.As(err, &gerr) {
+				return payload, gerr
+			}
+			return payload, loom.DecodePayloadError(err.Error())
+		}
+		err = ValidateProcessMetadataBatchRequestBody(&body)
+		if err != nil {
+			return payload, err
+		}
+		payload = NewProcessMetadataBatchMetadataBatchRequest(&body)
+
+		return payload, nil
+	}
+}
+
+// EncodeMetadataQueueResponse returns an encoder for responses returned by the
+// documents metadata_queue endpoint.
+func EncodeMetadataQueueResponse(encoder func(context.Context, http.ResponseWriter) loomhttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+	return func(ctx context.Context, w http.ResponseWriter, v any) error {
+		res, _ := v.(*documents.MetadataQueueStats)
+		enc := encoder(ctx, w)
+		body := NewMetadataQueueResponseBody(res)
+		w.WriteHeader(http.StatusOK)
+		return enc.Encode(body)
+	}
+}
+
+// EncodePatchMetadataResponse returns an encoder for responses returned by the
+// documents patch_metadata endpoint.
+func EncodePatchMetadataResponse(encoder func(context.Context, http.ResponseWriter) loomhttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+	return func(ctx context.Context, w http.ResponseWriter, v any) error {
+		res, _ := v.(*documents.Document)
+		enc := encoder(ctx, w)
+		body := NewPatchMetadataResponseBody(res)
+		w.WriteHeader(http.StatusOK)
+		return enc.Encode(body)
+	}
+}
+
+// DecodePatchMetadataRequest returns a decoder for requests sent to the
+// documents patch_metadata endpoint.
+func DecodePatchMetadataRequest(mux loomhttp.Muxer, decoder func(*http.Request) loomhttp.Decoder) func(*http.Request) (*documents.MetadataPatchPayload, error) {
+	return func(r *http.Request) (*documents.MetadataPatchPayload, error) {
+		var payload *documents.MetadataPatchPayload
+		var (
+			body PatchMetadataRequestBody
+			err  error
+		)
+		err = decoder(r).Decode(&body)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return payload, loom.MissingPayloadError()
+			}
+			var gerr *loom.ServiceError
+			if errors.As(err, &gerr) {
+				return payload, gerr
+			}
+			return payload, loom.DecodePayloadError(err.Error())
+		}
+		err = ValidatePatchMetadataRequestBody(&body)
+		if err != nil {
+			return payload, err
+		}
+
+		var (
+			documentID string
+
+			params = mux.Vars(r)
+		)
+		documentID = params["documentId"]
+		payload = NewPatchMetadataMetadataPatchPayload(&body, documentID)
+
+		return payload, nil
+	}
+}
+
 // marshalDocumentsDocumentToDocumentResponse builds a value of type
 // *DocumentResponse from a value of type *documents.Document.
 func marshalDocumentsDocumentToDocumentResponse(v *documents.Document) *DocumentResponse {
@@ -456,6 +588,32 @@ func marshalDocumentsPersonRefToPersonRefResponseBody(v *documents.PersonRef) *P
 	}
 	res := &PersonRefResponseBody{
 		Name: v.Name,
+		Role: v.Role,
+	}
+
+	return res
+}
+
+// marshalDocumentsMetadataStatusCountToMetadataStatusCountResponseBody builds
+// a value of type *MetadataStatusCountResponseBody from a value of type
+// *documents.MetadataStatusCount.
+func marshalDocumentsMetadataStatusCountToMetadataStatusCountResponseBody(v *documents.MetadataStatusCount) *MetadataStatusCountResponseBody {
+	res := &MetadataStatusCountResponseBody{
+		MetadataStatus: v.MetadataStatus,
+		Count:          v.Count,
+	}
+
+	return res
+}
+
+// unmarshalPersonRefRequestBodyToDocumentsPersonRef builds a value of type
+// *documents.PersonRef from a value of type *PersonRefRequestBody.
+func unmarshalPersonRefRequestBodyToDocumentsPersonRef(v *PersonRefRequestBody) *documents.PersonRef {
+	if v == nil {
+		return nil
+	}
+	res := &documents.PersonRef{
+		Name: *v.Name,
 		Role: v.Role,
 	}
 

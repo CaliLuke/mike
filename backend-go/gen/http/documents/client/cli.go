@@ -23,7 +23,7 @@ func BuildUploadPayload(documentsUploadBody string) (*documents.FileUpload, erro
 	{
 		err = json.Unmarshal([]byte(documentsUploadBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"file\": \"RXN0IGV4IGlwc2FtIGN1bXF1ZSBleHBsaWNhYm8gdml0YWUgb21uaXMu\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"file\": \"QXRxdWUgZWEu\"\n   }'")
 		}
 		if body.File == nil {
 			err = loom.MergeErrors(err, loom.MissingFieldError("file", "body"))
@@ -56,7 +56,7 @@ func BuildDisplayPayload(documentsDisplayBody string, documentsDisplayDocumentID
 	{
 		err = json.Unmarshal([]byte(documentsDisplayBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"version_id\": \"Dicta voluptate voluptatem iusto modi.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"version_id\": \"Totam libero consectetur sed consequatur ut tempora.\"\n   }'")
 		}
 	}
 	var documentID string
@@ -77,7 +77,7 @@ func BuildDownloadZipPayload(documentsDownloadZipBody string) (*documents.Downlo
 	{
 		err = json.Unmarshal([]byte(documentsDownloadZipBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"document_ids\": [\n         \"Dolorem possimus molestias corporis.\",\n         \"Soluta non.\",\n         \"Numquam velit consequatur nemo ex enim vero.\",\n         \"Itaque est voluptate fugiat nemo sit nam.\"\n      ]\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"document_ids\": [\n         \"Quisquam libero dolor id eum.\",\n         \"Eum error deleniti laborum rerum.\",\n         \"Consequuntur et accusamus.\",\n         \"Sapiente culpa quas maxime adipisci.\"\n      ]\n   }'")
 		}
 		if body.DocumentIds == nil {
 			err = loom.MergeErrors(err, loom.MissingFieldError("document_ids", "body"))
@@ -105,7 +105,7 @@ func BuildURLPayload(documentsURLBody string, documentsURLDocumentID string) (*d
 	{
 		err = json.Unmarshal([]byte(documentsURLBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"version_id\": \"Quia optio natus voluptatibus.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"version_id\": \"Sit sit officiis quos beatae voluptatem.\"\n   }'")
 		}
 	}
 	var documentID string
@@ -126,7 +126,7 @@ func BuildDocxPayload(documentsDocxBody string, documentsDocxDocumentID string) 
 	{
 		err = json.Unmarshal([]byte(documentsDocxBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"version_id\": \"Nostrum similique dolores dolorem et magnam totam.\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"version_id\": \"Nisi dolore dolorum.\"\n   }'")
 		}
 	}
 	var documentID string
@@ -135,6 +135,89 @@ func BuildDocxPayload(documentsDocxBody string, documentsDocxDocumentID string) 
 	}
 	v := &documents.DocxPayload{
 		VersionID: body.VersionID,
+	}
+	v.DocumentID = documentID
+
+	return v, nil
+} // BuildProcessMetadataPayload builds the payload for the documents
+// process_metadata endpoint from CLI flags.
+func BuildProcessMetadataPayload(documentsProcessMetadataDocumentID string) (*documents.ProcessMetadataPayload, error) {
+	var documentID string
+	{
+		documentID = documentsProcessMetadataDocumentID
+	}
+	v := &documents.ProcessMetadataPayload{}
+	v.DocumentID = documentID
+
+	return v, nil
+} // BuildProcessMetadataBatchPayload builds the payload for the documents
+// process_metadata_batch endpoint from CLI flags.
+func BuildProcessMetadataBatchPayload(documentsProcessMetadataBatchBody string) (*documents.MetadataBatchRequest, error) {
+	var err error
+	var body ProcessMetadataBatchRequestBody
+	{
+		err = json.Unmarshal([]byte(documentsProcessMetadataBatchBody), &body)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"document_ids\": [\n         \"Quidem officiis ratione optio at vel in.\",\n         \"Quibusdam voluptatem iusto in dolores et tenetur.\",\n         \"Ea est.\",\n         \"Et consectetur possimus culpa.\"\n      ],\n      \"filter\": \"unprocessed\"\n   }'")
+		}
+	}
+	v := &documents.MetadataBatchRequest{
+		Filter: body.Filter,
+	}
+	if body.DocumentIds != nil {
+		v.DocumentIds = make([]string, len(body.DocumentIds))
+		for i, val := range body.DocumentIds {
+			v.DocumentIds[i] = val
+		}
+	}
+
+	return v, nil
+} // BuildPatchMetadataPayload builds the payload for the documents
+// patch_metadata endpoint from CLI flags.
+func BuildPatchMetadataPayload(documentsPatchMetadataBody string, documentsPatchMetadataDocumentID string) (*documents.MetadataPatchPayload, error) {
+	var err error
+	var body PatchMetadataRequestBody
+	{
+		err = json.Unmarshal([]byte(documentsPatchMetadataBody), &body)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"company_refs\": [\n         \"Nihil nulla.\",\n         \"Ut modi blanditiis sit.\"\n      ],\n      \"confirm\": false,\n      \"dated_event_at\": \"Id corrupti.\",\n      \"derived_from_id\": \"Cumque id officiis aut molestiae aut suscipit.\",\n      \"interview_stage\": \"Magnam magnam voluptatem laborum non doloremque velit.\",\n      \"kind\": \"Nihil voluptates consequuntur perferendis consequatur cumque quis.\",\n      \"library\": false,\n      \"library_kind\": \"Harum architecto explicabo qui qui.\",\n      \"people_refs\": [\n         {\n            \"name\": \"Quidem minima.\",\n            \"role\": \"Maxime tenetur et laudantium alias.\"\n         },\n         {\n            \"name\": \"Quidem minima.\",\n            \"role\": \"Maxime tenetur et laudantium alias.\"\n         },\n         {\n            \"name\": \"Quidem minima.\",\n            \"role\": \"Maxime tenetur et laudantium alias.\"\n         }\n      ],\n      \"summary\": \"Et quo eius ullam.\",\n      \"topics\": [\n         \"Quia quis at rerum sed.\",\n         \"Laborum excepturi eum maiores temporibus.\",\n         \"Nisi et omnis itaque.\"\n      ]\n   }'")
+		}
+	}
+	var documentID string
+	{
+		documentID = documentsPatchMetadataDocumentID
+	}
+	v := &documents.MetadataPatchPayload{
+		Confirm:        body.Confirm,
+		Kind:           body.Kind,
+		Library:        body.Library,
+		LibraryKind:    body.LibraryKind,
+		InterviewStage: body.InterviewStage,
+		Summary:        body.Summary,
+		DatedEventAt:   body.DatedEventAt,
+		DerivedFromID:  body.DerivedFromID,
+	}
+	if body.Topics != nil {
+		v.Topics = make([]string, len(body.Topics))
+		for i, val := range body.Topics {
+			v.Topics[i] = val
+		}
+	}
+	if body.CompanyRefs != nil {
+		v.CompanyRefs = make([]string, len(body.CompanyRefs))
+		for i, val := range body.CompanyRefs {
+			v.CompanyRefs[i] = val
+		}
+	}
+	if body.PeopleRefs != nil {
+		v.PeopleRefs = make([]*documents.PersonRef, len(body.PeopleRefs))
+		for i, val := range body.PeopleRefs {
+			if val == nil {
+				v.PeopleRefs[i] = nil
+				continue
+			}
+			v.PeopleRefs[i] = marshalPersonRefRequestBodyToDocumentsPersonRef(val)
+		}
 	}
 	v.DocumentID = documentID
 
