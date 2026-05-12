@@ -9,6 +9,7 @@ Add a deferred, user-triggered metadata classifier to `documents` (kind, summary
 - 2026-05-11 — M2 (Classifier service) complete. 7 unit tests pass; enrichDocumentMetadata wired (M3 will expose it via HTTP). 16 existing docs backfilled to `metadata_status="unprocessed"`; new fields project to HTTP responses.
 - 2026-05-11 — M3 (Trigger and confirmation API) complete. All 4 endpoints work end-to-end against the dev DB; mock LLM now emits a valid classifier response so probe scenarios get a deterministic happy path.
 - 2026-05-11 — M4 (Application linking) complete. Library guard, link CRUD, application.library_documents and document.linked_application_ids all wired end-to-end.
+- 2026-05-11 — M5 (Probe scenario + backend commit) complete. All 11 document_metadata assertions PASS against real gemma4; applications and accomplishments still PASS — no regressions.
 
 ## Milestones
 
@@ -123,16 +124,16 @@ Acceptance Criteria
 
 Checklist
 
-- [ ] Create `backend-go/cmd/probe/scenarios/document_metadata.go` with `Register()` in `init()` and a `Run(ctx, client, tel, result)` function modeled on `backend-go/cmd/probe/scenarios/applications.go`.
-- [ ] In the scenario, upload an interview-transcript fixture, POST `/single-documents/{id}/process-metadata`, poll `GET /single-documents/{id}` every 2s for up to 60s asserting `metadata_status` reaches `ready`.
-- [ ] Assert `summary` non-empty, `kind == "interview_transcript"`, `library == false` on the resulting document.
-- [ ] Assert the telemetry span via `From(spans).Named("metadata.enrich_document").WithAttr("metadata.document_id", docID).RequireAtLeast(1, "classifier ran exactly once")`.
-- [ ] In the same scenario, PATCH `/single-documents/{id}/metadata` with `{"confirm": true, "summary": "override"}`; assert `metadata_status == "user_confirmed"` and the summary is the override on the next GET.
-- [ ] In the same scenario, upload a story fixture, classify it (or directly PATCH `library=true`), POST `/application-links` linking it to an existing application, GET that application, assert the story id appears in `library_documents`.
-- [ ] `defer client.Delete(...)` for every document and `defer DELETE` for every link the scenario creates.
-- [ ] Run `cd backend-go && make probe SCENARIO=document_metadata` and confirm exit 0.
-- [ ] Run `cd backend-go && for s in $(make probe-list | tail -n +2); do make probe SCENARIO=$s || { echo "FAIL: $s"; exit 1; }; done` to confirm no regressions.
-- [ ] `git add -A && git commit -m "Add document metadata probe scenario" && git push`.
+- [x] Create `backend-go/cmd/probe/scenarios/document_metadata.go` with `Register()` in `init()` and a `Run(ctx, client, tel, result)` function modeled on `backend-go/cmd/probe/scenarios/applications.go`.
+- [x] In the scenario, upload an interview-transcript fixture, POST `/single-documents/{id}/process-metadata`, poll `GET /single-documents/{id}` every 2s for up to 60s asserting `metadata_status` reaches `ready`.
+- [x] Assert `summary` non-empty, `kind == "interview_transcript"`, `library == false` on the resulting document.
+- [x] Assert the telemetry span via `From(spans).Named("metadata.enrich_document").WithAttr("metadata.document_id", docID).RequireAtLeast(1, "classifier ran exactly once")`.
+- [x] In the same scenario, PATCH `/single-documents/{id}/metadata` with `{"confirm": true, "summary": "override"}`; assert `metadata_status == "user_confirmed"` and the summary is the override on the next GET.
+- [x] In the same scenario, upload a story fixture, classify it (or directly PATCH `library=true`), POST `/application-links` linking it to an existing application, GET that application, assert the story id appears in `library_documents`.
+- [x] `defer client.Delete(...)` for every document and `defer DELETE` for every link the scenario creates.
+- [x] Run `cd backend-go && make probe SCENARIO=document_metadata` and confirm exit 0.
+- [x] Run `cd backend-go && for s in $(make probe-list | tail -n +2); do make probe SCENARIO=$s || { echo "FAIL: $s"; exit 1; }; done` to confirm no regressions.
+- [x] `git add -A && git commit -m "Add document metadata probe scenario" && git push`.
 
 ### Milestone 6: Frontend surface
 

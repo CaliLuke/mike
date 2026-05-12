@@ -18,14 +18,28 @@ func init() {
 }
 
 type apiApplication struct {
-	ID                     string `json:"id"`
-	Name                   string `json:"name"`
-	Status                 string `json:"status"`
-	JobDescriptionURL      string `json:"job_description_url"`
-	CompanyID              string `json:"company_id"`
-	CompanyName            string `json:"company_name"`
-	JobDescriptionIngested bool   `json:"job_description_ingested"`
-	DocumentCount          int    `json:"document_count"`
+	ID                     string                    `json:"id"`
+	Name                   string                    `json:"name"`
+	Status                 string                    `json:"status"`
+	JobDescriptionURL      string                    `json:"job_description_url"`
+	CompanyID              string                    `json:"company_id"`
+	CompanyName            string                    `json:"company_name"`
+	JobDescriptionIngested bool                      `json:"job_description_ingested"`
+	DocumentCount          int                       `json:"document_count"`
+	LibraryDocuments       []apiLibraryDocumentBrief `json:"library_documents"`
+}
+
+// apiLibraryDocumentBrief is the projection the application list query
+// returns for library_documents — see internal/localapi/repository.go
+// applicationListQuery.
+type apiLibraryDocumentBrief struct {
+	ID             string  `json:"id"`
+	Filename       string  `json:"filename"`
+	Kind           *string `json:"kind"`
+	Library        *bool   `json:"library"`
+	LibraryKind    *string `json:"library_kind"`
+	Summary        *string `json:"summary"`
+	MetadataStatus *string `json:"metadata_status"`
 }
 
 func runApplications(ctx context.Context, client *probe.Client, tel *probe.TelemetryDB, result *probe.Result) error {
