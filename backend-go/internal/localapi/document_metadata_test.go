@@ -144,3 +144,65 @@ func TestSurrealPeopleRefs(t *testing.T) {
 		t.Errorf("missing second ref: %q", got)
 	}
 }
+
+func TestPreserveSubset_DropsHallucinations(t *testing.T) {
+	// The proposer offered five companies, the reviewer only verified three —
+	// the merge should keep those three while preserving the proposer's
+	// original casing.
+	original := []string{"Google", "Meta", "LinkedIn", "Amazon", "Salesforce"}
+	reviewed := []string{"google", "meta", "linkedin"}
+	got := preserveSubset(original, reviewed)
+	want := []string{"Google", "Meta", "LinkedIn"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			t.Errorf("got[%d]=%q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestPreserveSubset_RejectsReviewerInventions(t *testing.T) {
+	// If the reviewer "approves" entries the proposer never proposed (e.g.
+	// the model goes off-script and adds new companies), preserveSubset
+	// drops them — we trust the proposer's list as the universe of
+	// candidates.
+	original := []string{"Google"}
+	reviewed := []string{"Google", "Apple", "Tesla"}
+	got := preserveSubset(original, reviewed)
+	if len(got) != 1 || got[0] != "Google" {
+		t.Errorf("got %v, want [Google]", got)
+	}
+}
+
+func TestPreserveSubset_EmptyReviewerWipesAll(t *testing.T) {
+	// An empty reviewer result is interpreted as "could not verify any" —
+	// we drop everything rather than fall back to the proposer's full list.
+	got := preserveSubset([]string{"Google", "Meta"}, nil)
+	if len(got) != 0 {
+		t.Errorf("got %v, want empty", got)
+	}
+}
+
+func TestPreservePeopleSubset_KeepsRoleFromProposer(t *testing.T) {
+	original := []classifierPersonRef{
+		{Name: "Ben Alton", Role: "Hiring Manager"},
+		{Name: "Christopher Haverman", Role: "Director"},
+		{Name: "Fake Person", Role: "CEO"},
+	}
+	reviewed := []classifierPersonRef{
+		{Name: "Ben Alton", Role: ""},                 // reviewer dropped the role
+		{Name: "Christopher Haverman", Role: "Other"}, // reviewer rewrote the role
+	}
+	got := preservePeopleSubset(original, reviewed)
+	if len(got) != 2 {
+		t.Fatalf("got %d entries, want 2", len(got))
+	}
+	if got[0].Role != "Hiring Manager" {
+		t.Errorf("first role = %q, want 'Hiring Manager' (proposer wins)", got[0].Role)
+	}
+	if got[1].Role != "Director" {
+		t.Errorf("second role = %q, want 'Director' (proposer wins)", got[1].Role)
+	}
+}

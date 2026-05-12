@@ -93,6 +93,10 @@ type completionRequest struct {
 	Model        string
 	SystemPrompt string
 	User         string
+	// Temperature, when non-zero, overrides Ollama's default (~0.8). Lower
+	// values produce more deterministic output and are essential for
+	// extraction-style tasks where free-association is a known failure mode.
+	Temperature float64
 }
 
 func modelOrDefault(model *string) string {
@@ -130,6 +134,10 @@ func (s *Server) completeText(ctx context.Context, req completionRequest) (strin
 			{"role": "user", "content": req.User},
 		},
 		"stream": false,
+	}
+	if req.Temperature > 0 {
+		body["options"] = map[string]any{"temperature": req.Temperature}
+		span.SetAttributes(attribute.Float64("llm.temperature", req.Temperature))
 	}
 	var response struct {
 		Message struct {

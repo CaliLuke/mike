@@ -16,13 +16,18 @@ import (
 
 const (
 	metadataMaxConcurrentClassifiers = 5
-	metadataClassifyTimeout          = 60 * time.Second
+	// metadataClassifyTimeout caps a single document's full classifier +
+	// reviewer pass. Two LLM round-trips against a local 8B model can take
+	// ~30s each, so we need headroom beyond the legacy single-pass budget.
+	metadataClassifyTimeout = 180 * time.Second
 )
 
 // classifierSystemPrompt instructs the model to produce a single JSON object
-// matching classifierResult. Kept verbatim from DOCUMENT_METADATA_PLAN.md so
-// reviewers can diff prompt changes against the plan.
-const classifierSystemPrompt = `You are a document classifier for a personal career-operations workbench. Given a document's filename and extracted text, you produce a single JSON object describing its kind, scope, and the entities it references.
+// matching classifierResult. The wording on company_refs / people_refs is
+// deliberately strict because 8B-class local models love to free-associate
+// CRM-context companies (Salesforce, Amazon) that aren't in the source.
+// A second reviewer pass (see reviewerSystemPrompt below) verifies.
+const classifierSystemPrompt = `You are a document classifier for a personal career-operations workbench. Given a document's filename and extracted text, you produce a single JSON object describing its kind, scope, and the entities it ACTUALLY mentions in the text.
 
 You MUST return only JSON matching this schema (no commentary):
 {
@@ -32,21 +37,51 @@ You MUST return only JSON matching this schema (no commentary):
   "interview_stage": "recruiter" | "hiring_manager" | "peer" | "tech" | "panel" | "onsite" | "other" | null,
   "summary": string,            // 2-4 sentences. No filler. State what the doc IS.
   "topics": [string, ...],      // 3-8 short tags: subjects, skills, themes
-  "company_refs": [string, ...],// companies mentioned in content (not the application)
+  "company_refs": [string, ...],// see EXTRACTION RULES below
   "people_refs": [{"name": string, "role": string}, ...],
   "dated_event_at": ISO8601 string or null,  // when the meeting/event happened
   "suggested_application_match": string or null,  // application name if obvious
   "suggested_derived_from": string or null        // baseline doc filename if obvious
 }
 
-Heuristics:
+EXTRACTION RULES (apply to every list):
+- "company_refs": list every company whose name appears as a literal substring of the Content. Copy each name as it appears in the text. Scan the text directly — do not work from memory. Examples: if the text says "at Google, Meta, LinkedIn", company_refs MUST include "Google", "Meta", "LinkedIn". If the text says "VP at Treasure Data", include "Treasure Data". What you must NOT do is add companies that don't literally appear in the Content (e.g. don't add "Salesforce" because the document discusses CRM; don't add "AWS" because it mentions cloud).
+- "people_refs": list every person whose name appears as a literal substring of the Content. The "role" field must be supported by the text, not inferred.
+- "topics": short subject tags. Light paraphrase is fine ("product management" is OK when the text says "Product Manager"), but the theme must be present in the text.
+- "summary": describe what the document IS, using facts present in the text.
+
+Kind / scope heuristics:
 - A document like "Amplitude - Luca Candela Resume 2025.pdf" with content tailored to one company is kind=resume, library=false.
 - A document like "Resume 2025 - Baseline.md" is kind=resume_baseline, library=true, library_kind=shared.
 - A transcript ("Meeting Title: ...") is kind=interview_transcript, library=false; infer interview_stage from speakers ("recruiter", "hiring manager", "tech screen").
 - A general guide ("product sense", "interview process") is kind=cheatsheet or framework, library=true, library_kind=reference.
 - A STAR-formatted experience write-up is kind=story, library=true, library_kind=shared.
 
-If a field cannot be determined, return null. Do not fabricate.`
+If a field cannot be determined, return null. Empty arrays are valid when the text genuinely has nothing to extract — but if the Content does mention companies or people, you MUST list them.`
+
+// reviewerSystemPrompt frames the second LLM pass as an auditor checking the
+// classifier's company_refs / people_refs / topics against the source text.
+// The proposer is loose because open-ended extraction is high-entropy; the
+// reviewer's job is closed-form verification, which is reliable even with
+// the same model.
+const reviewerSystemPrompt = `You are a strict reviewer of an upstream classifier's output. Your only job is to drop entries the classifier could not have justified from the source text.
+
+You will receive (1) a proposed JSON classifier output, and (2) the source Content the classifier was asked to describe.
+
+For EACH entry in "company_refs" and EACH entry in "people_refs":
+- KEEP it ONLY if the entry's name appears as a literal substring of the Content (case-insensitive). Trim whitespace, ignore obvious case differences ("Google Cloud" == "google cloud"), but DO NOT accept paraphrases, abbreviations, or "industry context" associations.
+- If a company name is partly present (e.g., proposed "Salesforce CRM" and Content only mentions "CRM"), DROP it.
+- If a proposed company is not in Content at all, DROP it.
+
+For "topics":
+- KEEP if the topic clearly maps to wording in the Content. Light paraphrase is allowed (e.g., proposed "product management" is fine when Content says "Product Manager"). Drop topics that look like generic industry tags unrelated to anything in the Content.
+
+Return ONLY a JSON object with the SAME top-level shape as the input proposed JSON, but with company_refs, people_refs, and topics filtered. You MUST NOT:
+- invent new entries that were not in the proposal,
+- alter kind, library, library_kind, summary, interview_stage, dated_event_at, suggested_application_match, or suggested_derived_from,
+- add commentary outside the JSON.
+
+If you are unsure about an entry, drop it. Empty arrays are valid. The goal is zero false positives, not high recall.`
 
 // classifierKindAllowList mirrors the documents.kind SurrealQL enum in
 // backend-go/internal/localdata/schema.go. Out-of-list values from the LLM
@@ -89,6 +124,127 @@ type classifierResult struct {
 	DatedEventAt              *string               `json:"dated_event_at"`
 	SuggestedApplicationMatch *string               `json:"suggested_application_match"`
 	SuggestedDerivedFrom      *string               `json:"suggested_derived_from"`
+}
+
+// reviewClassifierResult runs a second LLM pass that filters the proposed
+// classifier output against the source text, removing entries the reviewer
+// cannot justify as literal substrings of the source. The reviewer's task
+// is closed-form verification, which is reliable even when the proposer
+// (same model) free-associates. Returns the filtered result.
+//
+// Failure handling: if the LLM call or JSON parse fails, returns the
+// unfiltered proposal so the user still gets something. The caller is
+// expected to log the failure via the span attrs we set.
+func (s *Server) reviewClassifierResult(
+	ctx context.Context,
+	proposed classifierResult,
+	sourceText string,
+) (classifierResult, reviewerStats) {
+	stats := reviewerStats{
+		ProposedCompanies: len(proposed.CompanyRefs),
+		ProposedPeople:    len(proposed.PeopleRefs),
+		ProposedTopics:    len(proposed.Topics),
+	}
+	proposedJSON, err := json.Marshal(proposed)
+	if err != nil {
+		stats.SkipReason = "marshal_proposed: " + err.Error()
+		return proposed, stats
+	}
+	user := fmt.Sprintf(
+		"Proposed classifier output:\n%s\n\nSource Content:\n%s\n\nReturn the filtered JSON.",
+		string(proposedJSON), sourceText,
+	)
+	raw, err := s.completeText(ctx, completionRequest{
+		Model:        defaultMainModel,
+		SystemPrompt: reviewerSystemPrompt,
+		User:         user,
+		// Verification is closed-form; low temperature keeps the reviewer
+		// from rephrasing or inventing entries.
+		Temperature: 0.1,
+	})
+	if err != nil {
+		stats.SkipReason = "llm: " + err.Error()
+		return proposed, stats
+	}
+	stats.LLMResponseChars = len(raw)
+	reviewed, err := parseClassifierResult(raw)
+	if err != nil {
+		stats.SkipReason = "parse: " + err.Error()
+		return proposed, stats
+	}
+
+	// Preserve the proposer's non-list fields. The reviewer is instructed not
+	// to alter them, but a flaky reviewer might null them out or rephrase
+	// the summary. Trust the proposer's kind / library / summary etc. and
+	// only take filtered lists from the reviewer.
+	merged := proposed
+	merged.CompanyRefs = preserveSubset(proposed.CompanyRefs, reviewed.CompanyRefs)
+	merged.Topics = preserveSubset(proposed.Topics, reviewed.Topics)
+	merged.PeopleRefs = preservePeopleSubset(proposed.PeopleRefs, reviewed.PeopleRefs)
+
+	stats.RejectedCompanies = stats.ProposedCompanies - len(merged.CompanyRefs)
+	stats.RejectedPeople = stats.ProposedPeople - len(merged.PeopleRefs)
+	stats.RejectedTopics = stats.ProposedTopics - len(merged.Topics)
+	return merged, stats
+}
+
+// reviewerStats is a small attribute bag span + slog can attach so the
+// reviewer pass is debuggable from telemetry without re-reading the docs.
+type reviewerStats struct {
+	ProposedCompanies int
+	ProposedPeople    int
+	ProposedTopics    int
+	RejectedCompanies int
+	RejectedPeople    int
+	RejectedTopics    int
+	LLMResponseChars  int
+	// SkipReason is set when the reviewer pass was bypassed (LLM error,
+	// parse error, etc.). Empty when the pass ran cleanly.
+	SkipReason string
+}
+
+func (r reviewerStats) ran() bool { return r.SkipReason == "" }
+
+// preserveSubset returns the items from `original` that also appear in
+// `reviewed` (case-insensitive trimmed compare). This protects against the
+// reviewer inventing new entries while still letting it drop hallucinated
+// ones.
+func preserveSubset(original, reviewed []string) []string {
+	if len(reviewed) == 0 {
+		return []string{}
+	}
+	reviewedSet := make(map[string]struct{}, len(reviewed))
+	for _, item := range reviewed {
+		reviewedSet[normalizeForCompare(item)] = struct{}{}
+	}
+	out := make([]string, 0, len(original))
+	for _, item := range original {
+		if _, ok := reviewedSet[normalizeForCompare(item)]; ok {
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
+func preservePeopleSubset(original, reviewed []classifierPersonRef) []classifierPersonRef {
+	if len(reviewed) == 0 {
+		return []classifierPersonRef{}
+	}
+	reviewedSet := make(map[string]struct{}, len(reviewed))
+	for _, p := range reviewed {
+		reviewedSet[normalizeForCompare(p.Name)] = struct{}{}
+	}
+	out := make([]classifierPersonRef, 0, len(original))
+	for _, p := range original {
+		if _, ok := reviewedSet[normalizeForCompare(p.Name)]; ok {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func normalizeForCompare(s string) string {
+	return strings.ToLower(strings.TrimSpace(s))
 }
 
 // parseClassifierResult decodes the LLM JSON output, strips code fences if the
@@ -210,15 +366,26 @@ func (s *Server) enrichDocumentMetadata(ctx context.Context, documentID string) 
 	if len(truncated) > maxInputChars {
 		truncated = truncated[:maxInputChars]
 	}
+	// Sample the head of the text twin so we can see in telemetry exactly
+	// what the model receives, without dumping the full content.
+	headSample := truncated
+	if len(headSample) > 300 {
+		headSample = headSample[:300]
+	}
 	span.SetAttributes(
 		attribute.Int("metadata.input_chars", len(truncated)),
 		attribute.Bool("metadata.input_truncated", len(text) > maxInputChars),
+		attribute.String("metadata.input_head_sample", headSample),
 	)
 
 	raw, err := s.completeText(ctx, completionRequest{
 		Model:        defaultMainModel,
 		SystemPrompt: classifierSystemPrompt,
 		User:         fmt.Sprintf("Filename: %s\n\nContent:\n%s", filename, truncated),
+		// Extraction tasks benefit from a low temperature; Ollama's default
+		// (~0.8) is high enough to let the model free-associate companies
+		// from the prompt's "Heuristics" examples.
+		Temperature: 0.2,
 	})
 	if err != nil {
 		_ = s.setDocumentMetadataStatus(ctx, documentID, "error", err.Error())
@@ -237,11 +404,43 @@ func (s *Server) enrichDocumentMetadata(ctx context.Context, documentID string) 
 		return err
 	}
 
+	// Second LLM pass: review the proposer's lists against the source text
+	// and drop hallucinated entries. The reviewer pass runs in its own span
+	// so we can see in telemetry how many entries each run rejected.
+	reviewCtx, reviewSpan := startLocalSpan(ctx, "metadata.review_classifier_output",
+		attribute.String("metadata.document_id", documentID),
+	)
+	reviewed, reviewStats := s.reviewClassifierResult(reviewCtx, parsed, truncated)
+	reviewSpan.SetAttributes(
+		attribute.Bool("metadata.reviewer.ran", reviewStats.ran()),
+		attribute.Int("metadata.reviewer.proposed_companies", reviewStats.ProposedCompanies),
+		attribute.Int("metadata.reviewer.proposed_people", reviewStats.ProposedPeople),
+		attribute.Int("metadata.reviewer.proposed_topics", reviewStats.ProposedTopics),
+		attribute.Int("metadata.reviewer.rejected_companies", reviewStats.RejectedCompanies),
+		attribute.Int("metadata.reviewer.rejected_people", reviewStats.RejectedPeople),
+		attribute.Int("metadata.reviewer.rejected_topics", reviewStats.RejectedTopics),
+		attribute.Int("metadata.reviewer.response_chars", reviewStats.LLMResponseChars),
+	)
+	if reviewStats.SkipReason != "" {
+		reviewSpan.SetAttributes(attribute.String("metadata.reviewer.skip_reason", reviewStats.SkipReason))
+		slog.WarnContext(reviewCtx, "metadata.review_classifier_output.skipped",
+			"document_id", documentID, "reason", reviewStats.SkipReason)
+	} else {
+		slog.InfoContext(reviewCtx, "metadata.review_classifier_output.ok",
+			"document_id", documentID,
+			"rejected_companies", reviewStats.RejectedCompanies,
+			"rejected_people", reviewStats.RejectedPeople,
+			"rejected_topics", reviewStats.RejectedTopics)
+	}
+	reviewSpan.End()
+	parsed = reviewed
+
 	span.SetAttributes(
 		attribute.String("metadata.kind", parsed.Kind),
 		attribute.Int("metadata.summary_chars", len(parsed.Summary)),
 		attribute.Int("metadata.topic_count", len(parsed.Topics)),
 		attribute.Int("metadata.people_ref_count", len(parsed.PeopleRefs)),
+		attribute.Int("metadata.company_ref_count", len(parsed.CompanyRefs)),
 	)
 	if parsed.Library != nil {
 		span.SetAttributes(attribute.Bool("metadata.library", *parsed.Library))
