@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/CaliLuke/luke/backend-go/internal/localdata"
+	"github.com/CaliLuke/luke/backend-go/internal/textextract"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -852,6 +854,234 @@ func (s *Server) patchDocumentMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, rows[0])
+}
+
+// reextractDocumentText re-runs the textextract pipeline against the
+// document's current version, replacing the stored text twin in place.
+// Designed for fixing twins produced by a previous (broken) extractor —
+// e.g. when we swapped ledongthuc/pdf → spdf, the existing twins were
+// Caesar-shifted gibberish and need to be regenerated.
+//
+// Returns a small report (the new char count and the extraction status)
+// so the caller can show "twin regenerated" or surface the failure.
+type reextractReport struct {
+	DocumentID         string `json:"document_id"`
+	VersionID          string `json:"version_id"`
+	ExtractionStatus   string `json:"extraction_status"`
+	ExtractedTextChars int    `json:"extracted_text_chars"`
+	Error              string `json:"error,omitempty"`
+}
+
+func (s *Server) reextractDocumentText(ctx context.Context, documentID string) (reextractReport, error) {
+	ctx, span := startLocalSpan(ctx, "textextract.reextract",
+		attribute.String("doc.id", documentID),
+	)
+	defer span.End()
+	slog.InfoContext(ctx, "textextract.reextract.enter", "document_id", documentID)
+
+	// Resolve the current version + storage path.
+	version, err := s.resolveDocumentVersion(ctx, documentID, "")
+	if err != nil {
+		recordSpanError(span, err)
+		slog.ErrorContext(ctx, "textextract.reextract.resolve_version_failed",
+			"document_id", documentID, "error", err.Error())
+		return reextractReport{DocumentID: documentID}, err
+	}
+	span.SetAttributes(
+		attribute.String("doc.version_id", version.ID),
+		attribute.String("doc.storage_path", version.StoragePath),
+		attribute.String("doc.filename", version.Filename),
+	)
+
+	// Read the original file bytes from local storage.
+	data, err := localdata.ReadLocalFile(s.app.LocalStorageRoot, version.StoragePath)
+	if err != nil {
+		recordSpanError(span, err)
+		slog.ErrorContext(ctx, "textextract.reextract.read_storage_failed",
+			"document_id", documentID, "storage_path", version.StoragePath, "error", err.Error())
+		return reextractReport{DocumentID: documentID, VersionID: version.ID}, err
+	}
+
+	// Re-run the extractor. This uses the production textextract.Extract,
+	// which delegates PDFs to spdf and DOCX to the embedded ledongthuc/zip
+	// path; whatever the current production code does is what runs here.
+	result := textextract.Extract(ctx, version.Filename, data)
+	report := reextractReport{
+		DocumentID:         documentID,
+		VersionID:          version.ID,
+		ExtractionStatus:   string(result.Status),
+		ExtractedTextChars: len(result.Text),
+		Error:              result.Error,
+	}
+
+	// Persist the new twin (or clear it on failure / skip).
+	var updateQuery string
+	switch result.Status {
+	case textextract.StatusOK:
+		updateQuery = fmt.Sprintf(
+			`UPDATE %s SET extracted_text = %s, extracted_text_chars = %d, extraction_status = "ok", extraction_error = NONE;`,
+			recordID("document_versions", version.ID),
+			surrealString(result.Text),
+			len(result.Text),
+		)
+	case textextract.StatusSkipped:
+		updateQuery = fmt.Sprintf(
+			`UPDATE %s SET extracted_text = NONE, extracted_text_chars = NONE, extraction_status = "skipped", extraction_error = NONE;`,
+			recordID("document_versions", version.ID),
+		)
+	default: // StatusFailed
+		updateQuery = fmt.Sprintf(
+			`UPDATE %s SET extracted_text = NONE, extracted_text_chars = NONE, extraction_status = "failed", extraction_error = %s;`,
+			recordID("document_versions", version.ID),
+			surrealString(result.Error),
+		)
+	}
+	if _, qErr := s.app.DB.Query(ctx, updateQuery); qErr != nil {
+		recordSpanError(span, qErr)
+		slog.ErrorContext(ctx, "textextract.reextract.persist_failed",
+			"document_id", documentID, "version_id", version.ID, "error", qErr.Error())
+		return report, qErr
+	}
+
+	// Mark the document as needing classification again — its metadata was
+	// derived from the old (likely garbled) twin and is no longer trustworthy.
+	resetQuery := fmt.Sprintf(
+		`UPDATE %s SET metadata_status = "unprocessed", metadata_error = NONE, updated_at = time::now();`,
+		recordID("documents", documentID),
+	)
+	if _, qErr := s.app.DB.Query(ctx, resetQuery); qErr != nil {
+		slog.WarnContext(ctx, "textextract.reextract.reset_metadata_failed",
+			"document_id", documentID, "error", qErr.Error())
+		// Non-fatal: the twin update succeeded; classifier reset is a
+		// best-effort follow-up.
+	}
+
+	span.SetAttributes(
+		attribute.String("doc.extract_status", string(result.Status)),
+		attribute.Int("doc.text_chars", len(result.Text)),
+	)
+	slog.InfoContext(ctx, "textextract.reextract.exit_ok",
+		"document_id", documentID, "version_id", version.ID,
+		"status", string(result.Status), "chars", len(result.Text))
+	return report, nil
+}
+
+func (s *Server) reextractSingleDocumentText(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed"))
+		return
+	}
+	docID := r.PathValue("documentId")
+	if docID == "" {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("documentId required"))
+		return
+	}
+	report, err := s.reextractDocumentText(r.Context(), docID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, report)
+}
+
+func (s *Server) reextractDocumentTextBatch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed"))
+		return
+	}
+	var req struct {
+		DocumentIDs []string `json:"document_ids"`
+		// Filter selects docs to re-extract:
+		//   "all"     — every document
+		//   "pdf"     — every PDF document (default; matches our use case)
+		//   "failed"  — only docs whose extraction_status != "ok"
+		Filter string `json:"filter"`
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	if len(body) > 0 {
+		if err := json.Unmarshal(body, &req); err != nil {
+			writeError(w, http.StatusBadRequest, fmt.Errorf("invalid JSON: %w", err))
+			return
+		}
+	}
+	if len(req.DocumentIDs) == 0 && req.Filter == "" {
+		req.Filter = "pdf"
+	}
+	ids := req.DocumentIDs
+	if req.Filter != "" {
+		filteredIDs, err := s.findDocumentIDsForReextract(r.Context(), req.Filter)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		ids = append(ids, filteredIDs...)
+	}
+	seen := make(map[string]struct{}, len(ids))
+	deduped := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		deduped = append(deduped, id)
+	}
+	slog.InfoContext(r.Context(), "textextract.reextract.batch",
+		"filter", req.Filter, "count", len(deduped))
+
+	reports := make([]reextractReport, 0, len(deduped))
+	for _, id := range deduped {
+		// Run serially. Extraction is fast (single shell-out per doc) and
+		// running concurrently would just contend on stdout/disk for no
+		// real gain. Each call gets a fresh timeout so a stuck PDF can't
+		// hold up the rest.
+		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+		report, err := s.reextractDocumentText(ctx, id)
+		cancel()
+		if err != nil {
+			report.Error = err.Error()
+			if report.ExtractionStatus == "" {
+				report.ExtractionStatus = "failed"
+			}
+		}
+		reports = append(reports, report)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"reports": reports,
+		"total":   len(reports),
+	})
+}
+
+// findDocumentIDsForReextract resolves a filter selector to a document id
+// list. "pdf" is the default for our use case (the spdf swap only changes
+// PDF extraction; .md/.docx don't benefit).
+func (s *Server) findDocumentIDsForReextract(ctx context.Context, filter string) ([]string, error) {
+	where := ""
+	switch filter {
+	case "pdf":
+		where = `file_type = "pdf"`
+	case "failed":
+		where = `current_version_id.extraction_status != "ok"`
+	case "all":
+		where = "true"
+	default:
+		return nil, fmt.Errorf("unknown filter %q (expected pdf|failed|all)", filter)
+	}
+	rows, err := queryRows(ctx, s.app.DB, "SELECT id FROM documents WHERE "+where+";")
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, trimRecord(asString(r["id"])))
+	}
+	return ids, nil
 }
 
 // addDocumentApplicationLink links a library document to an application. Only
