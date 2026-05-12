@@ -12,6 +12,7 @@ import (
 	"net/http"
 
 	loomhttp "github.com/CaliLuke/loom/http"
+	loomtransport "github.com/CaliLuke/loom/observability/transport"
 	loom "github.com/CaliLuke/loom/pkg"
 	tabularchat "github.com/CaliLuke/luke/backend-go/gen/tabular_chat"
 )
@@ -105,8 +106,11 @@ func NewListHandler(
 		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, loom.MethodKey, "list")
 		ctx = context.WithValue(ctx, loom.ServiceKey, "tabular_chat")
+		obs, w := loomtransport.BeginHTTPRequest(ctx, w, "tabular_chat", "list", r)
+		defer obs.End()
 		payload, err := decodeRequest(r)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonRequestDecodeFailed)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -114,12 +118,14 @@ func NewListHandler(
 		}
 		res, err := endpoint(ctx, payload)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonHandlerError)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
 			return
 		}
 		if err := encodeResponse(ctx, w, res); err != nil {
+			obs.Fail(loomtransport.ReasonResponseWriteFailed)
 			if errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -156,8 +162,11 @@ func NewDeleteHandler(
 		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, loom.MethodKey, "delete")
 		ctx = context.WithValue(ctx, loom.ServiceKey, "tabular_chat")
+		obs, w := loomtransport.BeginHTTPRequest(ctx, w, "tabular_chat", "delete", r)
+		defer obs.End()
 		payload, err := decodeRequest(r)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonRequestDecodeFailed)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -165,12 +174,14 @@ func NewDeleteHandler(
 		}
 		res, err := endpoint(ctx, payload)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonHandlerError)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
 			return
 		}
 		if err := encodeResponse(ctx, w, res); err != nil {
+			obs.Fail(loomtransport.ReasonResponseWriteFailed)
 			if errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -207,8 +218,11 @@ func NewMessagesHandler(
 		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, loom.MethodKey, "messages")
 		ctx = context.WithValue(ctx, loom.ServiceKey, "tabular_chat")
+		obs, w := loomtransport.BeginHTTPRequest(ctx, w, "tabular_chat", "messages", r)
+		defer obs.End()
 		payload, err := decodeRequest(r)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonRequestDecodeFailed)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -216,12 +230,14 @@ func NewMessagesHandler(
 		}
 		res, err := endpoint(ctx, payload)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonHandlerError)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
 			return
 		}
 		if err := encodeResponse(ctx, w, res); err != nil {
+			obs.Fail(loomtransport.ReasonResponseWriteFailed)
 			if errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -257,8 +273,11 @@ func NewStreamHandler(
 		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, loom.MethodKey, "stream")
 		ctx = context.WithValue(ctx, loom.ServiceKey, "tabular_chat")
+		obs, w := loomtransport.BeginHTTPRequest(ctx, w, "tabular_chat", "stream", r)
+		defer obs.End()
 		payload, err := decodeRequest(r)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonRequestDecodeFailed)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -274,6 +293,7 @@ func NewStreamHandler(
 		}
 		_, err = endpoint(ctx, v)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonHandlerError)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}

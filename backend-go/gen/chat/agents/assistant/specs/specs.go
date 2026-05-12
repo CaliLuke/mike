@@ -16,20 +16,30 @@ import (
 var (
 	// Specs is the static list of tool specs exported by this agent.
 
-	Specs = []tools.ToolSpec{career_context.SpecCreateApplication, career_context.SpecCreateCompany, career_context.SpecEditDocument, career_context.SpecFetchDocuments, career_context.SpecFetchWebPage, career_context.SpecFindInDocument, career_context.SpecGenerateDocx, career_context.SpecListDocuments, career_context.SpecListWorkflows, career_context.SpecReadDocument, career_context.SpecReadTableCells, career_context.SpecReadWorkflow, career_context.SpecReplicateDocument, career_context.SpecSetApplicationCompany}
+	Specs = []tools.ToolSpec{career_context.SpecAttachDocumentToApplication, career_context.SpecCreateApplication, career_context.SpecCreateCompany, career_context.SpecDeleteDocument, career_context.SpecEditDocument, career_context.SpecFetchDocuments, career_context.SpecFetchWebPage, career_context.SpecFindInDocument, career_context.SpecGenerateDocx, career_context.SpecListDocuments, career_context.SpecListWorkflows, career_context.SpecReadDocument, career_context.SpecReadTableCells, career_context.SpecReadWorkflow, career_context.SpecReplicateDocument, career_context.SpecSaveDocument, career_context.SpecSearchCompanies, career_context.SpecSearchDocuments, career_context.SpecSetApplicationCompany}
 
 	// metadata is the static list of policy metadata exported by this agent.
 
 	metadata = []policy.ToolMetadata{{
-		Description: "Create a tracked job application attached to a company",
+		Description: "Link an existing library document into an application so it shows up in the application's file list. Idempotent.",
+		ID:          tools.Ident("career_context.attach_document_to_application"),
+		Tags:        []string{},
+		Title:       "Attach Document To Application",
+	}, {
+		Description: "Create a tracked job application attached to a company. Do NOT call this when the chat is already scoped to an existing application — operate on that application instead (use save_document for job descriptions, etc.).",
 		ID:          tools.Ident("career_context.create_application"),
 		Tags:        []string{},
 		Title:       "Create Application",
 	}, {
-		Description: "Create a company for attaching applications",
+		Description: "Create a company for attaching applications. Always call search_companies first; only invoke this when no acceptable existing company was found.",
 		ID:          tools.Ident("career_context.create_company"),
 		Tags:        []string{},
 		Title:       "Create Company",
+	}, {
+		Description: "Delete a document and its versions. Irreversible — only call when the user has explicitly asked to remove it.",
+		ID:          tools.Ident("career_context.delete_document"),
+		Tags:        []string{},
+		Title:       "Delete Document",
 	}, {
 		Description: "Apply text replacements to an editable DOCX document as a new version",
 		ID:          tools.Ident("career_context.edit_document"),
@@ -51,7 +61,7 @@ var (
 		Tags:        []string{},
 		Title:       "Find In Document",
 	}, {
-		Description: "Generate a new editable DOCX document and store it locally",
+		Description: "Generate a new editable DOCX document and store it locally. Use only when the user explicitly wants an editable Word document — for plain text/markdown saves (e.g. job descriptions, notes) prefer save_document.",
 		ID:          tools.Ident("career_context.generate_docx"),
 		Tags:        []string{},
 		Title:       "Generate Docx",
@@ -86,6 +96,21 @@ var (
 		Tags:        []string{},
 		Title:       "Replicate Document",
 	}, {
+		Description: "Persist arbitrary text content (e.g. a fetched job description, notes) as a new document, optionally attached to an application. Prefer this over create_application when only saving a file is requested.",
+		ID:          tools.Ident("career_context.save_document"),
+		Tags:        []string{},
+		Title:       "Save Document",
+	}, {
+		Description: "Search the user's local companies by partial name. Always call this BEFORE create_company so existing matches can be reused; only fall through to create_company when no match is appropriate.",
+		ID:          tools.Ident("career_context.search_companies"),
+		Tags:        []string{},
+		Title:       "Search Companies",
+	}, {
+		Description: "Search local documents by filename, application scope, or kind. Use when the user references a document or a file the agent hasn't already seen in the active application's listing.",
+		ID:          tools.Ident("career_context.search_documents"),
+		Tags:        []string{},
+		Title:       "Search Documents",
+	}, {
 		Description: "Move an existing application onto a different (usually newly identified) company. Use after reading the job description to swap the application off the Unknown placeholder.",
 		ID:          tools.Ident("career_context.set_application_company"),
 		Tags:        []string{},
@@ -94,7 +119,7 @@ var (
 
 	// names is the static list of exported tool identifiers.
 
-	names = []tools.Ident{career_context.CreateApplication, career_context.CreateCompany, career_context.EditDocument, career_context.FetchDocuments, career_context.FetchWebPage, career_context.FindInDocument, career_context.GenerateDocx, career_context.ListDocuments, career_context.ListWorkflows, career_context.ReadDocument, career_context.ReadTableCells, career_context.ReadWorkflow, career_context.ReplicateDocument, career_context.SetApplicationCompany}
+	names = []tools.Ident{career_context.AttachDocumentToApplication, career_context.CreateApplication, career_context.CreateCompany, career_context.DeleteDocument, career_context.EditDocument, career_context.FetchDocuments, career_context.FetchWebPage, career_context.FindInDocument, career_context.GenerateDocx, career_context.ListDocuments, career_context.ListWorkflows, career_context.ReadDocument, career_context.ReadTableCells, career_context.ReadWorkflow, career_context.ReplicateDocument, career_context.SaveDocument, career_context.SearchCompanies, career_context.SearchDocuments, career_context.SetApplicationCompany}
 )
 
 // Names returns the tool identifiers exported by this agent.
@@ -105,10 +130,14 @@ func Names() []tools.Ident {
 // Spec returns the specification for the named tool if present.
 func Spec(name tools.Ident) (*tools.ToolSpec, bool) {
 	switch name {
+	case tools.Ident("career_context.attach_document_to_application"):
+		return &career_context.SpecAttachDocumentToApplication, true
 	case tools.Ident("career_context.create_application"):
 		return &career_context.SpecCreateApplication, true
 	case tools.Ident("career_context.create_company"):
 		return &career_context.SpecCreateCompany, true
+	case tools.Ident("career_context.delete_document"):
+		return &career_context.SpecDeleteDocument, true
 	case tools.Ident("career_context.edit_document"):
 		return &career_context.SpecEditDocument, true
 	case tools.Ident("career_context.fetch_documents"):
@@ -131,6 +160,12 @@ func Spec(name tools.Ident) (*tools.ToolSpec, bool) {
 		return &career_context.SpecReadWorkflow, true
 	case tools.Ident("career_context.replicate_document"):
 		return &career_context.SpecReplicateDocument, true
+	case tools.Ident("career_context.save_document"):
+		return &career_context.SpecSaveDocument, true
+	case tools.Ident("career_context.search_companies"):
+		return &career_context.SpecSearchCompanies, true
+	case tools.Ident("career_context.search_documents"):
+		return &career_context.SpecSearchDocuments, true
 	case tools.Ident("career_context.set_application_company"):
 		return &career_context.SpecSetApplicationCompany, true
 	default:

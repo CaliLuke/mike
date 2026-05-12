@@ -8,6 +8,24 @@
 package career_context
 
 type (
+	// AttachDocumentToApplicationPayload defines the JSON payload for the career_context.attach_document_to_application tool.
+	AttachDocumentToApplicationPayload = struct {
+		// Existing document to link
+		DocumentID string `json:"document_id"`
+		// Application that should reference the document
+		ApplicationID string `json:"application_id"`
+	}
+
+	// AttachDocumentToApplicationResult defines the JSON result for the career_context.attach_document_to_application tool.
+	AttachDocumentToApplicationResult = struct {
+		// Whether the link was created (or already existed)
+		OK *bool `json:"ok,omitempty"`
+		// Identifier of the link row
+		LinkID *string `json:"link_id,omitempty"`
+		// Error message when linking failed
+		Error *string `json:"error,omitempty"`
+	}
+
 	// CreateApplicationPayload defines the JSON payload for the career_context.create_application tool.
 	CreateApplicationPayload = struct {
 		// Application name, usually the role title from the job ad
@@ -69,6 +87,20 @@ type (
 		// Similarity score for the nearest existing company, from 0 to 1
 		Similarity *float64 `json:"similarity,omitempty"`
 		// Error message when creation failed
+		Error *string `json:"error,omitempty"`
+	}
+
+	// DeleteDocumentPayload defines the JSON payload for the career_context.delete_document tool.
+	DeleteDocumentPayload = struct {
+		// Document to remove
+		DocumentID string `json:"document_id"`
+	}
+
+	// DeleteDocumentResult defines the JSON result for the career_context.delete_document tool.
+	DeleteDocumentResult = struct {
+		// Whether the document was deleted
+		OK *bool `json:"ok,omitempty"`
+		// Error message when deletion failed
 		Error *string `json:"error,omitempty"`
 	}
 
@@ -286,6 +318,85 @@ type (
 		Error *string `json:"error,omitempty"`
 	}
 
+	// SaveDocumentPayload defines the JSON payload for the career_context.save_document tool.
+	SaveDocumentPayload = struct {
+		// Optional application to attach the new document to. Omit for a library
+		// (no-application) document.
+		ApplicationID *string `json:"application_id,omitempty"`
+		// Filename including extension, e.g. "Job description.md"
+		Filename string `json:"filename"`
+		// Document kind. Use "job_description" when saving a fetched job posting,
+		// "resume" for resumes, otherwise a descriptive kind or omit to leave
+		// unclassified.
+		Kind *string `json:"kind,omitempty"`
+		// Document body. Markdown is preferred for kind=job_description. Plain text
+		// accepted otherwise.
+		Body string `json:"body"`
+		// Storage format suffix used to render the body downstream: "md" (default) for
+		// markdown/text, "txt" for plain text.
+		Format *string `json:"format,omitempty"`
+	}
+
+	// SaveDocumentResult defines the JSON result for the career_context.save_document tool.
+	SaveDocumentResult = struct {
+		// Whether the document was created
+		OK *bool `json:"ok,omitempty"`
+		// Local document identifier of the new document
+		DocumentID *string `json:"document_id,omitempty"`
+		// Filename of the saved document
+		Filename *string `json:"filename,omitempty"`
+		// Application the document was attached to, when applicable
+		ApplicationID *string `json:"application_id,omitempty"`
+		// Relative URL to download the saved document
+		DownloadURL *string `json:"download_url,omitempty"`
+		// Error message when saving failed
+		Error *string `json:"error,omitempty"`
+	}
+
+	// SearchCompaniesPayload defines the JSON payload for the career_context.search_companies tool.
+	SearchCompaniesPayload = struct {
+		// Optional partial name to match against existing companies. Omit or empty for
+		// the most recent companies.
+		Query *string `json:"query,omitempty"`
+		// Maximum number of matches to return. Defaults to 8 when omitted.
+		Limit *int `json:"limit,omitempty"`
+	}
+
+	// SearchCompaniesResult defines the JSON result for the career_context.search_companies tool.
+	SearchCompaniesResult = struct {
+		// Whether the search ran
+		OK *bool `json:"ok,omitempty"`
+		// Matching companies, ordered by relevance (or by recency when query is empty)
+		Companies []*AssistantCompanyRef `json:"companies,omitempty"`
+		// Error message when search failed
+		Error *string `json:"error,omitempty"`
+	}
+
+	// SearchDocumentsPayload defines the JSON payload for the career_context.search_documents tool.
+	SearchDocumentsPayload = struct {
+		// Optional substring to match against filenames (case-insensitive). Omit for
+		// no filename filter.
+		Query *string `json:"query,omitempty"`
+		// Optional application scope: only return documents attached to this
+		// application.
+		ApplicationID *string `json:"application_id,omitempty"`
+		// Optional document kind filter (e.g. resume, job_description,
+		// interview_transcript).
+		Kind *string `json:"kind,omitempty"`
+		// Maximum number of matches to return. Defaults to 20 when omitted.
+		Limit *int `json:"limit,omitempty"`
+	}
+
+	// SearchDocumentsResult defines the JSON result for the career_context.search_documents tool.
+	SearchDocumentsResult = struct {
+		// Whether the search ran
+		OK *bool `json:"ok,omitempty"`
+		// Matching documents, ordered by recency
+		Documents []*AssistantDocumentSummary `json:"documents,omitempty"`
+		// Error message when search failed
+		Error *string `json:"error,omitempty"`
+	}
+
 	// SetApplicationCompanyPayload defines the JSON payload for the career_context.set_application_company tool.
 	SetApplicationCompanyPayload = struct {
 		// Local application identifier to move
@@ -326,6 +437,20 @@ type (
 		Similarity *float64 `json:"similarity,omitempty"`
 		// Error message when the update failed
 		Error *string `json:"error,omitempty"`
+	}
+
+	// AssistantCompanyRef is a helper type materialized for nested references.
+	AssistantCompanyRef = struct {
+		// Local company identifier
+		CompanyID *string `json:"company_id,omitempty"`
+		// Company name
+		Name *string `json:"name,omitempty"`
+		// Company website, when set
+		Website *string `json:"website,omitempty"`
+		// Fuzzy-match score from 0 to 1 against the query, when one was provided
+		Similarity *float64 `json:"similarity,omitempty"`
+		// True when the normalised company name exactly matches the query
+		ExactKey *bool `json:"exact_key,omitempty"`
 	}
 
 	// AssistantDocumentCopy is a helper type materialized for nested references.
@@ -380,6 +505,22 @@ type (
 		FileType *string `json:"file_type,omitempty"`
 		// Processing status
 		Status *string `json:"status,omitempty"`
+	}
+
+	// AssistantDocumentSummary is a helper type materialized for nested references.
+	AssistantDocumentSummary = struct {
+		// Local document identifier
+		DocumentID *string `json:"document_id,omitempty"`
+		// Document filename
+		Filename *string `json:"filename,omitempty"`
+		// Document kind (resume, job_description, etc.) when classified
+		Kind *string `json:"kind,omitempty"`
+		// Owning application identifier, when scoped to one
+		ApplicationID *string `json:"application_id,omitempty"`
+		// Storage format (docx, md, pdf, …)
+		FileType *string `json:"file_type,omitempty"`
+		// Short summary from metadata extraction, when available
+		Summary *string `json:"summary,omitempty"`
 	}
 
 	// AssistantDocumentText is a helper type materialized for nested references.

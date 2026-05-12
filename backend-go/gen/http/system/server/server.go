@@ -12,6 +12,7 @@ import (
 	"net/http"
 
 	loomhttp "github.com/CaliLuke/loom/http"
+	loomtransport "github.com/CaliLuke/loom/observability/transport"
 	loom "github.com/CaliLuke/loom/pkg"
 	system "github.com/CaliLuke/luke/backend-go/gen/system"
 )
@@ -89,15 +90,19 @@ func NewHealthHandler(
 		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, loom.MethodKey, "health")
 		ctx = context.WithValue(ctx, loom.ServiceKey, "system")
+		obs, w := loomtransport.BeginHTTPRequest(ctx, w, "system", "health", r)
+		defer obs.End()
 		var err error
 		res, err := endpoint(ctx, nil)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonHandlerError)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
 			return
 		}
 		if err := encodeResponse(ctx, w, res); err != nil {
+			obs.Fail(loomtransport.ReasonResponseWriteFailed)
 			if errhandler != nil {
 				errhandler(ctx, w, err)
 			}

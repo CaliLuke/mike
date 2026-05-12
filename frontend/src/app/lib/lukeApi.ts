@@ -364,12 +364,24 @@ export async function createChat(payload?: {
   });
 }
 
-export async function listChats(): Promise<LukeChat[]> {
-  return apiRequest<LukeChat[]>("/chat");
+/**
+ * List chats. Scope is expressed as a query attribute:
+ * - no filter            → every chat the user can see (default)
+ * - applicationId set    → chats scoped to that application
+ * - applicationId="none" → standalone chats only (no application)
+ *
+ * `listApplicationChats` is kept as a thin alias for callers that already
+ * read like `listApplicationChats(id)`.
+ */
+export async function listChats(filter?: { applicationId?: string }): Promise<LukeChat[]> {
+  const params = new URLSearchParams();
+  if (filter?.applicationId) params.set("application_id", filter.applicationId);
+  const query = params.toString();
+  return apiRequest<LukeChat[]>(`/chats${query ? `?${query}` : ""}`);
 }
 
 export async function listApplicationChats(applicationId: string): Promise<LukeChat[]> {
-  return apiRequest<LukeChat[]>(`/applications/${applicationId}/chats`);
+  return listChats({ applicationId });
 }
 
 export async function getChat(chatId: string): Promise<LukeChatDetailOut> {

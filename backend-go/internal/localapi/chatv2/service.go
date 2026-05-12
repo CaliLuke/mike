@@ -86,6 +86,12 @@ type LLMTurnInput struct {
 	AssistantMessageID string `json:"assistant_message_id"`
 	Turn               int    `json:"turn"`
 	Model              string `json:"model"`
+	// ApplicationID, when non-nil, tells LLMCompletion this chat lives
+	// inside an application context — the wire layer injects an
+	// application-context system message (current application id + the
+	// list of its documents) so the agent doesn't have to ask the user
+	// "which job" or "which document".
+	ApplicationID *string `json:"application_id,omitempty"`
 	// Messages is the conversation context for this turn in Ollama-message
 	// shape. Kept opaque ([]map[string]any) so chatv2 doesn't depend on the
 	// concrete llm.go types.
@@ -341,6 +347,7 @@ func (s *Service) RegisterRomancy(app *romancy.App) {
 					AssistantMessageID: in.AssistantMessageID,
 					Turn:               turn,
 					Model:              in.Model,
+					ApplicationID:      in.ApplicationID,
 					Messages:           messages,
 					Tools:              s.Deps.OllamaToolSchemas,
 				}

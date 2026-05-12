@@ -25,6 +25,8 @@
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {
+    "@assistant-ui/react": "^0.14.0",
+    "@assistant-ui/react-markdown": "^0.14.0",
     "@opennextjs/cloudflare": "^1.19.8",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/context-zone": "^2.7.1",
@@ -55,6 +57,7 @@
     "next": "16.2.6",
     "nextjs-toploader": "^3.9.17",
     "pdfjs-dist": "5.7.284",
+    "radix-ui": "^1.4.3",
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "react-markdown": "^10.1.0",
@@ -65,7 +68,9 @@
     "remark-gfm-configurable": "^1.0.0",
     "remark-math": "^6.0.0",
     "tailwind-merge": "^3.5.0",
-    "tiptap-markdown": "^0.9.0"
+    "tiptap-markdown": "^0.9.0",
+    "tw-shimmer": "^0.4.11",
+    "zustand": "^5.0.13"
   },
   "devDependencies": {
     "@eslint/compat": "^2.1.0",

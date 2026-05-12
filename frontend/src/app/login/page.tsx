@@ -10,7 +10,7 @@ export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/assistant");
+    router.replace("/assistant-next");
   }, [router]);
 
   return (
@@ -24,7 +24,7 @@ export default function LoginPage() {
           Luke now uses the local backend user automatically.
         </p>
         <Button
-          onClick={() => router.push("/assistant")}
+          onClick={() => router.push("/assistant-next")}
           className="w-full bg-black text-white hover:bg-gray-900"
         >
           Continue

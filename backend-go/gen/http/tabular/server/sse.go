@@ -15,6 +15,7 @@ import (
 	"sync"
 
 	loomhttp "github.com/CaliLuke/loom/http"
+	loomtransport "github.com/CaliLuke/loom/observability/transport"
 	tabular "github.com/CaliLuke/luke/backend-go/gen/tabular"
 )
 
@@ -109,10 +110,15 @@ func (s *GenerateServerStream) SendWithContext(ctx context.Context, v *tabular.S
 	msg := loomhttp.SSEMessage{Data: data}
 
 	if err := loomhttp.WriteSSEEvent(s.w, msg); err != nil {
+		loomtransport.Observe(ctx, loomtransport.Event{Kind: loomtransport.EventKindStreamFailure, Reason: loomtransport.ReasonStreamWriteFailed, Transport: loomtransport.TransportHTTP})
 		return err
 	}
 
-	return http.NewResponseController(s.w).Flush()
+	if err := http.NewResponseController(s.w).Flush(); err != nil {
+		loomtransport.Observe(ctx, loomtransport.Event{Kind: loomtransport.EventKindStreamFailure, Reason: loomtransport.ReasonStreamFlushFailed, Transport: loomtransport.TransportHTTP})
+		return err
+	}
+	return nil
 }
 
 // Close is a no-op for SSE. We keep the method for compatibility with other

@@ -8,6 +8,30 @@
 package http
 
 type (
+	// AttachDocumentToApplicationPayloadTransport is the internal JSON transport type for AttachDocumentToApplicationPayload.
+	// It lives in the toolset-local http package and is used only for JSON
+	// decode + validation (missing-field detection) before transforming into
+	// the public tool type.
+	AttachDocumentToApplicationPayloadTransport struct {
+		// Existing document to link
+		DocumentID *string `json:"document_id"`
+		// Application that should reference the document
+		ApplicationID *string `json:"application_id"`
+	}
+
+	// AttachDocumentToApplicationResultTransport is the internal JSON transport type for AttachDocumentToApplicationResult.
+	// It lives in the toolset-local http package and is used only for JSON
+	// decode + validation (missing-field detection) before transforming into
+	// the public tool type.
+	AttachDocumentToApplicationResultTransport struct {
+		// Whether the link was created (or already existed)
+		OK *bool `json:"ok,omitempty"`
+		// Identifier of the link row
+		LinkID *string `json:"link_id,omitempty"`
+		// Error message when linking failed
+		Error *string `json:"error,omitempty"`
+	}
+
 	// CreateApplicationPayloadTransport is the internal JSON transport type for CreateApplicationPayload.
 	// It lives in the toolset-local http package and is used only for JSON
 	// decode + validation (missing-field detection) before transforming into
@@ -81,6 +105,26 @@ type (
 		// Similarity score for the nearest existing company, from 0 to 1
 		Similarity *float64 `json:"similarity,omitempty"`
 		// Error message when creation failed
+		Error *string `json:"error,omitempty"`
+	}
+
+	// DeleteDocumentPayloadTransport is the internal JSON transport type for DeleteDocumentPayload.
+	// It lives in the toolset-local http package and is used only for JSON
+	// decode + validation (missing-field detection) before transforming into
+	// the public tool type.
+	DeleteDocumentPayloadTransport struct {
+		// Document to remove
+		DocumentID *string `json:"document_id"`
+	}
+
+	// DeleteDocumentResultTransport is the internal JSON transport type for DeleteDocumentResult.
+	// It lives in the toolset-local http package and is used only for JSON
+	// decode + validation (missing-field detection) before transforming into
+	// the public tool type.
+	DeleteDocumentResultTransport struct {
+		// Whether the document was deleted
+		OK *bool `json:"ok,omitempty"`
+		// Error message when deletion failed
 		Error *string `json:"error,omitempty"`
 	}
 
@@ -364,6 +408,103 @@ type (
 		Error *string `json:"error,omitempty"`
 	}
 
+	// SaveDocumentPayloadTransport is the internal JSON transport type for SaveDocumentPayload.
+	// It lives in the toolset-local http package and is used only for JSON
+	// decode + validation (missing-field detection) before transforming into
+	// the public tool type.
+	SaveDocumentPayloadTransport struct {
+		// Optional application to attach the new document to. Omit for a library
+		// (no-application) document.
+		ApplicationID *string `json:"application_id,omitempty"`
+		// Filename including extension, e.g. "Job description.md"
+		Filename *string `json:"filename"`
+		// Document kind. Use "job_description" when saving a fetched job posting,
+		// "resume" for resumes, otherwise a descriptive kind or omit to leave
+		// unclassified.
+		Kind *string `json:"kind,omitempty"`
+		// Document body. Markdown is preferred for kind=job_description. Plain text
+		// accepted otherwise.
+		Body *string `json:"body"`
+		// Storage format suffix used to render the body downstream: "md" (default) for
+		// markdown/text, "txt" for plain text.
+		Format *string `json:"format,omitempty"`
+	}
+
+	// SaveDocumentResultTransport is the internal JSON transport type for SaveDocumentResult.
+	// It lives in the toolset-local http package and is used only for JSON
+	// decode + validation (missing-field detection) before transforming into
+	// the public tool type.
+	SaveDocumentResultTransport struct {
+		// Whether the document was created
+		OK *bool `json:"ok,omitempty"`
+		// Local document identifier of the new document
+		DocumentID *string `json:"document_id,omitempty"`
+		// Filename of the saved document
+		Filename *string `json:"filename,omitempty"`
+		// Application the document was attached to, when applicable
+		ApplicationID *string `json:"application_id,omitempty"`
+		// Relative URL to download the saved document
+		DownloadURL *string `json:"download_url,omitempty"`
+		// Error message when saving failed
+		Error *string `json:"error,omitempty"`
+	}
+
+	// SearchCompaniesPayloadTransport is the internal JSON transport type for SearchCompaniesPayload.
+	// It lives in the toolset-local http package and is used only for JSON
+	// decode + validation (missing-field detection) before transforming into
+	// the public tool type.
+	SearchCompaniesPayloadTransport struct {
+		// Optional partial name to match against existing companies. Omit or empty for
+		// the most recent companies.
+		Query *string `json:"query,omitempty"`
+		// Maximum number of matches to return. Defaults to 8 when omitted.
+		Limit *int `json:"limit,omitempty"`
+	}
+
+	// SearchCompaniesResultTransport is the internal JSON transport type for SearchCompaniesResult.
+	// It lives in the toolset-local http package and is used only for JSON
+	// decode + validation (missing-field detection) before transforming into
+	// the public tool type.
+	SearchCompaniesResultTransport struct {
+		// Whether the search ran
+		OK *bool `json:"ok,omitempty"`
+		// Matching companies, ordered by relevance (or by recency when query is empty)
+		Companies []*AssistantCompanyRefTransport `json:"companies,omitempty"`
+		// Error message when search failed
+		Error *string `json:"error,omitempty"`
+	}
+
+	// SearchDocumentsPayloadTransport is the internal JSON transport type for SearchDocumentsPayload.
+	// It lives in the toolset-local http package and is used only for JSON
+	// decode + validation (missing-field detection) before transforming into
+	// the public tool type.
+	SearchDocumentsPayloadTransport struct {
+		// Optional substring to match against filenames (case-insensitive). Omit for
+		// no filename filter.
+		Query *string `json:"query,omitempty"`
+		// Optional application scope: only return documents attached to this
+		// application.
+		ApplicationID *string `json:"application_id,omitempty"`
+		// Optional document kind filter (e.g. resume, job_description,
+		// interview_transcript).
+		Kind *string `json:"kind,omitempty"`
+		// Maximum number of matches to return. Defaults to 20 when omitted.
+		Limit *int `json:"limit,omitempty"`
+	}
+
+	// SearchDocumentsResultTransport is the internal JSON transport type for SearchDocumentsResult.
+	// It lives in the toolset-local http package and is used only for JSON
+	// decode + validation (missing-field detection) before transforming into
+	// the public tool type.
+	SearchDocumentsResultTransport struct {
+		// Whether the search ran
+		OK *bool `json:"ok,omitempty"`
+		// Matching documents, ordered by recency
+		Documents []*AssistantDocumentSummaryTransport `json:"documents,omitempty"`
+		// Error message when search failed
+		Error *string `json:"error,omitempty"`
+	}
+
 	// SetApplicationCompanyPayloadTransport is the internal JSON transport type for SetApplicationCompanyPayload.
 	// It lives in the toolset-local http package and is used only for JSON
 	// decode + validation (missing-field detection) before transforming into
@@ -410,6 +551,23 @@ type (
 		Similarity *float64 `json:"similarity,omitempty"`
 		// Error message when the update failed
 		Error *string `json:"error,omitempty"`
+	}
+
+	// AssistantCompanyRefTransport is the internal JSON transport type for AssistantCompanyRefTransport.
+	// It lives in the toolset-local http package and is used only for JSON
+	// decode + validation (missing-field detection) before transforming into
+	// the public tool type.
+	AssistantCompanyRefTransport struct {
+		// Local company identifier
+		CompanyID *string `json:"company_id,omitempty"`
+		// Company name
+		Name *string `json:"name,omitempty"`
+		// Company website, when set
+		Website *string `json:"website,omitempty"`
+		// Fuzzy-match score from 0 to 1 against the query, when one was provided
+		Similarity *float64 `json:"similarity,omitempty"`
+		// True when the normalised company name exactly matches the query
+		ExactKey *bool `json:"exact_key,omitempty"`
 	}
 
 	// AssistantDocumentCopyTransport is the internal JSON transport type for AssistantDocumentCopyTransport.
@@ -476,6 +634,25 @@ type (
 		FileType *string `json:"file_type,omitempty"`
 		// Processing status
 		Status *string `json:"status,omitempty"`
+	}
+
+	// AssistantDocumentSummaryTransport is the internal JSON transport type for AssistantDocumentSummaryTransport.
+	// It lives in the toolset-local http package and is used only for JSON
+	// decode + validation (missing-field detection) before transforming into
+	// the public tool type.
+	AssistantDocumentSummaryTransport struct {
+		// Local document identifier
+		DocumentID *string `json:"document_id,omitempty"`
+		// Document filename
+		Filename *string `json:"filename,omitempty"`
+		// Document kind (resume, job_description, etc.) when classified
+		Kind *string `json:"kind,omitempty"`
+		// Owning application identifier, when scoped to one
+		ApplicationID *string `json:"application_id,omitempty"`
+		// Storage format (docx, md, pdf, …)
+		FileType *string `json:"file_type,omitempty"`
+		// Short summary from metadata extraction, when available
+		Summary *string `json:"summary,omitempty"`
 	}
 
 	// AssistantDocumentTextTransport is the internal JSON transport type for AssistantDocumentTextTransport.

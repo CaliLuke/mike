@@ -12,6 +12,7 @@ import (
 	"net/http"
 
 	loomhttp "github.com/CaliLuke/loom/http"
+	loomtransport "github.com/CaliLuke/loom/observability/transport"
 	loom "github.com/CaliLuke/loom/pkg"
 	documentversions "github.com/CaliLuke/luke/backend-go/gen/document_versions"
 )
@@ -115,8 +116,11 @@ func NewListHandler(
 		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, loom.MethodKey, "list")
 		ctx = context.WithValue(ctx, loom.ServiceKey, "document_versions")
+		obs, w := loomtransport.BeginHTTPRequest(ctx, w, "document_versions", "list", r)
+		defer obs.End()
 		payload, err := decodeRequest(r)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonRequestDecodeFailed)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -124,12 +128,14 @@ func NewListHandler(
 		}
 		res, err := endpoint(ctx, payload)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonHandlerError)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
 			return
 		}
 		if err := encodeResponse(ctx, w, res); err != nil {
+			obs.Fail(loomtransport.ReasonResponseWriteFailed)
 			if errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -166,8 +172,11 @@ func NewUploadHandler(
 		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, loom.MethodKey, "upload")
 		ctx = context.WithValue(ctx, loom.ServiceKey, "document_versions")
+		obs, w := loomtransport.BeginHTTPRequest(ctx, w, "document_versions", "upload", r)
+		defer obs.End()
 		payload, err := decodeRequest(r)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonRequestDecodeFailed)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -175,12 +184,14 @@ func NewUploadHandler(
 		}
 		res, err := endpoint(ctx, payload)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonHandlerError)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
 			return
 		}
 		if err := encodeResponse(ctx, w, res); err != nil {
+			obs.Fail(loomtransport.ReasonResponseWriteFailed)
 			if errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -217,8 +228,11 @@ func NewRenameHandler(
 		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, loom.MethodKey, "rename")
 		ctx = context.WithValue(ctx, loom.ServiceKey, "document_versions")
+		obs, w := loomtransport.BeginHTTPRequest(ctx, w, "document_versions", "rename", r)
+		defer obs.End()
 		payload, err := decodeRequest(r)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonRequestDecodeFailed)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -226,12 +240,14 @@ func NewRenameHandler(
 		}
 		res, err := endpoint(ctx, payload)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonHandlerError)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
 			return
 		}
 		if err := encodeResponse(ctx, w, res); err != nil {
+			obs.Fail(loomtransport.ReasonResponseWriteFailed)
 			if errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -269,8 +285,11 @@ func NewTrackedChangeIdsHandler(
 		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, loom.MethodKey, "tracked_change_ids")
 		ctx = context.WithValue(ctx, loom.ServiceKey, "document_versions")
+		obs, w := loomtransport.BeginHTTPRequest(ctx, w, "document_versions", "tracked_change_ids", r)
+		defer obs.End()
 		payload, err := decodeRequest(r)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonRequestDecodeFailed)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -278,12 +297,14 @@ func NewTrackedChangeIdsHandler(
 		}
 		res, err := endpoint(ctx, payload)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonHandlerError)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
 			return
 		}
 		if err := encodeResponse(ctx, w, res); err != nil {
+			obs.Fail(loomtransport.ReasonResponseWriteFailed)
 			if errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -320,8 +341,11 @@ func NewAcceptEditHandler(
 		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, loom.MethodKey, "accept_edit")
 		ctx = context.WithValue(ctx, loom.ServiceKey, "document_versions")
+		obs, w := loomtransport.BeginHTTPRequest(ctx, w, "document_versions", "accept_edit", r)
+		defer obs.End()
 		payload, err := decodeRequest(r)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonRequestDecodeFailed)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -329,12 +353,14 @@ func NewAcceptEditHandler(
 		}
 		res, err := endpoint(ctx, payload)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonHandlerError)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
 			return
 		}
 		if err := encodeResponse(ctx, w, res); err != nil {
+			obs.Fail(loomtransport.ReasonResponseWriteFailed)
 			if errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -371,8 +397,11 @@ func NewRejectEditHandler(
 		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, loom.MethodKey, "reject_edit")
 		ctx = context.WithValue(ctx, loom.ServiceKey, "document_versions")
+		obs, w := loomtransport.BeginHTTPRequest(ctx, w, "document_versions", "reject_edit", r)
+		defer obs.End()
 		payload, err := decodeRequest(r)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonRequestDecodeFailed)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -380,12 +409,14 @@ func NewRejectEditHandler(
 		}
 		res, err := endpoint(ctx, payload)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonHandlerError)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
 			return
 		}
 		if err := encodeResponse(ctx, w, res); err != nil {
+			obs.Fail(loomtransport.ReasonResponseWriteFailed)
 			if errhandler != nil {
 				errhandler(ctx, w, err)
 			}

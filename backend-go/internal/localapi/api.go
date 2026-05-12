@@ -653,7 +653,24 @@ func (s *Server) rejectEdit(w http.ResponseWriter, r *http.Request) {
 func (s *Server) chats(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		rows, err := queryRows(r.Context(), s.app.DB, chatListQuery("application_id = NONE"))
+		// Single chat-collection endpoint with the scope expressed as a
+		// query attribute:
+		//   no param           → every chat the user can see
+		//   application_id=ID  → chats scoped to that application
+		//   application_id=none (or empty)
+		//                      → standalone chats only (no application)
+		// `/applications/{id}/chats` is a back-compat alias that ends
+		// up running the same filter against the same handler.
+		where := "true"
+		switch raw := strings.TrimSpace(r.URL.Query().Get("application_id")); raw {
+		case "":
+			// no filter
+		case "none":
+			where = "application_id = NONE"
+		default:
+			where = "application_id = " + recordID("applications", raw)
+		}
+		rows, err := queryRows(r.Context(), s.app.DB, chatListQuery(where))
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return

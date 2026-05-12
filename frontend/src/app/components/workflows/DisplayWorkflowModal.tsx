@@ -304,8 +304,8 @@ export function DisplayWorkflowModal({ workflows, workflow, onClose }: Props) {
       handleClose();
       router.push(
         applicationId
-          ? `/applications/${applicationId}/assistant/chat/${chatId}`
-          : `/assistant/chat/${chatId}`,
+          ? `/applications/${applicationId}/assistant-next/chat/${chatId}`
+          : `/assistant-next/chat/${chatId}`,
       );
     } finally {
       setSaving(false);

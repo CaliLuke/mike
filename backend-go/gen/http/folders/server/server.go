@@ -12,6 +12,7 @@ import (
 	"net/http"
 
 	loomhttp "github.com/CaliLuke/loom/http"
+	loomtransport "github.com/CaliLuke/loom/observability/transport"
 	loom "github.com/CaliLuke/loom/pkg"
 	folders "github.com/CaliLuke/luke/backend-go/gen/folders"
 )
@@ -105,8 +106,11 @@ func NewCreateHandler(
 		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, loom.MethodKey, "create")
 		ctx = context.WithValue(ctx, loom.ServiceKey, "folders")
+		obs, w := loomtransport.BeginHTTPRequest(ctx, w, "folders", "create", r)
+		defer obs.End()
 		payload, err := decodeRequest(r)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonRequestDecodeFailed)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -114,12 +118,14 @@ func NewCreateHandler(
 		}
 		res, err := endpoint(ctx, payload)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonHandlerError)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
 			return
 		}
 		if err := encodeResponse(ctx, w, res); err != nil {
+			obs.Fail(loomtransport.ReasonResponseWriteFailed)
 			if errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -156,8 +162,11 @@ func NewUpdateHandler(
 		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, loom.MethodKey, "update")
 		ctx = context.WithValue(ctx, loom.ServiceKey, "folders")
+		obs, w := loomtransport.BeginHTTPRequest(ctx, w, "folders", "update", r)
+		defer obs.End()
 		payload, err := decodeRequest(r)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonRequestDecodeFailed)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -165,12 +174,14 @@ func NewUpdateHandler(
 		}
 		res, err := endpoint(ctx, payload)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonHandlerError)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
 			return
 		}
 		if err := encodeResponse(ctx, w, res); err != nil {
+			obs.Fail(loomtransport.ReasonResponseWriteFailed)
 			if errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -207,8 +218,11 @@ func NewDeleteHandler(
 		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, loom.MethodKey, "delete")
 		ctx = context.WithValue(ctx, loom.ServiceKey, "folders")
+		obs, w := loomtransport.BeginHTTPRequest(ctx, w, "folders", "delete", r)
+		defer obs.End()
 		payload, err := decodeRequest(r)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonRequestDecodeFailed)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -216,12 +230,14 @@ func NewDeleteHandler(
 		}
 		res, err := endpoint(ctx, payload)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonHandlerError)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
 			return
 		}
 		if err := encodeResponse(ctx, w, res); err != nil {
+			obs.Fail(loomtransport.ReasonResponseWriteFailed)
 			if errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -258,8 +274,11 @@ func NewMoveDocumentHandler(
 		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, loom.MethodKey, "move_document")
 		ctx = context.WithValue(ctx, loom.ServiceKey, "folders")
+		obs, w := loomtransport.BeginHTTPRequest(ctx, w, "folders", "move_document", r)
+		defer obs.End()
 		payload, err := decodeRequest(r)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonRequestDecodeFailed)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -267,12 +286,14 @@ func NewMoveDocumentHandler(
 		}
 		res, err := endpoint(ctx, payload)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonHandlerError)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
 			return
 		}
 		if err := encodeResponse(ctx, w, res); err != nil {
+			obs.Fail(loomtransport.ReasonResponseWriteFailed)
 			if errhandler != nil {
 				errhandler(ctx, w, err)
 			}

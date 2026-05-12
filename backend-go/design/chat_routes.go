@@ -8,62 +8,29 @@ import (
 var _ = Service("chat", func() {
 	Agent("assistant", "Career operations assistant for resumes, job searches, and application materials", func() {
 		Use("career_context", func() {
-			Tool("list_documents", "List local documents available to the current chat", func() {
-				Args(AssistantNoArgs)
-				Return(AssistantDocumentList)
-			})
-			Tool("read_document", "Read the text content of one local document", func() {
-				Args(AssistantReadDocumentArgs)
-				Return(AssistantDocumentText)
-			})
-			Tool("find_in_document", "Find exact text matches in one local document", func() {
-				Args(AssistantFindDocumentArgs)
-				Return(AssistantDocumentMatches)
-			})
-			Tool("fetch_documents", "Fetch text from multiple local documents", func() {
-				Args(AssistantFetchDocumentsArgs)
-				Return(AssistantDocumentBundle)
-			})
-			Tool("fetch_web_page", "Download a public web page and return simplified readable text", func() {
-				Args(AssistantFetchWebPageArgs)
-				Return(AssistantWebPageText)
-			})
-			Tool("list_workflows", "List saved local workflows available to the user", func() {
-				Args(AssistantNoArgs)
-				Return(AssistantWorkflowList)
-			})
-			Tool("create_company", "Create a company for attaching applications", func() {
-				Args(AssistantCreateCompanyArgs)
-				Return(AssistantCreatedCompany)
-			})
-			Tool("create_application", "Create a tracked job application attached to a company", func() {
-				Args(AssistantCreateApplicationArgs)
-				Return(AssistantCreatedApplication)
-			})
-			Tool("set_application_company", "Move an existing application onto a different (usually newly identified) company. Use after reading the job description to swap the application off the Unknown placeholder.", func() {
-				Args(AssistantSetApplicationCompanyArgs)
-				Return(AssistantSetApplicationCompanyResult)
-			})
-			Tool("read_workflow", "Read one saved local workflow", func() {
-				Args(AssistantReadWorkflowArgs)
-				Return(AssistantWorkflowText)
-			})
-			Tool("generate_docx", "Generate a new editable DOCX document and store it locally", func() {
-				Args(AssistantGenerateDocxArgs)
-				Return(AssistantGeneratedDocument)
-			})
-			Tool("edit_document", "Apply text replacements to an editable DOCX document as a new version", func() {
-				Args(AssistantEditDocumentArgs)
-				Return(AssistantEditedDocument)
-			})
-			Tool("replicate_document", "Copy an existing document into one or more new local documents", func() {
-				Args(AssistantReplicateDocumentArgs)
-				Return(AssistantReplicatedDocuments)
-			})
-			Tool("read_table_cells", "Read generated tabular review cells by row and column", func() {
-				Args(AssistantReadTableCellsArgs)
-				Return(AssistantTableCellsText)
-			})
+			// One file per tool under design/tool_<name>.go — scan that
+			// directory for the full inventory. New tools: add a
+			// tool_<name>.go file with Args + Result types and a
+			// declareXxxTool() helper, then drop a single line below.
+			declareListDocumentsTool()
+			declareReadDocumentTool()
+			declareFindInDocumentTool()
+			declareFetchDocumentsTool()
+			declareFetchWebPageTool()
+			declareListWorkflowsTool()
+			declareReadWorkflowTool()
+			declareSearchCompaniesTool()
+			declareCreateCompanyTool()
+			declareSearchDocumentsTool()
+			declareSaveDocumentTool()
+			declareAttachDocumentTool()
+			declareDeleteDocumentTool()
+			declareCreateApplicationTool()
+			declareSetApplicationCompanyTool()
+			declareGenerateDocxTool()
+			declareEditDocumentTool()
+			declareReplicateDocumentTool()
+			declareReadTableCellsTool()
 		})
 		RunPolicy(func() {
 			DefaultCaps(MaxToolCalls(8), MaxConsecutiveFailedToolCalls(3))

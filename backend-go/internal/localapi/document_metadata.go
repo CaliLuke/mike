@@ -456,6 +456,12 @@ func (s *Server) enrichDocumentMetadata(ctx context.Context, documentID string) 
 		return err
 	}
 
+	// Best-effort: materialise rows for company names the classifier
+	// extracted. `company_refs` is a denormalised string array on the
+	// document; the companies table is the canonical store the UI lists
+	// and applications link against. Failure here does not fail the job.
+	s.ensureCompaniesFromMetadata(ctx, documentID, parsed.CompanyRefs)
+
 	// Best-effort: when the classifier suggests an application match AND the
 	// document is library-scope (suggestion only makes sense as a reusable
 	// asset), drop a "classifier_suggested" link row. Failure here does not
@@ -536,6 +542,74 @@ func (s *Server) persistClassifierResult(ctx context.Context, documentID string,
 	query := "UPDATE " + recordID("documents", documentID) + " SET " + strings.Join(sets, ", ") + ";"
 	_, err := s.app.DB.Query(ctx, query)
 	return err
+}
+
+// ensureCompaniesFromMetadata walks the classifier's extracted company
+// names and creates a companies row for each one that doesn't already
+// exist. Existence is checked via findSimilarCompanies — a row is
+// considered to exist when the best match is an exact-normalised-key
+// hit. A merely-similar match (e.g. "Acme" vs "Acme Inc.") is treated
+// as different here: under automatic processing, the safer default
+// when ambiguous is to leave it untouched. The assistant's
+// create_company tool is where the user gets prompted to disambiguate.
+//
+// Always best-effort: every failure is logged on the span and slog,
+// never returned. The document's company_refs already persisted; this
+// is just the materialisation step.
+func (s *Server) ensureCompaniesFromMetadata(ctx context.Context, documentID string, names []string) {
+	if len(names) == 0 {
+		return
+	}
+	ctx, span := startLocalSpan(ctx, "metadata.ensure_companies",
+		attribute.String("document.id", documentID),
+		attribute.Int("metadata.company_ref_count", len(names)),
+	)
+	defer span.End()
+
+	created := 0
+	reused := 0
+	ambiguous := 0
+	failed := 0
+	for _, raw := range names {
+		name := strings.TrimSpace(raw)
+		if name == "" {
+			continue
+		}
+		similar, err := s.findSimilarCompanies(ctx, name)
+		if err != nil {
+			failed++
+			slog.WarnContext(ctx, "metadata.ensure_companies.similar_failed",
+				"document_id", documentID, "name", name, "error", err.Error())
+			continue
+		}
+		if len(similar) > 0 && similar[0].ExactKey {
+			reused++
+			continue
+		}
+		if len(similar) > 0 {
+			ambiguous++
+			slog.InfoContext(ctx, "metadata.ensure_companies.ambiguous",
+				"document_id", documentID,
+				"name", name,
+				"best_match_id", similar[0].ID,
+				"best_match_name", similar[0].Name,
+				"similarity", similar[0].Similarity)
+			continue
+		}
+		if _, err := s.createCompany(ctx, name, nil); err != nil {
+			failed++
+			slog.WarnContext(ctx, "metadata.ensure_companies.create_failed",
+				"document_id", documentID, "name", name, "error", err.Error())
+			continue
+		}
+		created++
+	}
+	span.SetAttributes(
+		attribute.Int("metadata.companies.created", created),
+		attribute.Int("metadata.companies.reused", reused),
+		attribute.Int("metadata.companies.ambiguous", ambiguous),
+		attribute.Int("metadata.companies.failed", failed),
+	)
 }
 
 // surrealStringArray renders a Go []string as a Surreal array literal of

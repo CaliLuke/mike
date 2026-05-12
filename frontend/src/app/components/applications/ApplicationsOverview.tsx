@@ -294,7 +294,7 @@ export function ApplicationsOverview() {
           const greeting = buildApplicationGreeting(p);
           const chatId = await saveChat(p.id, { initialAssistantMessage: greeting });
           if (chatId) {
-            router.push(`/applications/${p.id}/assistant/chat/${chatId}`);
+            router.push(`/applications/${p.id}/assistant-next/chat/${chatId}`);
           } else {
             router.push(`/applications/${p.id}`);
           }

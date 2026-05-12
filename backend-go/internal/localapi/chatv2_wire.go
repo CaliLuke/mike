@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
+
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/CaliLuke/loom-mcp/runtime/agent/planner"
 	"github.com/CaliLuke/loom-mcp/runtime/agent/rawjson"
@@ -110,6 +113,16 @@ func (s *Server) dispatchToolCall(
 		// tabular_review scope not threaded yet; fine for chat path (only
 		// invoked from the tabular reviewer endpoint).
 		result, err = s.executeReadTableCells(ctx, req, nil, send)
+	case careercontext.SearchCompanies:
+		result, err = s.executeSearchCompanies(ctx, req, send)
+	case careercontext.SearchDocuments:
+		result, err = s.executeSearchDocuments(ctx, req, send)
+	case careercontext.SaveDocument:
+		result, err = s.executeSaveDocument(ctx, req, send)
+	case careercontext.AttachDocumentToApplication:
+		result, err = s.executeAttachDocumentToApplication(ctx, req, send)
+	case careercontext.DeleteDocument:
+		result, err = s.executeDeleteDocument(ctx, req, send)
 	default:
 		return chatv2.ToolDispatchResult{}, fmt.Errorf("unhandled canonical tool name %q", canonical)
 	}
@@ -205,14 +218,27 @@ func (s *Server) chatV2Deps() chatv2.Deps {
 			onContentDelta func(string),
 			onThinkingDelta func(string),
 		) (chatv2.LLMTurnResult, error) {
-			// P1: single turn, no tools, no documents. System prompt + user
-			// message only. The Messages field carries the conversation so
-			// later phases can extend it without changing this signature.
-			messages := make([]map[string]any, 0, len(in.Messages)+1)
+			messages := make([]map[string]any, 0, len(in.Messages)+2)
 			messages = append(messages, map[string]any{
 				"role":    "system",
 				"content": careerSystemPrompt,
 			})
+			// When the chat lives inside an application, inject a small
+			// context block as a second system message: the application
+			// record id and the filenames + ids of its documents. The
+			// model uses the doc list to call `doc_read` on demand
+			// instead of asking the user "what job?" / "which document?".
+			if in.ApplicationID != nil && *in.ApplicationID != "" {
+				if block, err := s.buildApplicationContextPrompt(ctx, *in.ApplicationID); err == nil && block != "" {
+					messages = append(messages, map[string]any{
+						"role":    "system",
+						"content": block,
+					})
+				} else if err != nil {
+					slog.WarnContext(ctx, "chatv2.application_context.build_failed",
+						"application_id", *in.ApplicationID, "error", err.Error())
+				}
+			}
 			messages = append(messages, in.Messages...)
 			body := map[string]any{
 				"model":    in.Model,
@@ -399,4 +425,92 @@ func (s *Server) chatV2HandlerDeps() chatv2.Dependencies {
 		DefaultModel: func(model *string) string { return modelOrDefault(model) },
 		NewID:        newID,
 	}
+}
+
+// buildApplicationContextPrompt returns the second system message
+// injected when a chat lives inside an application. It tells the model
+//   - which application is active (canonical record id + display name)
+//   - which company that application is for
+//   - the job_description_url, when set on the application
+//   - every document attached to the application (id, filename, kind)
+//
+// The model uses the document list to decide whether to call `doc_read`
+// for the job description, resume, etc. rather than asking the user.
+//
+// Always best-effort: on any DB error returns "" so the system prompt
+// stays the single static one. The caller logs the error.
+func (s *Server) buildApplicationContextPrompt(ctx context.Context, applicationID string) (string, error) {
+	ctx, span := startLocalSpan(ctx, "chatv2.application_context.build",
+		attribute.String("application.id", applicationID),
+	)
+	defer span.End()
+
+	appRows, err := queryRows(ctx, s.app.DB,
+		"SELECT id, name, company_id.name AS company_name, job_description_url FROM applications WHERE id = "+
+			recordID("applications", applicationID)+" LIMIT 1;")
+	if err != nil {
+		recordSpanError(span, err)
+		return "", err
+	}
+	if len(appRows) == 0 {
+		span.SetAttributes(attribute.String("application_context.skip_reason", "application_not_found"))
+		return "", nil
+	}
+	app := appRows[0]
+	canonicalID := asString(app["id"])
+	appName := asString(app["name"])
+	companyName := asString(app["company_name"])
+	jdURL := asString(app["job_description_url"])
+
+	docRows, err := queryRows(ctx, s.app.DB,
+		"SELECT id, filename, kind FROM documents WHERE application_id = "+
+			recordID("applications", applicationID)+" ORDER BY filename;")
+	if err != nil {
+		recordSpanError(span, err)
+		return "", err
+	}
+
+	var b strings.Builder
+	b.WriteString("ACTIVE APPLICATION CONTEXT — this chat is scoped to one of the user's job applications. Use the data below.\n")
+	b.WriteString("Rules:\n")
+	b.WriteString("- Treat the application below as the implicit subject of every request. Never ask the user which job/application/company they mean.\n")
+	b.WriteString("- Do NOT call `create_application` — the application already exists and is identified by application_id below. Operate on it.\n")
+	b.WriteString("- Before calling `create_company`, ALWAYS call `search_companies` first with the candidate name; only create when no match is acceptable.\n")
+	b.WriteString("- To save a fetched job description, scraped text, or any document content, call `save_document` with this application_id (kind=\"job_description\" for JDs). Do NOT use `create_application` for this — that would create a sibling application.\n")
+	b.WriteString("- To pull an existing library document (e.g. the user's resume) into this application, call `attach_document_to_application`.\n")
+	b.WriteString("- To answer questions about the role, the company, the user's resume, or any other attached material, call `read_document` on the relevant document_id from the list below before responding. Use `search_documents` when the user references something not in the list.\n")
+	b.WriteString("\nApplication:\n")
+	b.WriteString(fmt.Sprintf("- application_id: %s\n", canonicalID))
+	if appName != "" {
+		b.WriteString(fmt.Sprintf("- application_name: %s\n", appName))
+	}
+	if companyName != "" {
+		b.WriteString(fmt.Sprintf("- company: %s\n", companyName))
+	}
+	if jdURL != "" {
+		b.WriteString(fmt.Sprintf("- job_description_url: %s\n", jdURL))
+	}
+	if len(docRows) == 0 {
+		b.WriteString("- documents: (none attached yet)\n")
+	} else {
+		b.WriteString("- documents (call `doc_read` with document_id to fetch contents when relevant):\n")
+		for _, row := range docRows {
+			docID := asString(row["id"])
+			filename := asString(row["filename"])
+			kind := asString(row["kind"])
+			if kind == "" {
+				kind = "unknown"
+			}
+			b.WriteString(fmt.Sprintf("  • %s (id=%s, kind=%s)\n", filename, docID, kind))
+		}
+	}
+
+	span.SetAttributes(
+		attribute.String("application.name", appName),
+		attribute.String("application.company_name", companyName),
+		attribute.Bool("application.has_job_description_url", jdURL != ""),
+		attribute.Int("application.document_count", len(docRows)),
+		attribute.Int("application_context.prompt_chars", b.Len()),
+	)
+	return b.String(), nil
 }

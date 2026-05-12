@@ -36,7 +36,7 @@ export function SelectAssistantApplicationModal({ open, onClose }: Props) {
       const chatId = await saveChat(selectedId);
       if (!chatId) return;
       handleClose();
-      router.push(`/applications/${selectedId}/assistant/chat/${chatId}`);
+      router.push(`/applications/${selectedId}/assistant-next/chat/${chatId}`);
     } finally {
       setCreating(false);
     }

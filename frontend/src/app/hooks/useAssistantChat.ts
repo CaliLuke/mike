@@ -25,12 +25,21 @@ interface UseAssistantChatOptions {
   initialMessages?: LukeMessage[];
   chatId?: string;
   applicationId?: string;
+  /**
+   * Base path used when `router.replace`-ing to the chat detail URL
+   * once a fresh chat completes its first turn. Defaults to the
+   * legacy `/assistant/chat` (`/applications/{id}/assistant/chat`
+   * when app-scoped). Set this when mounting the hook on the
+   * assistant-next route family so the URL matches.
+   */
+  chatRouteBase?: "/assistant/chat" | "/assistant-next/chat";
 }
 
 export function useAssistantChat({
   initialMessages = [],
   chatId: initialChatId,
   applicationId,
+  chatRouteBase = "/assistant/chat",
 }: UseAssistantChatOptions = {}) {
   const router = useRouter();
   const { replaceChatId, loadChats, setCurrentChatId, saveChat, setNewChatMessages } =
@@ -575,8 +584,8 @@ export function useAssistantChat({
         }
         setCurrentChatId(finalChatId);
         const chatBasePath = applicationId
-          ? `/applications/${applicationId}/assistant/chat`
-          : `/assistant/chat`;
+          ? `/applications/${applicationId}${chatRouteBase}`
+          : chatRouteBase;
         router.replace(`${chatBasePath}/${finalChatId}`);
       }
 

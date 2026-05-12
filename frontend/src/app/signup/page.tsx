@@ -10,7 +10,7 @@ export default function SignupPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/assistant");
+    router.replace("/assistant-next");
   }, [router]);
 
   return (
@@ -22,7 +22,7 @@ export default function SignupPage() {
         <h1 className="mb-3 font-serif text-2xl">Local Workbench</h1>
         <p className="mb-6 text-sm text-gray-600">Account creation is not needed for local mode.</p>
         <Button
-          onClick={() => router.push("/assistant")}
+          onClick={() => router.push("/assistant-next")}
           className="w-full bg-black text-white hover:bg-gray-900"
         >
           Continue

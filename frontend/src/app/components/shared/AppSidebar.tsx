@@ -27,7 +27,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useUserProfile } from "@/contexts/UserProfileContext";
 
 const NAV_ITEMS = [
-  { href: "/assistant", label: "Assistant", icon: MessageSquare },
+  { href: "/assistant-next", label: "Assistant", icon: MessageSquare },
   { href: "/companies", label: "Companies", icon: Building2 },
   { href: "/applications", label: "Applications", icon: FolderOpen },
   { href: "/files", label: "Files", icon: FileText },
@@ -95,19 +95,21 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
   }, [isDropdownOpen]);
 
   useEffect(() => {
-    if (pathname.startsWith("/assistant/chat/")) {
-      const chatId = pathname.split("/").pop() ?? null;
-      setCurrentChatId(chatId);
+    const chatMatch = pathname.match(/^\/assistant(?:-next)?\/chat\/([^/]+)/);
+    if (chatMatch) {
+      setCurrentChatId(chatMatch[1]);
       return;
     }
 
-    const applicationChatMatch = pathname.match(/^\/applications\/[^/]+\/assistant\/chat\/([^/]+)/);
+    const applicationChatMatch = pathname.match(
+      /^\/applications\/[^/]+\/assistant(?:-next)?\/chat\/([^/]+)/,
+    );
     if (applicationChatMatch) {
       setCurrentChatId(applicationChatMatch[1]);
       return;
     }
 
-    if (pathname === "/assistant") {
+    if (pathname === "/assistant" || pathname === "/assistant-next") {
       setCurrentChatId(null);
     }
   }, [pathname, setCurrentChatId]);
@@ -146,7 +148,7 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
         {isOpen && (
           <div className="px-2.5">
             <Link
-              href="/assistant"
+              href="/assistant-next"
               className="flex items-center gap-1.5 transition-opacity hover:opacity-80"
             >
               <LukeIcon size={22} />
@@ -269,7 +271,7 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                     onDeletedActive={() => {
                       const destination = chat.application_id
                         ? `/applications/${chat.application_id}?tab=assistant`
-                        : "/assistant";
+                        : "/assistant-next";
                       const span = getTracer().startSpan(
                         "chat.delete.navigate_after_active_delete",
                         {
@@ -289,8 +291,8 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                       setCurrentChatId(chat.id);
                       router.push(
                         chat.application_id
-                          ? `/applications/${chat.application_id}/assistant/chat/${chat.id}`
-                          : `/assistant/chat/${chat.id}`,
+                          ? `/applications/${chat.application_id}/assistant-next/chat/${chat.id}`
+                          : `/assistant-next/chat/${chat.id}`,
                       );
                     }}
                   />

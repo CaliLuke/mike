@@ -9,13 +9,26 @@ package career_context
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/CaliLuke/loom-mcp/runtime/agent/tools"
+	loom "github.com/CaliLuke/loom/pkg"
 	toolhttp "github.com/CaliLuke/luke/backend-go/gen/chat/toolsets/career_context/http"
 )
 
 var (
+	// AttachDocumentToApplicationPayloadCodec serializes values of type *AttachDocumentToApplicationPayload to canonical JSON.
+	AttachDocumentToApplicationPayloadCodec = tools.JSONCodec[*AttachDocumentToApplicationPayload]{
+		ToJSON:   MarshalAttachDocumentToApplicationPayload,
+		FromJSON: UnmarshalAttachDocumentToApplicationPayload,
+	}
+	// AttachDocumentToApplicationResultCodec serializes values of type *AttachDocumentToApplicationResult to canonical JSON.
+	AttachDocumentToApplicationResultCodec = tools.JSONCodec[*AttachDocumentToApplicationResult]{
+		ToJSON:   MarshalAttachDocumentToApplicationResult,
+		FromJSON: UnmarshalAttachDocumentToApplicationResult,
+	}
 	// CreateApplicationPayloadCodec serializes values of type *CreateApplicationPayload to canonical JSON.
 	CreateApplicationPayloadCodec = tools.JSONCodec[*CreateApplicationPayload]{
 		ToJSON:   MarshalCreateApplicationPayload,
@@ -35,6 +48,16 @@ var (
 	CreateCompanyResultCodec = tools.JSONCodec[*CreateCompanyResult]{
 		ToJSON:   MarshalCreateCompanyResult,
 		FromJSON: UnmarshalCreateCompanyResult,
+	}
+	// DeleteDocumentPayloadCodec serializes values of type *DeleteDocumentPayload to canonical JSON.
+	DeleteDocumentPayloadCodec = tools.JSONCodec[*DeleteDocumentPayload]{
+		ToJSON:   MarshalDeleteDocumentPayload,
+		FromJSON: UnmarshalDeleteDocumentPayload,
+	}
+	// DeleteDocumentResultCodec serializes values of type *DeleteDocumentResult to canonical JSON.
+	DeleteDocumentResultCodec = tools.JSONCodec[*DeleteDocumentResult]{
+		ToJSON:   MarshalDeleteDocumentResult,
+		FromJSON: UnmarshalDeleteDocumentResult,
 	}
 	// EditDocumentPayloadCodec serializes values of type *EditDocumentPayload to canonical JSON.
 	EditDocumentPayloadCodec = tools.JSONCodec[*EditDocumentPayload]{
@@ -146,6 +169,36 @@ var (
 		ToJSON:   MarshalReplicateDocumentResult,
 		FromJSON: UnmarshalReplicateDocumentResult,
 	}
+	// SaveDocumentPayloadCodec serializes values of type *SaveDocumentPayload to canonical JSON.
+	SaveDocumentPayloadCodec = tools.JSONCodec[*SaveDocumentPayload]{
+		ToJSON:   MarshalSaveDocumentPayload,
+		FromJSON: UnmarshalSaveDocumentPayload,
+	}
+	// SaveDocumentResultCodec serializes values of type *SaveDocumentResult to canonical JSON.
+	SaveDocumentResultCodec = tools.JSONCodec[*SaveDocumentResult]{
+		ToJSON:   MarshalSaveDocumentResult,
+		FromJSON: UnmarshalSaveDocumentResult,
+	}
+	// SearchCompaniesPayloadCodec serializes values of type *SearchCompaniesPayload to canonical JSON.
+	SearchCompaniesPayloadCodec = tools.JSONCodec[*SearchCompaniesPayload]{
+		ToJSON:   MarshalSearchCompaniesPayload,
+		FromJSON: UnmarshalSearchCompaniesPayload,
+	}
+	// SearchCompaniesResultCodec serializes values of type *SearchCompaniesResult to canonical JSON.
+	SearchCompaniesResultCodec = tools.JSONCodec[*SearchCompaniesResult]{
+		ToJSON:   MarshalSearchCompaniesResult,
+		FromJSON: UnmarshalSearchCompaniesResult,
+	}
+	// SearchDocumentsPayloadCodec serializes values of type *SearchDocumentsPayload to canonical JSON.
+	SearchDocumentsPayloadCodec = tools.JSONCodec[*SearchDocumentsPayload]{
+		ToJSON:   MarshalSearchDocumentsPayload,
+		FromJSON: UnmarshalSearchDocumentsPayload,
+	}
+	// SearchDocumentsResultCodec serializes values of type *SearchDocumentsResult to canonical JSON.
+	SearchDocumentsResultCodec = tools.JSONCodec[*SearchDocumentsResult]{
+		ToJSON:   MarshalSearchDocumentsResult,
+		FromJSON: UnmarshalSearchDocumentsResult,
+	}
 	// SetApplicationCompanyPayloadCodec serializes values of type *SetApplicationCompanyPayload to canonical JSON.
 	SetApplicationCompanyPayloadCodec = tools.JSONCodec[*SetApplicationCompanyPayload]{
 		ToJSON:   MarshalSetApplicationCompanyPayload,
@@ -155,6 +208,32 @@ var (
 	SetApplicationCompanyResultCodec = tools.JSONCodec[*SetApplicationCompanyResult]{
 		ToJSON:   MarshalSetApplicationCompanyResult,
 		FromJSON: UnmarshalSetApplicationCompanyResult,
+	}
+	// attachDocumentToApplicationPayloadCodec provides an untyped codec for *AttachDocumentToApplicationPayload.
+	attachDocumentToApplicationPayloadCodec = tools.JSONCodec[any]{
+		ToJSON: func(v any) ([]byte, error) {
+			// Prefer typed marshal when the value matches the expected type.
+			if typed, ok := v.(*AttachDocumentToApplicationPayload); ok {
+				return MarshalAttachDocumentToApplicationPayload(typed)
+			}
+			return nil, fmt.Errorf("invalid value type for *AttachDocumentToApplicationPayload: %T", v)
+		},
+		FromJSON: func(data []byte) (any, error) {
+			return UnmarshalAttachDocumentToApplicationPayload(data)
+		},
+	}
+	// attachDocumentToApplicationResultCodec provides an untyped codec for *AttachDocumentToApplicationResult.
+	attachDocumentToApplicationResultCodec = tools.JSONCodec[any]{
+		ToJSON: func(v any) ([]byte, error) {
+			// Prefer typed marshal when the value matches the expected type.
+			if typed, ok := v.(*AttachDocumentToApplicationResult); ok {
+				return MarshalAttachDocumentToApplicationResult(typed)
+			}
+			return nil, fmt.Errorf("invalid value type for *AttachDocumentToApplicationResult: %T", v)
+		},
+		FromJSON: func(data []byte) (any, error) {
+			return UnmarshalAttachDocumentToApplicationResult(data)
+		},
 	}
 	// createApplicationPayloadCodec provides an untyped codec for *CreateApplicationPayload.
 	createApplicationPayloadCodec = tools.JSONCodec[any]{
@@ -206,6 +285,32 @@ var (
 		},
 		FromJSON: func(data []byte) (any, error) {
 			return UnmarshalCreateCompanyResult(data)
+		},
+	}
+	// deleteDocumentPayloadCodec provides an untyped codec for *DeleteDocumentPayload.
+	deleteDocumentPayloadCodec = tools.JSONCodec[any]{
+		ToJSON: func(v any) ([]byte, error) {
+			// Prefer typed marshal when the value matches the expected type.
+			if typed, ok := v.(*DeleteDocumentPayload); ok {
+				return MarshalDeleteDocumentPayload(typed)
+			}
+			return nil, fmt.Errorf("invalid value type for *DeleteDocumentPayload: %T", v)
+		},
+		FromJSON: func(data []byte) (any, error) {
+			return UnmarshalDeleteDocumentPayload(data)
+		},
+	}
+	// deleteDocumentResultCodec provides an untyped codec for *DeleteDocumentResult.
+	deleteDocumentResultCodec = tools.JSONCodec[any]{
+		ToJSON: func(v any) ([]byte, error) {
+			// Prefer typed marshal when the value matches the expected type.
+			if typed, ok := v.(*DeleteDocumentResult); ok {
+				return MarshalDeleteDocumentResult(typed)
+			}
+			return nil, fmt.Errorf("invalid value type for *DeleteDocumentResult: %T", v)
+		},
+		FromJSON: func(data []byte) (any, error) {
+			return UnmarshalDeleteDocumentResult(data)
 		},
 	}
 	// editDocumentPayloadCodec provides an untyped codec for *EditDocumentPayload.
@@ -494,6 +599,84 @@ var (
 			return UnmarshalReplicateDocumentResult(data)
 		},
 	}
+	// saveDocumentPayloadCodec provides an untyped codec for *SaveDocumentPayload.
+	saveDocumentPayloadCodec = tools.JSONCodec[any]{
+		ToJSON: func(v any) ([]byte, error) {
+			// Prefer typed marshal when the value matches the expected type.
+			if typed, ok := v.(*SaveDocumentPayload); ok {
+				return MarshalSaveDocumentPayload(typed)
+			}
+			return nil, fmt.Errorf("invalid value type for *SaveDocumentPayload: %T", v)
+		},
+		FromJSON: func(data []byte) (any, error) {
+			return UnmarshalSaveDocumentPayload(data)
+		},
+	}
+	// saveDocumentResultCodec provides an untyped codec for *SaveDocumentResult.
+	saveDocumentResultCodec = tools.JSONCodec[any]{
+		ToJSON: func(v any) ([]byte, error) {
+			// Prefer typed marshal when the value matches the expected type.
+			if typed, ok := v.(*SaveDocumentResult); ok {
+				return MarshalSaveDocumentResult(typed)
+			}
+			return nil, fmt.Errorf("invalid value type for *SaveDocumentResult: %T", v)
+		},
+		FromJSON: func(data []byte) (any, error) {
+			return UnmarshalSaveDocumentResult(data)
+		},
+	}
+	// searchCompaniesPayloadCodec provides an untyped codec for *SearchCompaniesPayload.
+	searchCompaniesPayloadCodec = tools.JSONCodec[any]{
+		ToJSON: func(v any) ([]byte, error) {
+			// Prefer typed marshal when the value matches the expected type.
+			if typed, ok := v.(*SearchCompaniesPayload); ok {
+				return MarshalSearchCompaniesPayload(typed)
+			}
+			return nil, fmt.Errorf("invalid value type for *SearchCompaniesPayload: %T", v)
+		},
+		FromJSON: func(data []byte) (any, error) {
+			return UnmarshalSearchCompaniesPayload(data)
+		},
+	}
+	// searchCompaniesResultCodec provides an untyped codec for *SearchCompaniesResult.
+	searchCompaniesResultCodec = tools.JSONCodec[any]{
+		ToJSON: func(v any) ([]byte, error) {
+			// Prefer typed marshal when the value matches the expected type.
+			if typed, ok := v.(*SearchCompaniesResult); ok {
+				return MarshalSearchCompaniesResult(typed)
+			}
+			return nil, fmt.Errorf("invalid value type for *SearchCompaniesResult: %T", v)
+		},
+		FromJSON: func(data []byte) (any, error) {
+			return UnmarshalSearchCompaniesResult(data)
+		},
+	}
+	// searchDocumentsPayloadCodec provides an untyped codec for *SearchDocumentsPayload.
+	searchDocumentsPayloadCodec = tools.JSONCodec[any]{
+		ToJSON: func(v any) ([]byte, error) {
+			// Prefer typed marshal when the value matches the expected type.
+			if typed, ok := v.(*SearchDocumentsPayload); ok {
+				return MarshalSearchDocumentsPayload(typed)
+			}
+			return nil, fmt.Errorf("invalid value type for *SearchDocumentsPayload: %T", v)
+		},
+		FromJSON: func(data []byte) (any, error) {
+			return UnmarshalSearchDocumentsPayload(data)
+		},
+	}
+	// searchDocumentsResultCodec provides an untyped codec for *SearchDocumentsResult.
+	searchDocumentsResultCodec = tools.JSONCodec[any]{
+		ToJSON: func(v any) ([]byte, error) {
+			// Prefer typed marshal when the value matches the expected type.
+			if typed, ok := v.(*SearchDocumentsResult); ok {
+				return MarshalSearchDocumentsResult(typed)
+			}
+			return nil, fmt.Errorf("invalid value type for *SearchDocumentsResult: %T", v)
+		},
+		FromJSON: func(data []byte) (any, error) {
+			return UnmarshalSearchDocumentsResult(data)
+		},
+	}
 	// setApplicationCompanyPayloadCodec provides an untyped codec for *SetApplicationCompanyPayload.
 	setApplicationCompanyPayloadCodec = tools.JSONCodec[any]{
 		ToJSON: func(v any) ([]byte, error) {
@@ -521,6 +704,15 @@ var (
 		},
 	}
 )
+var AttachDocumentToApplicationPayloadFieldDescs = map[string]string{
+	"application_id": "Application that should reference the document",
+	"document_id":    "Existing document to link",
+}
+var AttachDocumentToApplicationResultFieldDescs = map[string]string{
+	"error":   "Error message when linking failed",
+	"link_id": "Identifier of the link row",
+	"ok":      "Whether the link was created (or already existed)",
+}
 var CreateApplicationPayloadFieldDescs = map[string]string{
 	"company_id":           "Local company identifier returned by create_company or a prior company_created event",
 	"job_description_text": "Optional full job description text to save as an application document",
@@ -551,6 +743,13 @@ var CreateCompanyResultFieldDescs = map[string]string{
 	"similar_company_name":  "Similar existing company name, when one was found",
 	"similarity":            "Similarity score for the nearest existing company, from 0 to 1",
 	"website":               "Company website",
+}
+var DeleteDocumentPayloadFieldDescs = map[string]string{
+	"document_id": "Document to remove",
+}
+var DeleteDocumentResultFieldDescs = map[string]string{
+	"error": "Error message when deletion failed",
+	"ok":    "Whether the document was deleted",
 }
 var EditDocumentPayloadFieldDescs = map[string]string{
 	"document_id":          "Local document identifier to edit",
@@ -700,6 +899,52 @@ var ReplicateDocumentResultFieldDescs = map[string]string{
 	"filename":            "Source filename",
 	"ok":                  "Whether replication succeeded",
 }
+var SaveDocumentPayloadFieldDescs = map[string]string{
+	"application_id": "Optional application to attach the new document to. Omit for a library (no-application) document.",
+	"body":           "Document body. Markdown is preferred for kind=job_description. Plain text accepted otherwise.",
+	"filename":       "Filename including extension, e.g. \"Job description.md\"",
+	"format":         "Storage format suffix used to render the body downstream: \"md\" (default) for markdown/text, \"txt\" for plain text.",
+	"kind":           "Document kind. Use \"job_description\" when saving a fetched job posting, \"resume\" for resumes, otherwise a descriptive kind or omit to leave unclassified.",
+}
+var SaveDocumentResultFieldDescs = map[string]string{
+	"application_id": "Application the document was attached to, when applicable",
+	"document_id":    "Local document identifier of the new document",
+	"download_url":   "Relative URL to download the saved document",
+	"error":          "Error message when saving failed",
+	"filename":       "Filename of the saved document",
+	"ok":             "Whether the document was created",
+}
+var SearchCompaniesPayloadFieldDescs = map[string]string{
+	"limit": "Maximum number of matches to return. Defaults to 8 when omitted.",
+	"query": "Optional partial name to match against existing companies. Omit or empty for the most recent companies.",
+}
+var SearchCompaniesResultFieldDescs = map[string]string{
+	"companies":            "Matching companies, ordered by relevance (or by recency when query is empty)",
+	"companies.company_id": "Local company identifier",
+	"companies.exact_key":  "True when the normalised company name exactly matches the query",
+	"companies.name":       "Company name",
+	"companies.similarity": "Fuzzy-match score from 0 to 1 against the query, when one was provided",
+	"companies.website":    "Company website, when set",
+	"error":                "Error message when search failed",
+	"ok":                   "Whether the search ran",
+}
+var SearchDocumentsPayloadFieldDescs = map[string]string{
+	"application_id": "Optional application scope: only return documents attached to this application.",
+	"kind":           "Optional document kind filter (e.g. resume, job_description, interview_transcript).",
+	"limit":          "Maximum number of matches to return. Defaults to 20 when omitted.",
+	"query":          "Optional substring to match against filenames (case-insensitive). Omit for no filename filter.",
+}
+var SearchDocumentsResultFieldDescs = map[string]string{
+	"documents":                "Matching documents, ordered by recency",
+	"documents.application_id": "Owning application identifier, when scoped to one",
+	"documents.document_id":    "Local document identifier",
+	"documents.file_type":      "Storage format (docx, md, pdf, …)",
+	"documents.filename":       "Document filename",
+	"documents.kind":           "Document kind (resume, job_description, etc.) when classified",
+	"documents.summary":        "Short summary from metadata extraction, when available",
+	"error":                    "Error message when search failed",
+	"ok":                       "Whether the search ran",
+}
 var SetApplicationCompanyPayloadFieldDescs = map[string]string{
 	"application_id": "Local application identifier to move",
 	"company_id":     "Existing local company identifier to attach. Mutually exclusive with company_name.",
@@ -750,13 +995,100 @@ func (e ValidationError) Descriptions() map[string]string {
 	return out
 }
 
+// newValidationError converts a loom.ServiceError (possibly merged) into a
+// ValidationError with structured FieldIssue entries. It trims any leading
+// "body." from field names for conciseness.
+func newValidationError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var se *loom.ServiceError
+	if !errors.As(err, &se) {
+		return err
+	}
+	hist := se.History()
+	issues := make([]*tools.FieldIssue, 0, len(hist))
+	for _, h := range hist {
+		var field string
+		if h.Field != nil {
+			field = *h.Field
+		}
+		if strings.HasPrefix(field, "body.") {
+			field = strings.TrimPrefix(field, "body.")
+		}
+		issues = append(issues, &tools.FieldIssue{Field: field, Constraint: h.Name})
+	}
+	if len(issues) == 0 {
+		return err
+	}
+	return &ValidationError{
+		msg:    err.Error(),
+		issues: issues,
+	}
+}
+func enrichAttachDocumentToApplicationPayloadValidationError(err error) error {
+	ve, ok := err.(*ValidationError)
+	if !ok || ve == nil {
+		return err
+	}
+	if len(ve.issues) == 0 {
+		return err
+	}
+	m := make(map[string]string)
+	for _, is := range ve.issues {
+		if d, ok := AttachDocumentToApplicationPayloadFieldDescs[is.Field]; ok && d != "" {
+			m[is.Field] = d
+		}
+	}
+	ve.descriptions = m
+	return ve
+}
+func enrichDeleteDocumentPayloadValidationError(err error) error {
+	ve, ok := err.(*ValidationError)
+	if !ok || ve == nil {
+		return err
+	}
+	if len(ve.issues) == 0 {
+		return err
+	}
+	m := make(map[string]string)
+	for _, is := range ve.issues {
+		if d, ok := DeleteDocumentPayloadFieldDescs[is.Field]; ok && d != "" {
+			m[is.Field] = d
+		}
+	}
+	ve.descriptions = m
+	return ve
+}
+func enrichSaveDocumentPayloadValidationError(err error) error {
+	ve, ok := err.(*ValidationError)
+	if !ok || ve == nil {
+		return err
+	}
+	if len(ve.issues) == 0 {
+		return err
+	}
+	m := make(map[string]string)
+	for _, is := range ve.issues {
+		if d, ok := SaveDocumentPayloadFieldDescs[is.Field]; ok && d != "" {
+			m[is.Field] = d
+		}
+	}
+	ve.descriptions = m
+	return ve
+}
+
 // PayloadCodec returns the generic codec for the named tool payload.
 func PayloadCodec(name string) (*tools.JSONCodec[any], bool) {
 	switch name {
+	case "career_context.attach_document_to_application":
+		return &attachDocumentToApplicationPayloadCodec, true
 	case "career_context.create_application":
 		return &createApplicationPayloadCodec, true
 	case "career_context.create_company":
 		return &createCompanyPayloadCodec, true
+	case "career_context.delete_document":
+		return &deleteDocumentPayloadCodec, true
 	case "career_context.edit_document":
 		return &editDocumentPayloadCodec, true
 	case "career_context.fetch_documents":
@@ -779,6 +1111,12 @@ func PayloadCodec(name string) (*tools.JSONCodec[any], bool) {
 		return &readWorkflowPayloadCodec, true
 	case "career_context.replicate_document":
 		return &replicateDocumentPayloadCodec, true
+	case "career_context.save_document":
+		return &saveDocumentPayloadCodec, true
+	case "career_context.search_companies":
+		return &searchCompaniesPayloadCodec, true
+	case "career_context.search_documents":
+		return &searchDocumentsPayloadCodec, true
 	case "career_context.set_application_company":
 		return &setApplicationCompanyPayloadCodec, true
 	default:
@@ -789,10 +1127,14 @@ func PayloadCodec(name string) (*tools.JSONCodec[any], bool) {
 // ResultCodec returns the generic codec for the named tool result.
 func ResultCodec(name string) (*tools.JSONCodec[any], bool) {
 	switch name {
+	case "career_context.attach_document_to_application":
+		return &attachDocumentToApplicationResultCodec, true
 	case "career_context.create_application":
 		return &createApplicationResultCodec, true
 	case "career_context.create_company":
 		return &createCompanyResultCodec, true
+	case "career_context.delete_document":
+		return &deleteDocumentResultCodec, true
 	case "career_context.edit_document":
 		return &editDocumentResultCodec, true
 	case "career_context.fetch_documents":
@@ -815,11 +1157,92 @@ func ResultCodec(name string) (*tools.JSONCodec[any], bool) {
 		return &readWorkflowResultCodec, true
 	case "career_context.replicate_document":
 		return &replicateDocumentResultCodec, true
+	case "career_context.save_document":
+		return &saveDocumentResultCodec, true
+	case "career_context.search_companies":
+		return &searchCompaniesResultCodec, true
+	case "career_context.search_documents":
+		return &searchDocumentsResultCodec, true
 	case "career_context.set_application_company":
 		return &setApplicationCompanyResultCodec, true
 	default:
 		return nil, false
 	}
+}
+
+// MarshalAttachDocumentToApplicationPayload serializes *AttachDocumentToApplicationPayload into JSON.
+func MarshalAttachDocumentToApplicationPayload(v *AttachDocumentToApplicationPayload) ([]byte, error) {
+	if v == nil {
+		return nil, fmt.Errorf("attachDocumentToApplicationPayload is nil")
+	}
+	in := v
+	_ = in
+	var out *toolhttp.AttachDocumentToApplicationPayloadTransport
+	out = &toolhttp.AttachDocumentToApplicationPayloadTransport{
+		DocumentID:    &in.DocumentID,
+		ApplicationID: &in.ApplicationID,
+	}
+	return json.Marshal(out)
+}
+
+// UnmarshalAttachDocumentToApplicationPayload deserializes JSON into *AttachDocumentToApplicationPayload.
+func UnmarshalAttachDocumentToApplicationPayload(data []byte) (*AttachDocumentToApplicationPayload, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("attachDocumentToApplicationPayload JSON is empty")
+	}
+	var tv toolhttp.AttachDocumentToApplicationPayloadTransport
+	if err := json.Unmarshal(data, &tv); err != nil {
+		return nil, fmt.Errorf("decode attachDocumentToApplicationPayload: %w", err)
+	}
+	if err := toolhttp.ValidateAttachDocumentToApplicationPayloadTransport(&tv); err != nil {
+		err = newValidationError(err)
+		err = enrichAttachDocumentToApplicationPayloadValidationError(err)
+		return nil, err
+	}
+	in := &tv
+	_ = in
+	var out *AttachDocumentToApplicationPayload
+	out = &AttachDocumentToApplicationPayload{
+		DocumentID:    *in.DocumentID,
+		ApplicationID: *in.ApplicationID,
+	}
+	return out, nil
+}
+
+// MarshalAttachDocumentToApplicationResult serializes *AttachDocumentToApplicationResult into JSON.
+func MarshalAttachDocumentToApplicationResult(v *AttachDocumentToApplicationResult) ([]byte, error) {
+	if v == nil {
+		return nil, fmt.Errorf("attachDocumentToApplicationResult is nil")
+	}
+	in := v
+	_ = in
+	var out *toolhttp.AttachDocumentToApplicationResultTransport
+	out = &toolhttp.AttachDocumentToApplicationResultTransport{
+		OK:     in.OK,
+		LinkID: in.LinkID,
+		Error:  in.Error,
+	}
+	return json.Marshal(out)
+}
+
+// UnmarshalAttachDocumentToApplicationResult deserializes JSON into *AttachDocumentToApplicationResult.
+func UnmarshalAttachDocumentToApplicationResult(data []byte) (*AttachDocumentToApplicationResult, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("attachDocumentToApplicationResult JSON is empty")
+	}
+	var tv toolhttp.AttachDocumentToApplicationResultTransport
+	if err := json.Unmarshal(data, &tv); err != nil {
+		return nil, fmt.Errorf("decode attachDocumentToApplicationResult: %w", err)
+	}
+	in := &tv
+	_ = in
+	var out *AttachDocumentToApplicationResult
+	out = &AttachDocumentToApplicationResult{
+		OK:     in.OK,
+		LinkID: in.LinkID,
+		Error:  in.Error,
+	}
+	return out, nil
 }
 
 // MarshalCreateApplicationPayload serializes *CreateApplicationPayload into JSON.
@@ -984,6 +1407,77 @@ func UnmarshalCreateCompanyResult(data []byte) (*CreateCompanyResult, error) {
 		SimilarCompanyName:   in.SimilarCompanyName,
 		Similarity:           in.Similarity,
 		Error:                in.Error,
+	}
+	return out, nil
+}
+
+// MarshalDeleteDocumentPayload serializes *DeleteDocumentPayload into JSON.
+func MarshalDeleteDocumentPayload(v *DeleteDocumentPayload) ([]byte, error) {
+	if v == nil {
+		return nil, fmt.Errorf("deleteDocumentPayload is nil")
+	}
+	in := v
+	_ = in
+	var out *toolhttp.DeleteDocumentPayloadTransport
+	out = &toolhttp.DeleteDocumentPayloadTransport{
+		DocumentID: &in.DocumentID,
+	}
+	return json.Marshal(out)
+}
+
+// UnmarshalDeleteDocumentPayload deserializes JSON into *DeleteDocumentPayload.
+func UnmarshalDeleteDocumentPayload(data []byte) (*DeleteDocumentPayload, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("deleteDocumentPayload JSON is empty")
+	}
+	var tv toolhttp.DeleteDocumentPayloadTransport
+	if err := json.Unmarshal(data, &tv); err != nil {
+		return nil, fmt.Errorf("decode deleteDocumentPayload: %w", err)
+	}
+	if err := toolhttp.ValidateDeleteDocumentPayloadTransport(&tv); err != nil {
+		err = newValidationError(err)
+		err = enrichDeleteDocumentPayloadValidationError(err)
+		return nil, err
+	}
+	in := &tv
+	_ = in
+	var out *DeleteDocumentPayload
+	out = &DeleteDocumentPayload{
+		DocumentID: *in.DocumentID,
+	}
+	return out, nil
+}
+
+// MarshalDeleteDocumentResult serializes *DeleteDocumentResult into JSON.
+func MarshalDeleteDocumentResult(v *DeleteDocumentResult) ([]byte, error) {
+	if v == nil {
+		return nil, fmt.Errorf("deleteDocumentResult is nil")
+	}
+	in := v
+	_ = in
+	var out *toolhttp.DeleteDocumentResultTransport
+	out = &toolhttp.DeleteDocumentResultTransport{
+		OK:    in.OK,
+		Error: in.Error,
+	}
+	return json.Marshal(out)
+}
+
+// UnmarshalDeleteDocumentResult deserializes JSON into *DeleteDocumentResult.
+func UnmarshalDeleteDocumentResult(data []byte) (*DeleteDocumentResult, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("deleteDocumentResult JSON is empty")
+	}
+	var tv toolhttp.DeleteDocumentResultTransport
+	if err := json.Unmarshal(data, &tv); err != nil {
+		return nil, fmt.Errorf("decode deleteDocumentResult: %w", err)
+	}
+	in := &tv
+	_ = in
+	var out *DeleteDocumentResult
+	out = &DeleteDocumentResult{
+		OK:    in.OK,
+		Error: in.Error,
 	}
 	return out, nil
 }
@@ -1948,6 +2442,273 @@ func UnmarshalReplicateDocumentResult(data []byte) (*ReplicateDocumentResult, er
 	return out, nil
 }
 
+// MarshalSaveDocumentPayload serializes *SaveDocumentPayload into JSON.
+func MarshalSaveDocumentPayload(v *SaveDocumentPayload) ([]byte, error) {
+	if v == nil {
+		return nil, fmt.Errorf("saveDocumentPayload is nil")
+	}
+	in := v
+	_ = in
+	var out *toolhttp.SaveDocumentPayloadTransport
+	out = &toolhttp.SaveDocumentPayloadTransport{
+		ApplicationID: in.ApplicationID,
+		Filename:      &in.Filename,
+		Kind:          in.Kind,
+		Body:          &in.Body,
+		Format:        in.Format,
+	}
+	return json.Marshal(out)
+}
+
+// UnmarshalSaveDocumentPayload deserializes JSON into *SaveDocumentPayload.
+func UnmarshalSaveDocumentPayload(data []byte) (*SaveDocumentPayload, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("saveDocumentPayload JSON is empty")
+	}
+	var tv toolhttp.SaveDocumentPayloadTransport
+	if err := json.Unmarshal(data, &tv); err != nil {
+		return nil, fmt.Errorf("decode saveDocumentPayload: %w", err)
+	}
+	if err := toolhttp.ValidateSaveDocumentPayloadTransport(&tv); err != nil {
+		err = newValidationError(err)
+		err = enrichSaveDocumentPayloadValidationError(err)
+		return nil, err
+	}
+	in := &tv
+	_ = in
+	var out *SaveDocumentPayload
+	out = &SaveDocumentPayload{
+		ApplicationID: in.ApplicationID,
+		Filename:      *in.Filename,
+		Kind:          in.Kind,
+		Body:          *in.Body,
+		Format:        in.Format,
+	}
+	return out, nil
+}
+
+// MarshalSaveDocumentResult serializes *SaveDocumentResult into JSON.
+func MarshalSaveDocumentResult(v *SaveDocumentResult) ([]byte, error) {
+	if v == nil {
+		return nil, fmt.Errorf("saveDocumentResult is nil")
+	}
+	in := v
+	_ = in
+	var out *toolhttp.SaveDocumentResultTransport
+	out = &toolhttp.SaveDocumentResultTransport{
+		OK:            in.OK,
+		DocumentID:    in.DocumentID,
+		Filename:      in.Filename,
+		ApplicationID: in.ApplicationID,
+		DownloadURL:   in.DownloadURL,
+		Error:         in.Error,
+	}
+	return json.Marshal(out)
+}
+
+// UnmarshalSaveDocumentResult deserializes JSON into *SaveDocumentResult.
+func UnmarshalSaveDocumentResult(data []byte) (*SaveDocumentResult, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("saveDocumentResult JSON is empty")
+	}
+	var tv toolhttp.SaveDocumentResultTransport
+	if err := json.Unmarshal(data, &tv); err != nil {
+		return nil, fmt.Errorf("decode saveDocumentResult: %w", err)
+	}
+	in := &tv
+	_ = in
+	var out *SaveDocumentResult
+	out = &SaveDocumentResult{
+		OK:            in.OK,
+		DocumentID:    in.DocumentID,
+		Filename:      in.Filename,
+		ApplicationID: in.ApplicationID,
+		DownloadURL:   in.DownloadURL,
+		Error:         in.Error,
+	}
+	return out, nil
+}
+
+// MarshalSearchCompaniesPayload serializes *SearchCompaniesPayload into JSON.
+func MarshalSearchCompaniesPayload(v *SearchCompaniesPayload) ([]byte, error) {
+	if v == nil {
+		return nil, fmt.Errorf("searchCompaniesPayload is nil")
+	}
+	in := v
+	_ = in
+	var out *toolhttp.SearchCompaniesPayloadTransport
+	out = &toolhttp.SearchCompaniesPayloadTransport{
+		Query: in.Query,
+		Limit: in.Limit,
+	}
+	return json.Marshal(out)
+}
+
+// UnmarshalSearchCompaniesPayload deserializes JSON into *SearchCompaniesPayload.
+func UnmarshalSearchCompaniesPayload(data []byte) (*SearchCompaniesPayload, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("searchCompaniesPayload JSON is empty")
+	}
+	var tv toolhttp.SearchCompaniesPayloadTransport
+	if err := json.Unmarshal(data, &tv); err != nil {
+		return nil, fmt.Errorf("decode searchCompaniesPayload: %w", err)
+	}
+	in := &tv
+	_ = in
+	var out *SearchCompaniesPayload
+	out = &SearchCompaniesPayload{
+		Query: in.Query,
+		Limit: in.Limit,
+	}
+	return out, nil
+}
+
+// MarshalSearchCompaniesResult serializes *SearchCompaniesResult into JSON.
+func MarshalSearchCompaniesResult(v *SearchCompaniesResult) ([]byte, error) {
+	if v == nil {
+		return nil, fmt.Errorf("searchCompaniesResult is nil")
+	}
+	in := v
+	_ = in
+	var out *toolhttp.SearchCompaniesResultTransport
+	out = &toolhttp.SearchCompaniesResultTransport{
+		OK:    in.OK,
+		Error: in.Error,
+	}
+	if in.Companies != nil {
+		out.Companies = make([]*toolhttp.AssistantCompanyRefTransport, len(in.Companies))
+		for i, val := range in.Companies {
+			if val == nil {
+				out.Companies[i] = nil
+				continue
+			}
+			out.Companies[i] = encodeAssistantCompanyRefToToolhttpAssistantCompanyRefTransport(val)
+		}
+	}
+	return json.Marshal(out)
+}
+
+// UnmarshalSearchCompaniesResult deserializes JSON into *SearchCompaniesResult.
+func UnmarshalSearchCompaniesResult(data []byte) (*SearchCompaniesResult, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("searchCompaniesResult JSON is empty")
+	}
+	var tv toolhttp.SearchCompaniesResultTransport
+	if err := json.Unmarshal(data, &tv); err != nil {
+		return nil, fmt.Errorf("decode searchCompaniesResult: %w", err)
+	}
+	in := &tv
+	_ = in
+	var out *SearchCompaniesResult
+	out = &SearchCompaniesResult{
+		OK:    in.OK,
+		Error: in.Error,
+	}
+	if in.Companies != nil {
+		out.Companies = make([]*AssistantCompanyRef, len(in.Companies))
+		for i, val := range in.Companies {
+			if val == nil {
+				out.Companies[i] = nil
+				continue
+			}
+			out.Companies[i] = decodeToolhttpAssistantCompanyRefTransportToAssistantCompanyRef(val)
+		}
+	}
+	return out, nil
+}
+
+// MarshalSearchDocumentsPayload serializes *SearchDocumentsPayload into JSON.
+func MarshalSearchDocumentsPayload(v *SearchDocumentsPayload) ([]byte, error) {
+	if v == nil {
+		return nil, fmt.Errorf("searchDocumentsPayload is nil")
+	}
+	in := v
+	_ = in
+	var out *toolhttp.SearchDocumentsPayloadTransport
+	out = &toolhttp.SearchDocumentsPayloadTransport{
+		Query:         in.Query,
+		ApplicationID: in.ApplicationID,
+		Kind:          in.Kind,
+		Limit:         in.Limit,
+	}
+	return json.Marshal(out)
+}
+
+// UnmarshalSearchDocumentsPayload deserializes JSON into *SearchDocumentsPayload.
+func UnmarshalSearchDocumentsPayload(data []byte) (*SearchDocumentsPayload, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("searchDocumentsPayload JSON is empty")
+	}
+	var tv toolhttp.SearchDocumentsPayloadTransport
+	if err := json.Unmarshal(data, &tv); err != nil {
+		return nil, fmt.Errorf("decode searchDocumentsPayload: %w", err)
+	}
+	in := &tv
+	_ = in
+	var out *SearchDocumentsPayload
+	out = &SearchDocumentsPayload{
+		Query:         in.Query,
+		ApplicationID: in.ApplicationID,
+		Kind:          in.Kind,
+		Limit:         in.Limit,
+	}
+	return out, nil
+}
+
+// MarshalSearchDocumentsResult serializes *SearchDocumentsResult into JSON.
+func MarshalSearchDocumentsResult(v *SearchDocumentsResult) ([]byte, error) {
+	if v == nil {
+		return nil, fmt.Errorf("searchDocumentsResult is nil")
+	}
+	in := v
+	_ = in
+	var out *toolhttp.SearchDocumentsResultTransport
+	out = &toolhttp.SearchDocumentsResultTransport{
+		OK:    in.OK,
+		Error: in.Error,
+	}
+	if in.Documents != nil {
+		out.Documents = make([]*toolhttp.AssistantDocumentSummaryTransport, len(in.Documents))
+		for i, val := range in.Documents {
+			if val == nil {
+				out.Documents[i] = nil
+				continue
+			}
+			out.Documents[i] = encodeAssistantDocumentSummaryToToolhttpAssistantDocumentSummaryTransport(val)
+		}
+	}
+	return json.Marshal(out)
+}
+
+// UnmarshalSearchDocumentsResult deserializes JSON into *SearchDocumentsResult.
+func UnmarshalSearchDocumentsResult(data []byte) (*SearchDocumentsResult, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("searchDocumentsResult JSON is empty")
+	}
+	var tv toolhttp.SearchDocumentsResultTransport
+	if err := json.Unmarshal(data, &tv); err != nil {
+		return nil, fmt.Errorf("decode searchDocumentsResult: %w", err)
+	}
+	in := &tv
+	_ = in
+	var out *SearchDocumentsResult
+	out = &SearchDocumentsResult{
+		OK:    in.OK,
+		Error: in.Error,
+	}
+	if in.Documents != nil {
+		out.Documents = make([]*AssistantDocumentSummary, len(in.Documents))
+		for i, val := range in.Documents {
+			if val == nil {
+				out.Documents[i] = nil
+				continue
+			}
+			out.Documents[i] = decodeToolhttpAssistantDocumentSummaryTransportToAssistantDocumentSummary(val)
+		}
+	}
+	return out, nil
+}
+
 // MarshalSetApplicationCompanyPayload serializes *SetApplicationCompanyPayload into JSON.
 func MarshalSetApplicationCompanyPayload(v *SetApplicationCompanyPayload) ([]byte, error) {
 	if v == nil {
@@ -2315,6 +3076,64 @@ func encodeAssistantDocumentCopyToToolhttpAssistantDocumentCopyTransport(v *Assi
 		DocumentID:  v.DocumentID,
 		VersionID:   v.VersionID,
 		DownloadURL: v.DownloadURL,
+	}
+
+	return res
+}
+func decodeToolhttpAssistantCompanyRefTransportToAssistantCompanyRef(v *toolhttp.AssistantCompanyRefTransport) *AssistantCompanyRef {
+	if v == nil {
+		return nil
+	}
+	res := &AssistantCompanyRef{
+		CompanyID:  v.CompanyID,
+		Name:       v.Name,
+		Website:    v.Website,
+		Similarity: v.Similarity,
+		ExactKey:   v.ExactKey,
+	}
+
+	return res
+}
+func encodeAssistantCompanyRefToToolhttpAssistantCompanyRefTransport(v *AssistantCompanyRef) *toolhttp.AssistantCompanyRefTransport {
+	if v == nil {
+		return nil
+	}
+	res := &toolhttp.AssistantCompanyRefTransport{
+		CompanyID:  v.CompanyID,
+		Name:       v.Name,
+		Website:    v.Website,
+		Similarity: v.Similarity,
+		ExactKey:   v.ExactKey,
+	}
+
+	return res
+}
+func decodeToolhttpAssistantDocumentSummaryTransportToAssistantDocumentSummary(v *toolhttp.AssistantDocumentSummaryTransport) *AssistantDocumentSummary {
+	if v == nil {
+		return nil
+	}
+	res := &AssistantDocumentSummary{
+		DocumentID:    v.DocumentID,
+		Filename:      v.Filename,
+		Kind:          v.Kind,
+		ApplicationID: v.ApplicationID,
+		FileType:      v.FileType,
+		Summary:       v.Summary,
+	}
+
+	return res
+}
+func encodeAssistantDocumentSummaryToToolhttpAssistantDocumentSummaryTransport(v *AssistantDocumentSummary) *toolhttp.AssistantDocumentSummaryTransport {
+	if v == nil {
+		return nil
+	}
+	res := &toolhttp.AssistantDocumentSummaryTransport{
+		DocumentID:    v.DocumentID,
+		Filename:      v.Filename,
+		Kind:          v.Kind,
+		ApplicationID: v.ApplicationID,
+		FileType:      v.FileType,
+		Summary:       v.Summary,
 	}
 
 	return res

@@ -12,6 +12,7 @@ import (
 	"net/http"
 
 	loomhttp "github.com/CaliLuke/loom/http"
+	loomtransport "github.com/CaliLuke/loom/observability/transport"
 	loom "github.com/CaliLuke/loom/pkg"
 	usersalias "github.com/CaliLuke/luke/backend-go/gen/users_alias"
 )
@@ -94,15 +95,19 @@ func NewProfileHandler(
 		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, loom.MethodKey, "profile")
 		ctx = context.WithValue(ctx, loom.ServiceKey, "users_alias")
+		obs, w := loomtransport.BeginHTTPRequest(ctx, w, "users_alias", "profile", r)
+		defer obs.End()
 		var err error
 		res, err := endpoint(ctx, nil)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonHandlerError)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
 			return
 		}
 		if err := encodeResponse(ctx, w, res); err != nil {
+			obs.Fail(loomtransport.ReasonResponseWriteFailed)
 			if errhandler != nil {
 				errhandler(ctx, w, err)
 			}
@@ -138,15 +143,19 @@ func NewDeleteAccountHandler(
 		ctx := context.WithValue(r.Context(), loomhttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, loom.MethodKey, "delete_account")
 		ctx = context.WithValue(ctx, loom.ServiceKey, "users_alias")
+		obs, w := loomtransport.BeginHTTPRequest(ctx, w, "users_alias", "delete_account", r)
+		defer obs.End()
 		var err error
 		res, err := endpoint(ctx, nil)
 		if err != nil {
+			obs.Fail(loomtransport.ReasonHandlerError)
 			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
 				errhandler(ctx, w, err)
 			}
 			return
 		}
 		if err := encodeResponse(ctx, w, res); err != nil {
+			obs.Fail(loomtransport.ReasonResponseWriteFailed)
 			if errhandler != nil {
 				errhandler(ctx, w, err)
 			}

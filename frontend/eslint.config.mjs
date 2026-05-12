@@ -65,6 +65,19 @@ const eslintConfig = defineConfig([
       "max-lines": "off",
     },
   },
+  {
+    // Components installed via the shadcn registry (assistant-ui, shadcn ui).
+    // We own them but didn't author them — relax style/strictness rules.
+    files: ["src/components/assistant-ui/**", "src/components/ui/**"],
+    rules: {
+      "simple-import-sort/imports": "off",
+      "simple-import-sort/exports": "off",
+      "react-hooks/react-compiler": "off",
+      "react-hooks/set-state-in-effect": "off",
+      "@next/next/no-img-element": "off",
+      "max-lines": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

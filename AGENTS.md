@@ -46,6 +46,19 @@ Use TypeScript for the frontend and Go for the Loom backend. Match the existing 
 
 Frontend linting uses ESLint 9 with `eslint-config-next/core-web-vitals` and TypeScript rules. For the Loom backend, use `gofmt` and regenerate generated code after design changes.
 
+## Assistant Chat UI: lean on assistant-ui
+
+The assistant chat (`/assistant-next` and the application-scoped variant) is built on the [`@assistant-ui/react`](https://www.assistant-ui.com/) library. When extending or modifying chat surfaces, **prefer the library's primitives and patterns over hand-rolled components**:
+
+- **Composer extensions**: build on `ComposerPrimitive` (e.g. `ComposerPrimitive.Unstable_TriggerPopover` for slash/mention menus, `ComposerPrimitive.AddAttachment`, `ComposerPrimitive.Send`/`Cancel`). Don't replace the composer wholesale — extend it.
+- **Message rendering**: route per-event UI through `makeAssistantToolUI({ toolName, render })` so the polished `Thread`'s `GroupedParts` picks the renderer up automatically. Add new SSE event types to the tool-name set rather than special-casing them in a custom message renderer.
+- **State**: keep our `useAssistantChat` hook as the single source of truth and feed assistant-ui via `useExternalStoreRuntime`. Don't introduce a second message store. For composer-adjacent state (pending workflow, side panel tabs, model selection), use small context providers mounted inside the runtime tree.
+- **Side panels, modals, dialogs**: reuse the shadcn primitives (`@/components/ui/*`) that the assistant-ui registry installs — `Avatar`, `Dialog`, `Tooltip`, `DropdownMenu`, etc. Don't re-implement them.
+- **Layout overrides on `thread.tsx`**: that file lives at `src/components/assistant-ui/thread.tsx`; it's owned (shadcn-installed) so customisation is expected, but keep edits surgical and prefer extracting into spike-folder components (e.g. `(pages)/assistant-next/*`) wired in via imports.
+- **Defer to the library's accessibility/keyboard behaviour**: the trigger popover handles arrow-key nav, Enter/Escape, etc. Don't shadow it.
+
+Before adding a new chat surface, check whether assistant-ui already exposes a primitive for it (search `@assistant-ui/react/dist/primitives` or the `llms.txt` docs). Hand-rolling is a fallback, not the default.
+
 ## Testing Guidelines
 
 There is currently no dedicated TypeScript test script or test framework configured. For now, treat TypeScript builds and frontend linting as the required regression checks. When adding frontend or transitional Express tests, colocate them near the code they cover using a clear pattern such as `*.test.ts` or `*.test.tsx`, and add the corresponding package script in `package.json`.

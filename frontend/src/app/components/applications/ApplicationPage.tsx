@@ -19,7 +19,7 @@ import {
   Table2,
   Upload,
 } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { LibraryDocumentsSection } from "@/app/components/applications/LibraryDocumentsSection";
@@ -65,7 +65,7 @@ import {
   uploadDocumentVersion,
 } from "@/app/lib/lukeApi";
 import { canonicalOwnerId, isSameOwner } from "@/app/lib/ownership";
-import { getTracer } from "@/app/lib/telemetry";
+import { getTracer, trackClick } from "@/app/lib/telemetry";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface Props {
@@ -449,13 +449,33 @@ export function ApplicationPage({ applicationId }: Props) {
   const [search, setSearch] = useState("");
 
   const router = useRouter();
+  const pathname = usePathname();
   const { saveChat } = useChatHistoryContext();
 
   function handleTabChange(newTab: Tab) {
     const base = `/applications/${applicationId}`;
+    if (newTab === "assistant") {
+      // The chat view is now its own route with a ThreadList for past
+      // conversations — no more in-page table.
+      router.push(`${base}/assistant-next`);
+      return;
+    }
     const url = newTab === "documents" ? base : `${base}?tab=${newTab}`;
     router.push(url);
   }
+
+  // Old ?tab=assistant URLs land directly on the chat now — there is
+  // no more in-page chat-list table to render.
+  useEffect(() => {
+    if (tab === "assistant") {
+      trackClick("assistant_next.legacy_tab.redirect", {
+        "application.id": applicationId,
+        "from.url": pathname,
+        "to.url": `/applications/${applicationId}/assistant-next`,
+      });
+      router.replace(`/applications/${applicationId}/assistant-next`);
+    }
+  }, [tab, applicationId, router, pathname]);
 
   useEffect(() => {
     Promise.all([
@@ -648,7 +668,7 @@ export function ApplicationPage({ applicationId }: Props) {
     setCreatingChat(true);
     try {
       const id = await saveChat(applicationId);
-      if (id) router.push(`/applications/${applicationId}/assistant/chat/${id}`);
+      if (id) router.push(`/applications/${applicationId}/assistant-next/chat/${id}`);
     } finally {
       setCreatingChat(false);
     }
@@ -1761,7 +1781,9 @@ export function ApplicationPage({ applicationId }: Props) {
                       key={chat.id}
                       onClick={() => {
                         if (renamingChatId === chat.id) return;
-                        router.push(`/applications/${applicationId}/assistant/chat/${chat.id}`);
+                        router.push(
+                          `/applications/${applicationId}/assistant-next/chat/${chat.id}`,
+                        );
                       }}
                       className="group flex h-10 cursor-pointer items-center border-b border-gray-50 pr-8 transition-colors hover:bg-gray-50"
                     >

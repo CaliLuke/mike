@@ -6,3 +6,37 @@
 // $ loom gen github.com/CaliLuke/luke/backend-go/design
 
 package http
+
+import (
+	loom "github.com/CaliLuke/loom/pkg"
+)
+
+// ValidateAttachDocumentToApplicationPayloadTransport runs the validations defined on AttachDocumentToApplicationPayloadTransport.
+func ValidateAttachDocumentToApplicationPayloadTransport(body *AttachDocumentToApplicationPayloadTransport) (err error) {
+	if body.DocumentID == nil {
+		err = loom.MergeErrors(err, loom.MissingFieldError("document_id", "body"))
+	}
+	if body.ApplicationID == nil {
+		err = loom.MergeErrors(err, loom.MissingFieldError("application_id", "body"))
+	}
+	return
+}
+
+// ValidateDeleteDocumentPayloadTransport runs the validations defined on DeleteDocumentPayloadTransport.
+func ValidateDeleteDocumentPayloadTransport(body *DeleteDocumentPayloadTransport) (err error) {
+	if body.DocumentID == nil {
+		err = loom.MergeErrors(err, loom.MissingFieldError("document_id", "body"))
+	}
+	return
+}
+
+// ValidateSaveDocumentPayloadTransport runs the validations defined on SaveDocumentPayloadTransport.
+func ValidateSaveDocumentPayloadTransport(body *SaveDocumentPayloadTransport) (err error) {
+	if body.Filename == nil {
+		err = loom.MergeErrors(err, loom.MissingFieldError("filename", "body"))
+	}
+	if body.Body == nil {
+		err = loom.MergeErrors(err, loom.MissingFieldError("body", "body"))
+	}
+	return
+}
