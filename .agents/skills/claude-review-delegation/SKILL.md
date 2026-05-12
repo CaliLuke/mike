@@ -82,7 +82,6 @@ the checks or residual risks.
 Match checks to the affected package:
 
 - Frontend: `npm run build --prefix frontend` and `npm run lint --prefix frontend`.
-- Transitional Express backend: `npm run build --prefix backend`.
 - Go backend: run from `backend-go`; prefer `./check.sh` for full gates and targeted `go test ./...` for quick verification.
 - Repo hooks: `prek run` from the repo root when staged-file hooks matter.
 

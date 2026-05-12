@@ -13,10 +13,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
-	pdf "github.com/ledongthuc/pdf"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -107,7 +108,8 @@ func Extract(ctx context.Context, filename string, data []byte) Result {
 		return finish(string(data), StatusOK, "plain_text", "")
 
 	case ".pdf":
-		text, err := extractPDF(data)
+		text, backend, err := extractPDFViaSpdf(ctx, data)
+		span.SetAttributes(attribute.String("doc.pdf_backend", backend))
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
@@ -115,6 +117,8 @@ func Extract(ctx context.Context, filename string, data []byte) Result {
 				attribute.String("doc.extract_reason", "pdf"),
 				attribute.String("doc.extract_status", string(StatusFailed)),
 			)
+			slog.ErrorContext(ctx, "textextract.pdf_failed",
+				"filename", filename, "backend", backend, "error", err.Error())
 			return Result{Status: StatusFailed, Reason: "pdf", Error: err.Error()}
 		}
 		if strings.TrimSpace(text) == "" {
@@ -154,35 +158,49 @@ func Extract(ctx context.Context, filename string, data []byte) Result {
 	return Result{Status: StatusSkipped, Reason: "unsupported_type"}
 }
 
-func extractPDF(data []byte) (string, error) {
-	reader, err := pdf.NewReader(bytes.NewReader(data), int64(len(data)))
-	if err != nil {
-		return "", err
+// spdfBinaryName is the executable we shell out to. spdf
+// (https://github.com/Fanaperana/spdf) is a Rust binary that embeds
+// Chrome's PDFium engine, giving us proper CMap / glyph-to-Unicode
+// translation that the pure-Go libraries (ledongthuc/pdf, pdfcpu)
+// can't reliably do for PDFs with custom font subsets.
+//
+// Install once per dev machine with:
+//
+//	cargo install spdf-cli --version 0.2.0-alpha.2
+const spdfBinaryName = "spdf"
+
+// extractPDFViaSpdf is the production PDF extractor. Returns the
+// extracted text plus a backend identifier we emit as a span attribute
+// so telemetry shows which path each upload took. Returns an explicit
+// error when spdf isn't on PATH so the operator gets a clear "install
+// spdf" message instead of silently falling back to a broken extractor.
+//
+// We pipe the PDF bytes via stdin (`spdf parse -`) rather than writing
+// a temp file: simpler, no FS cleanup, and matches the pattern other
+// shell-outs in this repo use (LibreOffice for DOCX preview).
+func extractPDFViaSpdf(ctx context.Context, data []byte) (text, backend string, err error) {
+	backend = "spdf"
+	bin, lookErr := exec.LookPath(spdfBinaryName)
+	if lookErr != nil {
+		return "", backend, fmt.Errorf("spdf binary not found on PATH (install with `cargo install spdf-cli --version 0.2.0-alpha.2`): %w", lookErr)
 	}
-	var out strings.Builder
-	fonts := map[string]*pdf.Font{}
-	for pageNum := 1; pageNum <= reader.NumPage(); pageNum++ {
-		page := reader.Page(pageNum)
-		if page.V.IsNull() {
-			continue
+	// --no-ocr keeps this call to the PDFium text path. Scanned / image-only
+	// docs that need OCR will produce empty output here and be reported as
+	// Status=Skipped by the caller, which is the right signal to the UI.
+	// A future flag could re-enable OCR for documents marked image-only.
+	cmd := exec.CommandContext(ctx, bin, "parse", "-", "-o", "/dev/stdout", "--no-ocr", "--quiet")
+	cmd.Stdin = bytes.NewReader(data)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if runErr := cmd.Run(); runErr != nil {
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" {
+			msg = runErr.Error()
 		}
-		text, err := page.GetPlainText(fonts)
-		if err != nil {
-			return "", err
-		}
-		text = strings.TrimSpace(text)
-		if text == "" {
-			continue
-		}
-		if out.Len() > 0 {
-			out.WriteString("\n\n")
-		}
-		out.WriteString("[Page ")
-		fmt.Fprint(&out, pageNum)
-		out.WriteString("]\n")
-		out.WriteString(text)
+		return "", backend, fmt.Errorf("spdf parse: %s", msg)
 	}
-	return out.String(), nil
+	return stdout.String(), backend, nil
 }
 
 // extractDocx pulls plain text out of a DOCX zip. Reads only word/document.xml

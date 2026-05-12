@@ -8,9 +8,8 @@ Current package layout:
 
 - `frontend/`: Next.js 16 application. App routes live in `frontend/src/app`, shared UI in `frontend/src/components/ui`, feature components in `frontend/src/app/components`, contexts in `frontend/src/contexts` and `frontend/src/app/contexts`, and static assets in `frontend/public`.
 - `backend-go/`: Active Loom Go backend. Treat Loom design files as the source of truth; generated `gen/` files must be regenerated, not hand-edited.
-- `reference/express-backend/`: Retired TypeScript/Express backend kept only as a compatibility reference for the Go port. Do not run or modify it for normal development, and do not add new product behavior there.
 
-Keep frontend-only utilities under `frontend/src/lib`. Keep Go backend business logic outside generated Loom code. Avoid cross-package imports; use API boundaries instead. If you need to understand legacy behavior, read `reference/express-backend/src`, then implement the behavior in `backend-go`.
+Keep frontend-only utilities under `frontend/src/lib`. Keep Go backend business logic outside generated Loom code. Avoid cross-package imports; use API boundaries instead.
 
 ## No Shims, No Hacks
 
@@ -162,4 +161,10 @@ Copy environment templates before local development:
 cp frontend/.env.local.example frontend/.env.local
 ```
 
-Do not commit secrets. The default Luke development path uses the local Go backend, local storage, embedded data, and Ollama. The retired Express backend under `reference/express-backend/` may still require Supabase, S3-compatible storage, hosted model keys, and LibreOffice if intentionally run for legacy comparison.
+Do not commit secrets. The default Luke development path uses the local Go backend, local storage, embedded data, and Ollama.
+
+PDF text extraction shells out to `spdf` (Rust binary that embeds PDFium). Install once per dev machine:
+
+```bash
+cargo install spdf-cli --version 0.2.0-alpha.2
+```

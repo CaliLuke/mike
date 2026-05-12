@@ -1,42 +1,25 @@
 # API Compatibility Fixtures
 
-These fixtures record the Milestone 1 compatibility contract for the retired
-Express backend now stored at `reference/express-backend`. They are
-intentionally small and synthetic: do not commit
+These fixtures record hand-authored API compatibility contracts the Go backend
+must satisfy: status codes, JSON shapes, allowed SSE event names, and required
+payload schemas. They are intentionally small and synthetic: do not commit
 private uploaded files, Supabase tokens, model keys, or production data.
 
-Run capture against the retired Express backend only when deliberately comparing
-legacy behavior, with a working `reference/express-backend/.env`:
+Replay against the active Go backend to verify the contract still holds:
 
 ```bash
-LUKE_MOCK_LLM=1 npm run dev --prefix reference/express-backend
-AUTH_TOKEN='<supabase jwt>' node backend-go/testdata/compat/scripts/capture.mjs
+node backend-go/testdata/compat/scripts/replay.mjs
 ```
 
-Capture is not a pure read-only operation. It sends real requests to the
-running backend, including `POST /user/profile` and upload/chat/tabular paths,
-so run it only against disposable local data or a fixture Supabase project.
-`LUKE_MOCK_LLM=1` removes live model calls, but it does not stop database or
-storage writes.
-
-The checked-in expectations are hand-authored compatibility contracts. Capture
-records observed status codes, JSON samples, and SSE payload type sequences for
-diffing, but it intentionally keeps the expected content types, required fields,
-allowed SSE event names, required SSE payload types, and payload schemas from
-the fixture definitions. Replay is the strict contract check.
-
-Replay against either the retired Express backend or the active Go backend:
-
-```bash
-AUTH_TOKEN='<jwt or local test token>' node backend-go/testdata/compat/scripts/replay.mjs
-```
+Capture records observed status codes, JSON samples, and SSE payload type
+sequences against a running backend; it intentionally keeps the expected
+content types, required fields, allowed SSE event names, required SSE payload
+types, and payload schemas from the fixture definitions. Replay is the strict
+contract check.
 
 Environment:
 
 - `API_BASE`: defaults to `http://localhost:3001`.
-- `AUTH_TOKEN`: optional bearer token. Required by the retired Express auth
-  middleware. The Go backend's local auth path does not require a hosted
-  Supabase token.
 - `FIXTURE_DIR`: defaults to this directory's `fixtures` folder.
 - `FIXTURE_applicationId`, `FIXTURE_reviewId`, `FIXTURE_documentId`, and
   `FIXTURE_versionId`: required when replaying parameterized application,

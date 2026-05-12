@@ -92,18 +92,6 @@ The backend data directory is durable. Stop and restart the backend with the
 same `LUKE_DATA_DIR` and `LOCAL_STORAGE_ROOT` to verify that projects,
 documents, chats, workflows, and tabular reviews persist.
 
-## Express Reference Backend
-
-The old TypeScript/Express backend has been moved to
-`reference/express-backend/`. It is retained only as a compatibility reference
-for answering "how did the original implementation behave?" questions during
-the Go port. There is intentionally no `backend/` package at the repo root, so
-`npm run dev --prefix backend` cannot accidentally start the retired backend.
-
-Do not add new product behavior to the reference backend. If you intentionally
-need to compare against it, use a disposable Supabase/R2 setup and run commands
-from `reference/express-backend/` explicitly.
-
 ## Checks
 
 ```bash
