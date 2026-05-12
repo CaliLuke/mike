@@ -5,7 +5,8 @@ Add a deferred, user-triggered metadata classifier to `documents` (kind, summary
 ## Status
 
 - 2026-05-11 — Plan created.
-- 2026-05-11 — M1 (Schema and backfill) complete. 16 existing docs backfilled to `metadata_status="unprocessed"`; new fields project to HTTP responses.
+- 2026-05-11 — M1 (Schema and backfill) complete.
+- 2026-05-11 — M2 (Classifier service) complete. 7 unit tests pass; enrichDocumentMetadata wired (M3 will expose it via HTTP). 16 existing docs backfilled to `metadata_status="unprocessed"`; new fields project to HTTP responses.
 
 ## Milestones
 
@@ -46,17 +47,17 @@ Acceptance Criteria
 
 Checklist
 
-- [ ] Create `backend-go/internal/localapi/document_metadata.go` with the `classifierSystemPrompt` constant (full prompt body in `DOCUMENT_METADATA_PLAN.md` "Classifier system prompt").
-- [ ] Define a `classifierResult` Go struct with `Kind`, `Library`, `LibraryKind`, `InterviewStage`, `Summary`, `Topics`, `CompanyRefs`, `PeopleRefs []PersonRef`, `DatedEventAt`, `SuggestedApplicationMatch`, `SuggestedDerivedFrom` and matching `json` tags.
-- [ ] Create `backend-go/internal/localapi/testdata/glean_transcript_llm_response.json` with a representative classifier output for a Glean recruiter transcript.
-- [ ] Write `TestClassifierResultParse` in `backend-go/internal/localapi/document_metadata_test.go` that reads the fixture and asserts struct fields without any LLM call.
-- [ ] Implement `enrichDocumentMetadata(ctx, docID string) error`: load Document, set `metadata_status="processing"`, load latest version's `extracted_text` via the same query path used by `readStoredExtractedText` in `assistant_agent.go`; if extraction failed, set `metadata_status="error"` with a `metadata_error` field and return nil.
-- [ ] Call `completeText(completionRequest{Model: defaultMainModel, SystemPrompt: classifierSystemPrompt, User: fmt.Sprintf("Filename: %s\n\nContent:\n%s", filename, truncated), Temperature: 0.2})` mirroring `internal/localapi/tabular_entity.go:267–279`; truncate `extracted_text` at 8000 chars.
-- [ ] Unmarshal into `classifierResult`; validate `Kind`, `LibraryKind`, `InterviewStage` against allow-lists copied from `schema.go` enums (reject unknowns by overwriting to `unclassified` / nil); cap `Topics` at 8 entries and `PeopleRefs` at 16.
-- [ ] Persist via `UPDATE documents SET ... WHERE id = $id` flipping `metadata_status="ready"` and `metadata_processed_at = time::now()`; on error path set `metadata_status="error"` and store the error message in `metadata_error` (added in Milestone 1).
-- [ ] Wrap the work in an OTel span following `internal/textextract/textextract.go:81` style; record the attributes listed in the acceptance criteria.
-- [ ] Run `cd backend-go && go test ./internal/localapi/... -run TestClassifierResultParse -v`.
-- [ ] Commit and push: `git add -A && git commit -m "Add deferred document metadata classifier service" && git push`.
+- [x] Create `backend-go/internal/localapi/document_metadata.go` with the `classifierSystemPrompt` constant (full prompt body in `DOCUMENT_METADATA_PLAN.md` "Classifier system prompt").
+- [x] Define a `classifierResult` Go struct with `Kind`, `Library`, `LibraryKind`, `InterviewStage`, `Summary`, `Topics`, `CompanyRefs`, `PeopleRefs []PersonRef`, `DatedEventAt`, `SuggestedApplicationMatch`, `SuggestedDerivedFrom` and matching `json` tags.
+- [x] Create `backend-go/internal/localapi/testdata/glean_transcript_llm_response.json` with a representative classifier output for a Glean recruiter transcript.
+- [x] Write `TestClassifierResultParse` in `backend-go/internal/localapi/document_metadata_test.go` that reads the fixture and asserts struct fields without any LLM call.
+- [x] Implement `enrichDocumentMetadata(ctx, docID string) error`: load Document, set `metadata_status="processing"`, load latest version's `extracted_text` via the same query path used by `readStoredExtractedText` in `assistant_agent.go`; if extraction failed, set `metadata_status="error"` with a `metadata_error` field and return nil.
+- [x] Call `completeText(completionRequest{Model: defaultMainModel, SystemPrompt: classifierSystemPrompt, User: fmt.Sprintf("Filename: %s\n\nContent:\n%s", filename, truncated), Temperature: 0.2})` mirroring `internal/localapi/tabular_entity.go:267–279`; truncate `extracted_text` at 8000 chars.
+- [x] Unmarshal into `classifierResult`; validate `Kind`, `LibraryKind`, `InterviewStage` against allow-lists copied from `schema.go` enums (reject unknowns by overwriting to `unclassified` / nil); cap `Topics` at 8 entries and `PeopleRefs` at 16.
+- [x] Persist via `UPDATE documents SET ... WHERE id = $id` flipping `metadata_status="ready"` and `metadata_processed_at = time::now()`; on error path set `metadata_status="error"` and store the error message in `metadata_error` (added in Milestone 1).
+- [x] Wrap the work in an OTel span following `internal/textextract/textextract.go:81` style; record the attributes listed in the acceptance criteria.
+- [x] Run `cd backend-go && go test ./internal/localapi/... -run TestClassifierResultParse -v`.
+- [x] Commit and push: `git add -A && git commit -m "Add deferred document metadata classifier service" && git push`.
 
 ### Milestone 3: Trigger and confirmation API
 

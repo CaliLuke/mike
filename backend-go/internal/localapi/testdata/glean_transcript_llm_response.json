@@ -1,0 +1,28 @@
+{
+  "kind": "interview_transcript",
+  "library": false,
+  "library_kind": null,
+  "interview_stage": "recruiter",
+  "summary": "Recruiter confirmation call for the Glean Product Manager (Agent Interoperability & Ecosystem) role. The candidate walks through career arc, deep-dives the Google Cloud 'Cloud Connect' platform, and answers prompts on prioritisation, GenAI prompt management, and seller-tooling consolidation.",
+  "topics": [
+    "product platform",
+    "gtm tooling",
+    "agentic search",
+    "seller productivity",
+    "go-to-market"
+  ],
+  "company_refs": [
+    "Glean",
+    "Google",
+    "Google Cloud",
+    "LinkedIn",
+    "Lever",
+    "Meta"
+  ],
+  "people_refs": [
+    {"name": "Luca Candela", "role": "Candidate"}
+  ],
+  "dated_event_at": "2025-11-25T00:00:00Z",
+  "suggested_application_match": "Glean Product Manager",
+  "suggested_derived_from": null
+}
