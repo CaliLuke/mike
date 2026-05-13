@@ -25,6 +25,13 @@ type documentVersionRef struct {
 	ID          string
 	StoragePath string
 	Filename    string
+	// FileType is the document's stored kind ("md", "pdf", "docx", …) and
+	// is used as a fallback when Filename has no extension (e.g. an LLM-
+	// authored doc titled "Principal Product Manager at GitHub"). Without
+	// it, /display would default to application/octet-stream and the
+	// frontend would route the bytes into docx-preview, which then crashes
+	// inside JSZip because the body isn't a ZIP.
+	FileType string
 }
 
 type workflowPayload struct {
@@ -377,6 +384,13 @@ SELECT
 		size_bytes, page_count, structure_tree.root AS structure_tree, status, created_at, updated_at,
 		current_version_id.version_number AS latest_version_number
 	 FROM documents WHERE application_id = $parent.id ORDER BY updated_at DESC) AS documents,
+	(SELECT
+		id, application_id, user_id, title, folder_id, columns_config, workflow_id, practice, row_mode, anchor_extractor, created_at, updated_at,
+		array::len(array::distinct(array::concat(
+			(SELECT VALUE document_id FROM tabular_cells WHERE review_id = $parent.id),
+			(SELECT VALUE document_id FROM tabular_review_rows WHERE review_id = $parent.id)
+		))) AS document_count
+	 FROM tabular_reviews WHERE application_id = $parent.id ORDER BY updated_at DESC) AS reviews,
 	count(SELECT 1 FROM documents WHERE application_id = $parent.id) AS document_count,
 	count(SELECT 1 FROM chats WHERE application_id = $parent.id) AS chat_count,
 	count(SELECT 1 FROM tabular_reviews WHERE application_id = $parent.id) AS review_count
@@ -440,6 +454,31 @@ func (s *Server) assignDocument(ctx context.Context, documentID, applicationID s
 	return s.getDocument(ctx, documentID)
 }
 
+// assignTabularReview moves a tabular review between application_folders.
+// folderID == nil (or "") clears the assignment, leaving the review at the
+// application root. The returned row matches the shape produced by the
+// list endpoint (folder_id + document_count) so the caller can splice it
+// straight into local state.
+func (s *Server) assignTabularReview(ctx context.Context, reviewID, applicationID string, folderID *string) (map[string]any, error) {
+	folderValue := "NONE"
+	if folderID != nil && *folderID != "" {
+		folderValue = recordID("application_folders", *folderID)
+	}
+	if _, err := s.app.DB.Query(ctx, "UPDATE "+recordID("tabular_reviews", reviewID)+
+		" SET application_id = "+recordID("applications", applicationID)+
+		", folder_id = "+folderValue+
+		", updated_at = time::now();"); err != nil {
+		return nil, err
+	}
+	rows, err := queryRows(ctx, s.app.DB, `SELECT id, application_id, user_id, title, folder_id, columns_config, workflow_id, practice, row_mode, anchor_extractor, created_at, updated_at,
+		array::len(array::distinct(array::concat(
+			(SELECT VALUE document_id FROM tabular_cells WHERE review_id = $parent.id),
+			(SELECT VALUE document_id FROM tabular_review_rows WHERE review_id = $parent.id)
+		))) AS document_count
+	FROM `+recordID("tabular_reviews", reviewID)+`;`)
+	return firstRow(rows, err)
+}
+
 func documentListQuery(where string) string {
 	return `
 SELECT
@@ -498,8 +537,9 @@ func (s *Server) updateFolderRecord(ctx context.Context, folderID string, name *
 
 func (s *Server) resolveDocumentVersion(ctx context.Context, documentID, versionID string) (documentVersionRef, error) {
 	filename := ""
+	fileType := ""
 	if versionID == "" {
-		docRows, err := queryRows(ctx, s.app.DB, "SELECT current_version_id, filename FROM "+recordID("documents", documentID)+";")
+		docRows, err := queryRows(ctx, s.app.DB, "SELECT current_version_id, filename, file_type FROM "+recordID("documents", documentID)+";")
 		if err != nil {
 			return documentVersionRef{}, err
 		}
@@ -508,6 +548,7 @@ func (s *Server) resolveDocumentVersion(ctx context.Context, documentID, version
 		}
 		versionID = trimRecord(asString(docRows[0]["current_version_id"]))
 		filename = asString(docRows[0]["filename"])
+		fileType = asString(docRows[0]["file_type"])
 	}
 	rows, err := queryRows(ctx, s.app.DB, "SELECT id, storage_path, display_name FROM "+recordID("document_versions", versionID)+";")
 	if err != nil {
@@ -519,16 +560,26 @@ func (s *Server) resolveDocumentVersion(ctx context.Context, documentID, version
 	if displayName := asString(rows[0]["display_name"]); displayName != "" {
 		filename = displayName
 	}
-	if filename == "" && documentID != "" {
-		docRows, docErr := queryRows(ctx, s.app.DB, "SELECT filename FROM "+recordID("documents", documentID)+";")
+	if (filename == "" || fileType == "") && documentID != "" {
+		docRows, docErr := queryRows(ctx, s.app.DB, "SELECT filename, file_type FROM "+recordID("documents", documentID)+";")
 		if docErr != nil {
 			return documentVersionRef{}, docErr
 		}
 		if len(docRows) > 0 {
-			filename = asString(docRows[0]["filename"])
+			if filename == "" {
+				filename = asString(docRows[0]["filename"])
+			}
+			if fileType == "" {
+				fileType = asString(docRows[0]["file_type"])
+			}
 		}
 	}
-	return documentVersionRef{ID: trimRecord(asString(rows[0]["id"])), StoragePath: asString(rows[0]["storage_path"]), Filename: filename}, nil
+	return documentVersionRef{
+		ID:          trimRecord(asString(rows[0]["id"])),
+		StoragePath: asString(rows[0]["storage_path"]),
+		Filename:    filename,
+		FileType:    fileType,
+	}, nil
 }
 
 func (s *Server) nextVersionNumber(ctx context.Context, documentID string) (int, error) {

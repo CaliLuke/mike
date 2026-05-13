@@ -70,6 +70,7 @@ func New(app *localdata.App, tel *telemetry.Telemetry) http.Handler {
 	mux.HandleFunc("PATCH /applications/{applicationId}/folders/{folderId}", server.updateFolder)
 	mux.HandleFunc("DELETE /applications/{applicationId}/folders/{folderId}", server.deleteFolder)
 	mux.HandleFunc("PATCH /applications/{applicationId}/documents/{documentId}/folder", server.moveDocument)
+	mux.HandleFunc("PATCH /applications/{applicationId}/tabular-reviews/{reviewId}/folder", server.moveTabularReview)
 	mux.HandleFunc("GET /single-documents", server.documents)
 	mux.HandleFunc("POST /single-documents", server.documents)
 	mux.HandleFunc("DELETE /single-documents/{documentId}", server.document)
@@ -499,6 +500,21 @@ func (s *Server) moveDocument(w http.ResponseWriter, r *http.Request) {
 	writeOne(w, row, err)
 }
 
+// moveTabularReview mirrors moveDocument so reviews can be filed into the
+// same application_folders that hold documents. folder_id == nil moves the
+// review back to the application root.
+func (s *Server) moveTabularReview(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		FolderID *string `json:"folder_id"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	row, err := s.assignTabularReview(r.Context(), r.PathValue("reviewId"), r.PathValue("applicationId"), req.FolderID)
+	writeOne(w, row, err)
+}
+
 func (s *Server) documents(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -535,7 +551,7 @@ func (s *Server) displayDocument(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, err)
 		return
 	}
-	body, contentType := displayBytes(version.Filename, data)
+	body, contentType := displayBytes(version.Filename, version.FileType, data)
 	w.Header().Set("Content-Type", contentType)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(body)
@@ -885,7 +901,7 @@ func (s *Server) tabularReviews(w http.ResponseWriter, r *http.Request) {
 	// document_count is the distinct doc id count across both backing tables:
 	// tabular_cells (document-row mode) and tabular_review_rows (entity-row).
 	// A given review only populates one of them, so the union covers both.
-	s.writeListOrCreate(w, r, `SELECT id, application_id, user_id, title, columns_config, workflow_id, practice, row_mode, anchor_extractor, created_at, updated_at,
+	s.writeListOrCreate(w, r, `SELECT id, application_id, user_id, title, folder_id, columns_config, workflow_id, practice, row_mode, anchor_extractor, created_at, updated_at,
 		array::len(array::distinct(array::concat(
 			(SELECT VALUE document_id FROM tabular_cells WHERE review_id = $parent.id),
 			(SELECT VALUE document_id FROM tabular_review_rows WHERE review_id = $parent.id)

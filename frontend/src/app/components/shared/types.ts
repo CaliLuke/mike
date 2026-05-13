@@ -27,6 +27,9 @@ export interface LukeApplication {
   /** Library documents linked into this application via
    * document_application_links. Populated by the backend's sub-select. */
   library_documents?: LukeLibraryDocumentBrief[];
+  /** Tabular reviews scoped to this application, projected inline so the
+   * application page can render docs + reviews in a single list. */
+  reviews?: TabularReview[];
   document_count?: number;
   chat_count?: number;
   review_count?: number;
@@ -408,6 +411,7 @@ export interface TabularReview {
   practice?: string | null;
   row_mode?: TabularRowMode | null;
   anchor_extractor?: TabularAnchorExtractor | null;
+  folder_id?: string | null;
   created_at: string;
   updated_at: string;
   document_count?: number;

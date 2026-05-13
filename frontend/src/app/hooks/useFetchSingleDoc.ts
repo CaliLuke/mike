@@ -43,9 +43,18 @@ export function useFetchSingleDoc(
         const text = await response.text();
         return { type: "text", text, markdown: contentType.includes("markdown") };
       }
-      // Drain the body so the connection is reusable.
-      await response.arrayBuffer().catch(() => {});
-      return { type: "docx" };
+      // Octet-stream / unknown: sniff the body before deciding. DOCX/ZIP
+      // files start with the PK magic (0x50 0x4B); anything else routed
+      // to docx-preview crashes inside JSZip ("Can't find end of central
+      // directory"). Falling back to text keeps a misclassified markdown
+      // or plain-text doc viewable instead of erroring out.
+      const buffer = await response.arrayBuffer();
+      const head = new Uint8Array(buffer.slice(0, 2));
+      if (head[0] === 0x50 && head[1] === 0x4b) {
+        return { type: "docx" };
+      }
+      const text = new TextDecoder("utf-8", { fatal: false }).decode(buffer);
+      return { type: "text", text, markdown: false };
     },
   });
 

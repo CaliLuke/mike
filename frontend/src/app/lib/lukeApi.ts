@@ -240,6 +240,21 @@ export async function moveDocumentToFolder(
   });
 }
 
+export async function moveTabularReviewToFolder(
+  applicationId: string,
+  reviewId: string,
+  folderId: string | null,
+): Promise<TabularReview> {
+  return apiRequest<TabularReview>(
+    `/applications/${applicationId}/tabular-reviews/${reviewId}/folder`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folder_id: folderId }),
+    },
+  );
+}
+
 export async function addDocumentToApplication(
   applicationId: string,
   documentId: string,

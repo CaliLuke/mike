@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useAssistantChat } from "@/app/hooks/useAssistantChat";
@@ -93,10 +93,14 @@ export default function AssistantNextChatPage() {
     }
   }, [handleChat, isResponseLoading, messages.length, newChatMessages]);
 
+  const [threadListCollapsed, setThreadListCollapsed] = useState(false);
   return (
     <AssistantNextRuntime chat={chat}>
       <div className="relative flex h-full w-full">
-        <ChatThreadList />
+        <ChatThreadList
+          collapsed={threadListCollapsed}
+          onToggleCollapsed={() => setThreadListCollapsed((v) => !v)}
+        />
         <div className="relative flex h-full flex-1 flex-col">
           <Thread />
         </div>

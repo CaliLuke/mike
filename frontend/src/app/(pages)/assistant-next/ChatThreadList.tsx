@@ -5,12 +5,29 @@ import {
   ThreadListItemPrimitive,
   ThreadListPrimitive,
 } from "@assistant-ui/react";
-import { MoreHorizontalIcon, PlusIcon, TrashIcon } from "lucide-react";
+import {
+  MessageSquareIcon,
+  MoreHorizontalIcon,
+  PanelLeftClose,
+  PlusIcon,
+  TrashIcon,
+} from "lucide-react";
 import { useEffect } from "react";
 
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 
 import { aniEvent } from "./observability";
+
+interface Props {
+  /**
+   * When true, render a slim 36px rail with just "+ New" and an expand
+   * affordance — keeps the chat-history nav reachable without spending
+   * 240px of horizontal real estate. The parent owns the collapsed state
+   * (e.g. AppScopedChat defaults it to true so docs get the screen).
+   */
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
+}
 
 /**
  * Past-conversation list rendered alongside the active chat. The thread
@@ -22,17 +39,56 @@ import { aniEvent } from "./observability";
  * Uses assistant-ui's headless primitives — no chat-rendering logic
  * lives here, just structure + Tailwind chrome.
  */
-export function ChatThreadList() {
+export function ChatThreadList({ collapsed = false, onToggleCollapsed }: Props = {}) {
   useEffect(() => {
     aniEvent("thread_list.mount");
     return () => aniEvent("thread_list.unmount");
   }, []);
+
+  if (collapsed) {
+    return (
+      <div className="border-border bg-background flex h-full w-9 shrink-0 flex-col items-center gap-1 border-r p-1.5">
+        {onToggleCollapsed && (
+          <TooltipIconButton
+            tooltip="Show chat history"
+            onClick={() => {
+              aniEvent("thread_list.toggle", { collapsed: false });
+              onToggleCollapsed();
+            }}
+            className="size-7"
+          >
+            <MessageSquareIcon className="size-4" />
+          </TooltipIconButton>
+        )}
+        <ThreadListPrimitive.New asChild>
+          <TooltipIconButton tooltip="New chat" className="size-7">
+            <PlusIcon className="size-4" />
+          </TooltipIconButton>
+        </ThreadListPrimitive.New>
+      </div>
+    );
+  }
+
   return (
     <ThreadListPrimitive.Root className="border-border bg-background flex h-full w-60 shrink-0 flex-col gap-1 border-r p-2">
-      <ThreadListPrimitive.New className="border-border hover:bg-muted mb-1 flex h-9 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors">
-        <PlusIcon className="size-4" />
-        New chat
-      </ThreadListPrimitive.New>
+      <div className="mb-1 flex items-center gap-1">
+        <ThreadListPrimitive.New className="border-border hover:bg-muted flex h-9 flex-1 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors">
+          <PlusIcon className="size-4" />
+          New chat
+        </ThreadListPrimitive.New>
+        {onToggleCollapsed && (
+          <TooltipIconButton
+            tooltip="Hide chat history"
+            onClick={() => {
+              aniEvent("thread_list.toggle", { collapsed: true });
+              onToggleCollapsed();
+            }}
+            className="size-9"
+          >
+            <PanelLeftClose className="size-4" />
+          </TooltipIconButton>
+        )}
+      </div>
       <div className="flex-1 overflow-y-auto">
         <ThreadListPrimitive.Items>{() => <ThreadListItem />}</ThreadListPrimitive.Items>
       </div>

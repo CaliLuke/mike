@@ -445,9 +445,12 @@ func (s *Server) buildApplicationContextPrompt(ctx context.Context, applicationI
 	)
 	defer span.End()
 
-	appRows, err := queryRows(ctx, s.app.DB,
-		"SELECT id, name, company_id.name AS company_name, job_description_url FROM applications WHERE id = "+
-			recordID("applications", applicationID)+" LIMIT 1;")
+	appRows, err := queryRows(ctx, s.app.DB, surrealSelect{
+		Fields: []string{"id", "name", "company_id.name AS company_name", "job_description_url"},
+		From:   "applications",
+		Where:  "id = " + recordID("applications", applicationID),
+		Limit:  1,
+	}.String())
 	if err != nil {
 		recordSpanError(span, err)
 		return "", err
@@ -462,9 +465,12 @@ func (s *Server) buildApplicationContextPrompt(ctx context.Context, applicationI
 	companyName := asString(app["company_name"])
 	jdURL := asString(app["job_description_url"])
 
-	docRows, err := queryRows(ctx, s.app.DB,
-		"SELECT id, filename, kind FROM documents WHERE application_id = "+
-			recordID("applications", applicationID)+" ORDER BY filename;")
+	docRows, err := queryRows(ctx, s.app.DB, surrealSelect{
+		Fields:  []string{"id", "filename", "kind"},
+		From:    "documents",
+		Where:   "application_id = " + recordID("applications", applicationID),
+		OrderBy: []string{"filename"},
+	}.String())
 	if err != nil {
 		recordSpanError(span, err)
 		return "", err

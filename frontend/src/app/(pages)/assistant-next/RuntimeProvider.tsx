@@ -146,13 +146,29 @@ function RuntimeInner({ chat, applicationId, children }: Props) {
       ? `/applications/${c.application_id}/assistant-next/chat/${c.id}`
       : `/assistant-next/chat/${c.id}`;
 
+  // assistant-ui throws "Entry not available in the store" if `threadId`
+  // points to an id missing from `threads`. That happens on first paint
+  // when chatHistory.chats hasn't loaded yet, or when the URL points at
+  // a chat that hasn't yet appeared in the scoped list (e.g. a freshly
+  // created chat). Synthesize a placeholder so the runtime can always
+  // resolve the active thread.
+  const threadEntries = scopedChats.map((c) => ({
+    status: "regular" as const,
+    id: c.id,
+    title: c.title ?? undefined,
+  }));
+  if (chat.chatId && !threadEntries.some((t) => t.id === chat.chatId)) {
+    const known = chatById.get(chat.chatId);
+    threadEntries.unshift({
+      status: "regular" as const,
+      id: chat.chatId,
+      title: known?.title ?? undefined,
+    });
+  }
+
   const threadListAdapter = {
     threadId: chat.chatId,
-    threads: scopedChats.map((c) => ({
-      status: "regular" as const,
-      id: c.id,
-      title: c.title ?? undefined,
-    })),
+    threads: threadEntries,
     onSwitchToNewThread: () => {
       aniEvent("thread_list.new", {
         "application.id": applicationId ?? null,

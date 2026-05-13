@@ -8,19 +8,27 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
+  Table2,
   Trash2,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import type { LukeDocument, LukeFolder } from "@/app/components/shared/types";
+import type { LukeDocument, LukeFolder, TabularReview } from "@/app/components/shared/types";
 import { VersionChip } from "@/app/components/shared/VersionChip";
 
 interface Props {
   applicationName?: string | null;
   documents: LukeDocument[];
   folders?: LukeFolder[];
+  /**
+   * Tabular reviews scoped to the same application. When provided they
+   * render as siblings of documents at the same folder level — the rail
+   * mirrors the application page's unified docs+reviews view.
+   */
+  reviews?: TabularReview[];
   selectedDocId?: string | null;
   onDocClick: (doc: LukeDocument) => void;
+  onReviewClick?: (review: TabularReview) => void;
   onCreateFolder?: (parentFolderId: string | null, name: string) => Promise<void>;
   onRenameFolder?: (folderId: string, name: string) => Promise<void>;
   onDeleteFolder?: (folderId: string) => Promise<void>;
@@ -48,8 +56,10 @@ export function ApplicationExplorer({
   applicationName,
   documents,
   folders = [],
+  reviews = [],
   selectedDocId,
   onDocClick,
+  onReviewClick,
   onCreateFolder,
   onRenameFolder,
   onDeleteFolder,
@@ -171,6 +181,7 @@ export function ApplicationExplorer({
       .filter((f) => f.parent_folder_id === parentId)
       .sort((a, b) => a.name.localeCompare(b.name));
     const childDocs = documents.filter((d) => (d.folder_id ?? null) === parentId);
+    const childReviews = reviews.filter((r) => (r.folder_id ?? null) === parentId);
 
     return (
       <>
@@ -273,6 +284,21 @@ export function ApplicationExplorer({
           );
         })}
 
+        {/* Tabular reviews — rendered alongside docs in the same folder.
+                  Drag-and-drop is intentionally not wired here; the docs rail
+                  is read-mostly, with full DnD living on the application page. */}
+        {childReviews.map((review) => (
+          <li
+            key={`r-${review.id}`}
+            onClick={() => onReviewClick?.(review)}
+            className="flex cursor-pointer items-center gap-2 rounded-sm py-1.5 pr-4 text-gray-600 transition-colors select-none hover:bg-gray-50 hover:text-gray-900"
+            style={{ paddingLeft: basePadding }}
+          >
+            <Table2 className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+            <span className="truncate text-xs">{review.title ?? "Untitled Review"}</span>
+          </li>
+        ))}
+
         {/* Child documents */}
         {childDocs.map((doc) => {
           const isSelected = doc.id === selectedDocId;
@@ -351,9 +377,12 @@ export function ApplicationExplorer({
       {renderLevel(null, 1)}
 
       {/* Empty state */}
-      {documents.length === 0 && folders.length === 0 && creatingIn === undefined && (
-        <li className="px-4 py-2 text-xs text-gray-400">No documents in this application.</li>
-      )}
+      {documents.length === 0 &&
+        folders.length === 0 &&
+        reviews.length === 0 &&
+        creatingIn === undefined && (
+          <li className="px-4 py-2 text-xs text-gray-400">No documents in this application.</li>
+        )}
 
       {/* Context menu */}
       {contextMenu && (

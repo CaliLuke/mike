@@ -18,14 +18,22 @@ import (
 // PDFs are returned as-is so the browser viewer (PDF.js) can render them;
 // docx is left as octet-stream so the frontend falls back to its
 // docx-preview path; plain text formats are served verbatim.
-func displayBytes(filename string, data []byte) ([]byte, string) {
-	ext := strings.ToLower(filepath.Ext(filename))
+//
+// fileType is the document's stored kind ("md", "pdf", …) used when the
+// filename has no usable extension — without it, LLM-generated documents
+// titled like "Principal Product Manager at GitHub" fall through to
+// octet-stream and the frontend tries to render them as DOCX.
+func displayBytes(filename, fileType string, data []byte) ([]byte, string) {
+	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(filename), "."))
+	if ext == "" {
+		ext = strings.ToLower(strings.TrimSpace(fileType))
+	}
 	switch ext {
-	case ".md":
+	case "md":
 		return data, "text/markdown; charset=utf-8"
-	case ".txt", ".csv", ".json":
+	case "txt", "csv", "json":
 		return data, "text/plain; charset=utf-8"
-	case ".pdf":
+	case "pdf":
 		return data, "application/pdf"
 	}
 	return data, "application/octet-stream"

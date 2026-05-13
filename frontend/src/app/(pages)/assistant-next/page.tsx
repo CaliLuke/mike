@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { useAssistantChat } from "@/app/hooks/useAssistantChat";
 import { Thread } from "@/components/assistant-ui/thread";
@@ -24,10 +24,16 @@ export default function AssistantNextPage() {
     aniEvent("page.mount", { route: "standalone.empty" });
   }, []);
   const chat = useAssistantChat({ chatRouteBase: "/assistant-next/chat" });
+  // Standalone view defaults to expanded — the thread list is the only
+  // nav surface here, so collapsing by default would orphan the user.
+  const [threadListCollapsed, setThreadListCollapsed] = useState(false);
   return (
     <AssistantNextRuntime chat={chat}>
       <div className="relative flex h-full w-full">
-        <ChatThreadList />
+        <ChatThreadList
+          collapsed={threadListCollapsed}
+          onToggleCollapsed={() => setThreadListCollapsed((v) => !v)}
+        />
         <div className="relative flex h-full flex-1 flex-col">
           <Thread />
         </div>

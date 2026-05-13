@@ -368,8 +368,10 @@ DEFINE FIELD IF NOT EXISTS created_at ON TABLE tabular_reviews TYPE datetime;
 DEFINE FIELD IF NOT EXISTS updated_at ON TABLE tabular_reviews TYPE datetime;
 DEFINE FIELD IF NOT EXISTS row_mode ON TABLE tabular_reviews TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS anchor_extractor ON TABLE tabular_reviews TYPE option<object> FLEXIBLE;
+DEFINE FIELD IF NOT EXISTS folder_id ON TABLE tabular_reviews TYPE option<record<application_folders>>;
 DEFINE INDEX IF NOT EXISTS tabular_reviews_user_idx ON TABLE tabular_reviews FIELDS user_id;
 DEFINE INDEX IF NOT EXISTS tabular_reviews_application_idx ON TABLE tabular_reviews FIELDS application_id;
+DEFINE INDEX IF NOT EXISTS tabular_reviews_folder_idx ON TABLE tabular_reviews FIELDS folder_id;
 
 DEFINE TABLE IF NOT EXISTS tabular_review_rows SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS review_id ON TABLE tabular_review_rows TYPE record<tabular_reviews>;
@@ -453,6 +455,7 @@ DEFINE EVENT IF NOT EXISTS cascade_company_delete ON TABLE companies WHEN $event
 DEFINE EVENT IF NOT EXISTS cascade_application_folder_delete ON TABLE application_folders WHEN $event = "DELETE" THEN {
 	DELETE application_folders WHERE parent_folder_id = $before.id;
 	UPDATE documents SET folder_id = NONE WHERE folder_id = $before.id;
+	UPDATE tabular_reviews SET folder_id = NONE WHERE folder_id = $before.id;
 };
 
 DEFINE EVENT IF NOT EXISTS cascade_document_delete ON TABLE documents WHEN $event = "DELETE" THEN {

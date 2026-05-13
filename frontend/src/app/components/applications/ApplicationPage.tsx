@@ -53,10 +53,10 @@ import {
   getDocumentUrl,
   listApplicationChats,
   listDocumentVersions,
-  listTabularReviews,
   type LukeDocumentVersion,
   moveDocumentToFolder,
   moveSubfolderToFolder,
+  moveTabularReviewToFolder,
   renameApplicationFolder,
   renameChat,
   renameDocumentVersion,
@@ -72,7 +72,7 @@ interface Props {
   applicationId: string;
 }
 
-type Tab = "documents" | "assistant" | "reviews";
+type Tab = "documents" | "assistant";
 
 type ContextMenu = {
   x: number;
@@ -264,11 +264,10 @@ export function ApplicationPage({ applicationId }: Props) {
   const [application, setApplication] = useState<LukeApplication | null>(null);
   const [folders, setFolders] = useState<LukeFolder[]>([]);
   const [chats, setChats] = useState<LukeChat[]>([]);
-  const [applicationReviews, setApplicationReviews] = useState<TabularReview[]>([]);
   const [loading, setLoading] = useState(true);
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const tab: Tab = tabParam === "assistant" || tabParam === "reviews" ? tabParam : "documents";
+  const tab: Tab = tabParam === "assistant" ? "assistant" : "documents";
   const [addDocsOpen, setAddDocsOpen] = useState(false);
   const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
   const { user } = useAuth();
@@ -481,15 +480,13 @@ export function ApplicationPage({ applicationId }: Props) {
     Promise.all([
       getApplication(applicationId),
       listApplicationChats(applicationId).catch(() => [] as LukeChat[]),
-      listTabularReviews(applicationId).catch(() => []),
     ])
-      .then(([proj, applicationChats, applicationReviews]) => {
+      .then(([proj, applicationChats]) => {
         setApplication(proj);
         const loadedFolders = proj.folders ?? [];
         setFolders(loadedFolders);
         setExpandedFolderIds(new Set(loadedFolders.map((f) => f.id)));
         setChats(applicationChats);
-        setApplicationReviews(applicationReviews);
       })
       .finally(() => setLoading(false));
   }, [applicationId]);
@@ -614,6 +611,9 @@ export function ApplicationPage({ applicationId }: Props) {
             documents: (prev.documents ?? []).map((d) =>
               d.folder_id && toDelete.has(d.folder_id) ? { ...d, folder_id: null } : d,
             ),
+            reviews: (prev.reviews ?? []).map((r) =>
+              r.folder_id && toDelete.has(r.folder_id) ? { ...r, folder_id: null } : r,
+            ),
           }
         : prev,
     );
@@ -726,13 +726,20 @@ export function ApplicationPage({ applicationId }: Props) {
     const trimmed = renameReviewValue.trim();
     setRenamingReviewId(null);
     if (!trimmed) return;
-    const review = applicationReviews.find((r) => r.id === reviewId);
+    const review = (application?.reviews ?? []).find((r) => r.id === reviewId);
     if (review && user?.id && review.user_id !== user.id) {
       setOwnerOnlyAction("rename this tabular review");
       return;
     }
-    setApplicationReviews((prev) =>
-      prev.map((r) => (r.id === reviewId ? { ...r, title: trimmed } : r)),
+    setApplication((prev) =>
+      prev
+        ? {
+            ...prev,
+            reviews: (prev.reviews ?? []).map((r) =>
+              r.id === reviewId ? { ...r, title: trimmed } : r,
+            ),
+          }
+        : prev,
     );
     await updateTabularReview(reviewId, { title: trimmed });
   }
@@ -829,13 +836,15 @@ export function ApplicationPage({ applicationId }: Props) {
     const ids = [...selectedReviewIds];
     setActionsOpen(false);
     const owned = ids.filter((id) => {
-      const r = applicationReviews.find((rr) => rr.id === id);
+      const r = (application?.reviews ?? []).find((rr) => rr.id === id);
       return !r || !user?.id || r.user_id === user.id;
     });
     const blocked = ids.length - owned.length;
     setSelectedReviewIds([]);
     await Promise.all(owned.map((id) => deleteTabularReview(id).catch(() => {})));
-    setApplicationReviews((prev) => prev.filter((r) => !owned.includes(r.id)));
+    setApplication((prev) =>
+      prev ? { ...prev, reviews: (prev.reviews ?? []).filter((r) => !owned.includes(r.id)) } : prev,
+    );
     if (blocked > 0) {
       setOwnerOnlyAction(
         `delete ${blocked} of the selected reviews — only the review creator can delete a review`,
@@ -858,6 +867,7 @@ export function ApplicationPage({ applicationId }: Props) {
 
   async function handleDropOnFolder(targetFolderId: string | null, dt: DataTransfer) {
     const docId = dt.getData("application/luke-doc");
+    const reviewId = dt.getData("application/luke-review");
     const subFolderId = dt.getData("application/luke-folder");
     if (docId) {
       const doc = (application?.documents ?? []).find((d) => d.id === docId);
@@ -873,6 +883,20 @@ export function ApplicationPage({ applicationId }: Props) {
           : prev,
       );
       await moveDocumentToFolder(applicationId, docId, targetFolderId);
+    } else if (reviewId) {
+      const review = (application?.reviews ?? []).find((r) => r.id === reviewId);
+      if (!review || (review.folder_id ?? null) === targetFolderId) return;
+      setApplication((prev) =>
+        prev
+          ? {
+              ...prev,
+              reviews: (prev.reviews ?? []).map((r) =>
+                r.id === reviewId ? { ...r, folder_id: targetFolderId } : r,
+              ),
+            }
+          : prev,
+      );
+      await moveTabularReviewToFolder(applicationId, reviewId, targetFolderId);
     } else if (subFolderId && subFolderId !== targetFolderId) {
       if (targetFolderId !== null && wouldCreateCycle(subFolderId, targetFolderId)) return;
       const folder = folders.find((f) => f.id === subFolderId);
@@ -926,12 +950,152 @@ export function ApplicationPage({ applicationId }: Props) {
     );
   }
 
+  // Shared review-row renderer used by the unified Documents view in both
+  // search-mode (flat) and folder-tree (per-level) layouts. Reviews share
+  // the docs table columns: Name (title), Type ("Review"), Size/Version
+  // em-dashes, Created, Updated. Clicking opens the tabular review page.
+  function renderReviewRow(review: TabularReview) {
+    const selected = selectedReviewIds.includes(review.id);
+    const isRenaming = renamingReviewId === review.id;
+    const rowBg = selected ? "bg-gray-50" : "bg-white";
+    return (
+      <div
+        key={`review-${review.id}`}
+        draggable={!isRenaming}
+        onDragStart={(e) => {
+          e.dataTransfer.setData("application/luke-review", review.id);
+          e.dataTransfer.effectAllowed = "move";
+        }}
+        onClick={() => {
+          if (isRenaming) return;
+          router.push(`/applications/${applicationId}/tabular-reviews/${review.id}`);
+        }}
+        onContextMenu={(e) => e.stopPropagation()}
+        className="group flex h-10 cursor-pointer items-center border-b border-gray-50 pr-8 transition-colors hover:bg-gray-50"
+      >
+        <div
+          className={`sticky left-0 z-[60] ${CHECK_W} flex items-center justify-center p-2 ${rowBg} group-hover:bg-gray-50`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() =>
+              setSelectedReviewIds((prev) =>
+                prev.includes(review.id)
+                  ? prev.filter((x) => x !== review.id)
+                  : [...prev, review.id],
+              )
+            }
+            className="h-2.5 w-2.5 cursor-pointer rounded border-gray-200 accent-black"
+          />
+        </div>
+        <div className={`sticky left-8 z-[60] ${NAME_COL_W} p-2 ${rowBg} group-hover:bg-gray-50`}>
+          <div className="flex items-center gap-2">
+            <Table2 className="h-4 w-4 shrink-0 text-gray-400" />
+            {isRenaming ? (
+              <input
+                autoFocus
+                value={renameReviewValue}
+                onChange={(e) => setRenameReviewValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") submitReviewRename(review.id);
+                  if (e.key === "Escape") setRenamingReviewId(null);
+                }}
+                onBlur={() => submitReviewRename(review.id)}
+                onClick={(e) => e.stopPropagation()}
+                className="min-w-0 flex-1 bg-transparent text-sm text-gray-800 outline-none"
+              />
+            ) : (
+              <span className="truncate text-sm text-gray-800">
+                {review.title ?? "Untitled Review"}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="ml-auto w-20 shrink-0 truncate text-xs text-gray-500 uppercase">Review</div>
+        <div className="w-24 shrink-0 truncate text-sm text-gray-500">
+          {(review.document_count ?? 0) > 0 ? (
+            `${review.document_count} doc${review.document_count === 1 ? "" : "s"}`
+          ) : (
+            <span className="text-gray-300">—</span>
+          )}
+        </div>
+        <div className="w-20 shrink-0 truncate text-sm text-gray-500">
+          {(review.columns_config?.length ?? 0) > 0 ? (
+            `${review.columns_config!.length} col${review.columns_config!.length === 1 ? "" : "s"}`
+          ) : (
+            <span className="text-gray-300">—</span>
+          )}
+        </div>
+        <div className="w-32 shrink-0 truncate text-sm text-gray-500">
+          {review.created_at ? (
+            formatDate(review.created_at)
+          ) : (
+            <span className="text-gray-300">—</span>
+          )}
+        </div>
+        <div className="w-32 shrink-0 truncate text-sm text-gray-500">
+          {review.updated_at ? (
+            formatDate(review.updated_at)
+          ) : (
+            <span className="text-gray-300">—</span>
+          )}
+        </div>
+        <div className="flex w-8 shrink-0 justify-end" onClick={(e) => e.stopPropagation()}>
+          <RowActions
+            onRename={() => {
+              if (user?.id && review.user_id !== user.id) {
+                setOwnerOnlyAction("rename this tabular review");
+                return;
+              }
+              setRenameReviewValue(review.title ?? "Untitled Review");
+              setRenamingReviewId(review.id);
+            }}
+            onRemoveFromFolder={
+              review.folder_id
+                ? async () => {
+                    setApplication((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            reviews: (prev.reviews ?? []).map((r) =>
+                              r.id === review.id ? { ...r, folder_id: null } : r,
+                            ),
+                          }
+                        : prev,
+                    );
+                    await moveTabularReviewToFolder(applicationId, review.id, null);
+                  }
+                : undefined
+            }
+            onDelete={async () => {
+              if (user?.id && review.user_id !== user.id) {
+                setOwnerOnlyAction("delete this tabular review");
+                return;
+              }
+              await deleteTabularReview(review.id);
+              setApplication((prev) =>
+                prev
+                  ? { ...prev, reviews: (prev.reviews ?? []).filter((r) => r.id !== review.id) }
+                  : prev,
+              );
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
+
   function renderLevel(parentId: string | null, depth: number) {
     const childFolders = folders
       .filter((f) => f.parent_folder_id === parentId)
       .sort((a, b) => a.name.localeCompare(b.name));
     const childDocs = (application?.documents ?? []).filter(
       (d) => (d.folder_id ?? null) === parentId,
+    );
+    const childReviews = (application?.reviews ?? []).filter(
+      (r) => (r.folder_id ?? null) === parentId,
     );
 
     return (
@@ -1077,6 +1241,9 @@ export function ApplicationPage({ applicationId }: Props) {
             </div>
           );
         })}
+
+        {/* Tabular reviews appear alongside docs in this folder */}
+        {childReviews.map((review) => renderReviewRow(review))}
 
         {/* Subfolders after files, sorted alphabetically */}
         {childFolders.map((folder) => {
@@ -1244,39 +1411,44 @@ export function ApplicationPage({ applicationId }: Props) {
   }
 
   const docs = application.documents || [];
+  const reviews = application.reviews ?? [];
   const q = search.toLowerCase();
   const filteredDocs = q ? docs.filter((d) => d.filename.toLowerCase().includes(q)) : docs;
   const filteredChats = q ? chats.filter((c) => (c.title ?? "").toLowerCase().includes(q)) : chats;
   const filteredReviews = q
-    ? applicationReviews.filter((r) => (r.title ?? "").toLowerCase().includes(q))
-    : applicationReviews;
+    ? reviews.filter((r) => (r.title ?? "").toLowerCase().includes(q))
+    : reviews;
 
-  const allDocsSelected =
-    filteredDocs.length > 0 && filteredDocs.every((d) => selectedDocIds.includes(d.id));
-  const someDocsSelected =
-    !allDocsSelected && filteredDocs.some((d) => selectedDocIds.includes(d.id));
+  // In the unified Documents view, the header checkbox + bulk actions span
+  // both docs and reviews. Selection state is still kept in two arrays
+  // because the delete/move calls go to different endpoints — they're
+  // joined here for the toolbar's "all selected" indicators.
+  const allDocsAndReviewsSelected =
+    filteredDocs.length + filteredReviews.length > 0 &&
+    filteredDocs.every((d) => selectedDocIds.includes(d.id)) &&
+    filteredReviews.every((r) => selectedReviewIds.includes(r.id));
+  const someDocsAndReviewsSelected =
+    !allDocsAndReviewsSelected &&
+    (filteredDocs.some((d) => selectedDocIds.includes(d.id)) ||
+      filteredReviews.some((r) => selectedReviewIds.includes(r.id)));
   const allChatsSelected =
     filteredChats.length > 0 && filteredChats.every((c) => selectedChatIds.includes(c.id));
   const someChatsSelected =
     !allChatsSelected && filteredChats.some((c) => selectedChatIds.includes(c.id));
-  const allReviewsSelected =
-    filteredReviews.length > 0 && filteredReviews.every((r) => selectedReviewIds.includes(r.id));
-  const someReviewsSelected =
-    !allReviewsSelected && filteredReviews.some((r) => selectedReviewIds.includes(r.id));
 
   const currentSelectionCount =
-    tab === "documents"
-      ? selectedDocIds.length
-      : tab === "assistant"
-        ? selectedChatIds.length
-        : selectedReviewIds.length;
+    tab === "documents" ? selectedDocIds.length + selectedReviewIds.length : selectedChatIds.length;
 
+  const handleDeleteSelectedAll = async () => {
+    // Dispatch in parallel to the right backends. Both helpers already
+    // close the Actions menu and warn about owner-only failures.
+    await Promise.all([
+      selectedDocIds.length > 0 ? handleDeleteSelectedDocs() : Promise.resolve(),
+      selectedReviewIds.length > 0 ? handleDeleteSelectedReviews() : Promise.resolve(),
+    ]);
+  };
   const handleDeleteSelected =
-    tab === "documents"
-      ? handleDeleteSelectedDocs
-      : tab === "assistant"
-        ? handleDeleteSelectedChats
-        : handleDeleteSelectedReviews;
+    tab === "documents" ? handleDeleteSelectedAll : handleDeleteSelectedChats;
 
   const actionsDropdown =
     currentSelectionCount > 0 ? (
@@ -1459,7 +1631,6 @@ export function ApplicationPage({ applicationId }: Props) {
         tabs={[
           { id: "documents", label: "Documents" },
           { id: "assistant", label: "Assistant" },
-          { id: "reviews", label: "Tabular Reviews" },
         ]}
         active={tab}
         onChange={handleTabChange}
@@ -1480,13 +1651,18 @@ export function ApplicationPage({ applicationId }: Props) {
                 >
                   <input
                     type="checkbox"
-                    checked={allDocsSelected}
+                    checked={allDocsAndReviewsSelected}
                     ref={(el) => {
-                      if (el) el.indeterminate = someDocsSelected;
+                      if (el) el.indeterminate = someDocsAndReviewsSelected;
                     }}
                     onChange={() => {
-                      if (allDocsSelected) setSelectedDocIds([]);
-                      else setSelectedDocIds(filteredDocs.map((d) => d.id));
+                      if (allDocsAndReviewsSelected) {
+                        setSelectedDocIds([]);
+                        setSelectedReviewIds([]);
+                      } else {
+                        setSelectedDocIds(filteredDocs.map((d) => d.id));
+                        setSelectedReviewIds(filteredReviews.map((r) => r.id));
+                      }
                     }}
                     className="h-2.5 w-2.5 cursor-pointer rounded border-gray-200 accent-black"
                   />
@@ -1509,7 +1685,7 @@ export function ApplicationPage({ applicationId }: Props) {
                 )}
 
                 {/* Empty state */}
-                {docs.length === 0 && folders.length === 0 ? (
+                {docs.length === 0 && folders.length === 0 && reviews.length === 0 ? (
                   <div
                     onClick={() => setAddDocsOpen(true)}
                     className="flex flex-1 cursor-pointer flex-col items-center justify-center py-24 text-center"
@@ -1546,7 +1722,8 @@ export function ApplicationPage({ applicationId }: Props) {
                       await handleDropOnFolder(null, e.dataTransfer);
                     }}
                   >
-                    {/* Search: flat list; no search: folder tree */}
+                    {/* Search: flat list (docs + reviews); no search: folder tree */}
+                    {q ? filteredReviews.map((review) => renderReviewRow(review)) : null}
                     {q
                       ? filteredDocs.map((doc) => {
                           const isProcessing =
@@ -1853,142 +2030,6 @@ export function ApplicationPage({ applicationId }: Props) {
                             traceChatOwnerAction("delete", chat, "application.row", true);
                             await deleteChat(chat.id);
                             setChats((prev) => prev.filter((c) => c.id !== chat.id));
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Tab: Reviews */}
-          {tab === "reviews" && (
-            <>
-              <div className="flex h-8 items-center border-b border-gray-200 pr-8 text-xs font-medium text-gray-500 select-none">
-                <div
-                  className={`sticky left-0 z-[60] ${CHECK_W} relative flex items-center justify-center self-stretch bg-white before:absolute before:inset-x-0 before:bottom-0 before:h-px before:bg-white`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={allReviewsSelected}
-                    ref={(el) => {
-                      if (el) el.indeterminate = someReviewsSelected;
-                    }}
-                    onChange={() => {
-                      if (allReviewsSelected) setSelectedReviewIds([]);
-                      else setSelectedReviewIds(filteredReviews.map((r) => r.id));
-                    }}
-                    className="h-2.5 w-2.5 cursor-pointer rounded border-gray-200 accent-black"
-                  />
-                </div>
-                <div className={`sticky left-8 z-[60] ${NAME_COL_W} bg-white pl-2 text-left`}>
-                  Name
-                </div>
-                <div className="ml-auto w-24 shrink-0 text-left">Columns</div>
-                <div className="w-24 shrink-0 text-left">Documents</div>
-                <div className="w-32 shrink-0 text-left">Created</div>
-                <div className="w-8 shrink-0" />
-              </div>
-              {applicationReviews.length === 0 ? (
-                <div className="mx-auto flex w-full max-w-xs flex-col items-start py-24">
-                  <Table2 className="mb-4 h-8 w-8 text-gray-300" />
-                  <p className="font-serif text-2xl font-medium text-gray-900">Tabular Reviews</p>
-                  <p className="mt-1 max-w-xs text-xs text-gray-400">
-                    Extract data from application documents into tables using AI.
-                  </p>
-                  <button
-                    onClick={handleNewReview}
-                    disabled={creatingReview || docs.length === 0}
-                    className="mt-4 inline-flex items-center gap-1 rounded-full bg-gray-900 px-3 py-1 text-xs font-medium text-white shadow-md transition-colors hover:bg-gray-700 disabled:opacity-40"
-                  >
-                    + Create New
-                  </button>
-                </div>
-              ) : (
-                <div>
-                  {filteredReviews.map((review) => (
-                    <div
-                      key={review.id}
-                      onClick={() => {
-                        if (renamingReviewId === review.id) return;
-                        router.push(`/applications/${applicationId}/tabular-reviews/${review.id}`);
-                      }}
-                      className="group flex h-10 cursor-pointer items-center border-b border-gray-50 pr-8 transition-colors hover:bg-gray-50"
-                    >
-                      <div
-                        className={`sticky left-0 z-[60] ${CHECK_W} flex items-center justify-center p-2 ${selectedReviewIds.includes(review.id) ? "bg-gray-50" : "bg-white"} group-hover:bg-gray-50`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedReviewIds.includes(review.id)}
-                          onChange={() =>
-                            setSelectedReviewIds((prev) =>
-                              prev.includes(review.id)
-                                ? prev.filter((x) => x !== review.id)
-                                : [...prev, review.id],
-                            )
-                          }
-                          className="h-2.5 w-2.5 cursor-pointer rounded border-gray-200 accent-black"
-                        />
-                      </div>
-                      <div
-                        className={`sticky left-8 z-[60] ${NAME_COL_W} p-2 ${selectedReviewIds.includes(review.id) ? "bg-gray-50" : "bg-white"} group-hover:bg-gray-50`}
-                      >
-                        {renamingReviewId === review.id ? (
-                          <input
-                            autoFocus
-                            value={renameReviewValue}
-                            onChange={(e) => setRenameReviewValue(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") submitReviewRename(review.id);
-                              if (e.key === "Escape") setRenamingReviewId(null);
-                            }}
-                            onBlur={() => submitReviewRename(review.id)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-full bg-transparent text-sm text-gray-800 outline-none"
-                          />
-                        ) : (
-                          <span className="block truncate text-sm text-gray-800">
-                            {review.title ?? "Untitled Review"}
-                          </span>
-                        )}
-                      </div>
-                      <div className="ml-auto w-24 shrink-0 truncate text-sm text-gray-500">
-                        {review.columns_config?.length ?? 0}
-                      </div>
-                      <div className="w-24 shrink-0 truncate text-sm text-gray-500">
-                        {review.document_count ?? 0}
-                      </div>
-                      <div className="w-32 shrink-0 truncate text-sm text-gray-500">
-                        {review.created_at ? (
-                          formatDate(review.created_at)
-                        ) : (
-                          <span className="text-gray-300">—</span>
-                        )}
-                      </div>
-                      <div
-                        className="flex w-8 shrink-0 justify-end"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <RowActions
-                          onRename={() => {
-                            if (user?.id && review.user_id !== user.id) {
-                              setOwnerOnlyAction("rename this tabular review");
-                              return;
-                            }
-                            setRenameReviewValue(review.title ?? "Untitled Review");
-                            setRenamingReviewId(review.id);
-                          }}
-                          onDelete={async () => {
-                            if (user?.id && review.user_id !== user.id) {
-                              setOwnerOnlyAction("delete this tabular review");
-                              return;
-                            }
-                            await deleteTabularReview(review.id);
-                            setApplicationReviews((prev) => prev.filter((r) => r.id !== review.id));
                           }}
                         />
                       </div>
